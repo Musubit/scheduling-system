@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Teacher, Classroom, Course, ClassGroup } from '@/types'
+import { DEPT_NAME_MAP, DEPT_CODE_MAP } from '@/types'
 import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups } from '../../bindings/scheduling-system/services/resourceservice'
 import type { models } from '../../bindings/scheduling-system/services/models'
 import { useAppStore } from './app'
@@ -12,6 +13,14 @@ export const useResourceStore = defineStore('resource', () => {
   const activeTab = ref<'teacher' | 'classroom' | 'course' | 'class'>('teacher')
   const isLoading = ref(false)
   const appStore = useAppStore()
+
+  // Match dept against filter (handles both code like "cs" and Chinese like "计算机学院")
+  function deptMatch(itemDept: string): boolean {
+    if (appStore.deptFilter === '全部院系') return true
+    return itemDept === appStore.deptFilter ||
+      DEPT_NAME_MAP[itemDept] === appStore.deptFilter ||
+      DEPT_CODE_MAP[itemDept] === appStore.deptFilter
+  }
 
   function switchTab(tab: 'teacher' | 'classroom' | 'course' | 'class') {
     activeTab.value = tab
@@ -36,9 +45,7 @@ export const useResourceStore = defineStore('resource', () => {
       const q = teacherSearch.value.toLowerCase()
       list = list.filter(t => t.name.includes(q) || t.code.toLowerCase().includes(q))
     }
-    if (appStore.deptFilter !== '全部院系') {
-      list = list.filter(t => t.dept === appStore.deptFilter)
-    }
+    list = list.filter(t => deptMatch(t.dept))
     return list
   })
 
@@ -54,9 +61,7 @@ export const useResourceStore = defineStore('resource', () => {
       const q = courseSearch.value.toLowerCase()
       list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
     }
-    if (appStore.deptFilter !== '全部院系') {
-      list = list.filter(c => c.dept === appStore.deptFilter)
-    }
+    list = list.filter(c => deptMatch(c.dept))
     return list
   })
 
@@ -66,9 +71,7 @@ export const useResourceStore = defineStore('resource', () => {
       const q = classSearch.value.toLowerCase()
       list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
     }
-    if (appStore.deptFilter !== '全部院系') {
-      list = list.filter(c => c.dept === appStore.deptFilter)
-    }
+    list = list.filter(c => deptMatch(c.dept))
     return list
   })
 
