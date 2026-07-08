@@ -24,6 +24,7 @@ func main() {
 	resources := services.NewResourceService(db)
 	snapshots := services.NewSnapshotService(db)
 	scheduler := services.NewSchedulingService(db, snapshots)
+	moves := services.NewMoveService(db)
 
 	// Create Wails application
 	app := application.New(application.Options{
@@ -33,6 +34,7 @@ func main() {
 			application.NewService(resources),
 			application.NewService(scheduler),
 			application.NewService(snapshots),
+			application.NewService(moves),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
