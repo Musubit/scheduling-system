@@ -135,9 +135,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
 		saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
 
-	// Save result to database
-	err := s.db.Transaction(func(tx database.DB) error {
-		if err := tx.Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+		// Save result to database
+		err := s.db.Transaction(func(tx database.DB) error {
+			// Hard-delete old entries (Unscoped prevents soft-delete which would
+			// leave rows occupying the unique index and cause conflicts on re-insert)
+			if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
 			return fmt.Errorf("清空旧课表失败: %w", err)
 		}
 		if len(saResult.Entries) > 0 {
