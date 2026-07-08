@@ -14,8 +14,6 @@ const displayEntries = computed(() => scheduleStore.entries)
 // ---- Locked Time Slot Editing Mode ----
 const editMode = ref(false)
 const lockedSlots = ref<LockedTimeSlot[]>([])
-const dragLockStart = ref<{ day: number; period: number } | null>(null)
-const dragLockEnd = ref<{ day: number; period: number } | null>(null)
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
 const DEFAULT_LOCKED: LockedTimeSlot[] = [
@@ -57,67 +55,23 @@ function isLocked(day: number, period: number): boolean {
 function toggleLockCell(day: number, period: number) {
   if (!editMode.value) return
 
-  // Check if this cell is already part of a locked slot
+  // Always snap to even start period (2-period block, matching course span)
+  const startPeriod = period % 2 === 0 ? period : period - 1
+  const span = 2
+
   const existingIdx = lockedSlots.value.findIndex(ls =>
     ls.dayOfWeek === day &&
-    period >= ls.startPeriod &&
-    period < ls.startPeriod + ls.span
+    ls.startPeriod === startPeriod &&
+    ls.span === span
   )
 
   if (existingIdx >= 0) {
-    // Remove the locked slot containing this cell
     lockedSlots.value.splice(existingIdx, 1)
   } else {
-    // Add a 2-period lock (matching course span)
-    const span = 2
-    const startPeriod = period % 2 === 0 ? period : period - 1
     lockedSlots.value.push({ dayOfWeek: day, startPeriod, span })
   }
   saveLockedSlots()
 }
-
-// Drag-to-select in edit mode
-function onLockCellMouseDown(day: number, period: number, e: MouseEvent) {
-  if (!editMode.value) return
-  dragLockStart.value = { day, period }
-  dragLockEnd.value = { day, period }
-}
-
-function onLockCellMouseEnter(day: number, period: number) {
-  if (!editMode.value || !dragLockStart.value) return
-  dragLockEnd.value = { day, period }
-}
-
-function onLockCellMouseUp() {
-  if (!editMode.value || !dragLockStart.value || !dragLockEnd.value) return
-  const { day: d1, period: p1 } = dragLockStart.value
-  const { day: d2, period: p2 } = dragLockEnd.value
-  dragLockStart.value = null
-  dragLockEnd.value = null
-
-  if (d1 !== d2) return // only handle same-day selection for now
-  const start = Math.min(p1, p2)
-  const end = Math.max(p1, p2)
-  const span = end - start + 1
-
-  if (span <= 0) return
-
-  // Toggle: if all cells in range are locked, unlock; otherwise lock
-  const allLocked = Array.from({ length: span }, (_, i) => start + i).every(p => isLocked(d1, p))
-
-  if (allLocked) {
-    // Remove all locks that overlap with this range
-    lockedSlots.value = lockedSlots.value.filter(ls =>
-      !(ls.dayOfWeek === d1 && ls.startPeriod <= end && ls.startPeriod + ls.span > start)
-    )
-  } else {
-    lockedSlots.value.push({ dayOfWeek: d1, startPeriod: start, span })
-  }
-  saveLockedSlots()
-}
-
-// Prevent default drag behavior on locked cells
-document.addEventListener('mouseup', onLockCellMouseUp)
 
 onMounted(() => {
   loadLockedSlots()
@@ -188,6 +142,7 @@ function onDragEnd() {
 
 function onDragOver(e: DragEvent, day: number, period: number) {
   if (editMode.value) return
+  if (!isDropTarget(day, period)) return  // Don't allow drop on invalid cells
   e.preventDefault()
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = 'move'
@@ -207,10 +162,16 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   dragOverDay.value = -1
   dragOverPeriod.value = -1
 
-  if (!dragEntry.value) return
-  const entry = dragEntry.value
+	  if (!dragEntry.value) return
+	  const entry = dragEntry.value
 
-  if (entry.dayOfWeek === day && entry.startPeriod === period) {
+	  // Safety check: reject drop on already occupied or locked cells
+	  if (!isDropTarget(day, period)) {
+	    dragEntry.value = null
+	    return
+	  }
+
+	  if (entry.dayOfWeek === day && entry.startPeriod === period) {
     dragEntry.value = null
     return
   }
@@ -310,8 +271,6 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             'conflict-flash': !editMode && conflictFlash?.day === di && conflictFlash?.period === pi,
             'drop-target': !editMode && dragEntry && isDropTarget(di, pi),
           }"
-          @mousedown="editMode ? onLockCellMouseDown(di, pi, $event) : undefined"
-          @mouseenter="editMode ? onLockCellMouseEnter(di, pi) : undefined"
           @click="editMode ? toggleLockCell(di, pi) : undefined"
           @dragover="!editMode ? onDragOver($event, di, pi) : undefined"
           @dragleave="!editMode ? onDragLeave : undefined"
