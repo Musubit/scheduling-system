@@ -376,10 +376,13 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 
 .empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--b3-theme-on-surface-light); font-size: 14px; }
 
-.schedule-grid { flex: 1; display: grid; grid-template-columns: 60px repeat(7, 1fr); grid-template-rows: auto repeat(11, minmax(36px, 1fr)); gap: 1px; background: var(--b3-border-color); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
+.schedule-grid { flex: 1; display: grid; grid-template-columns: 60px repeat(7, 1fr); grid-template-rows: auto repeat(11, minmax(48px, 1fr)); gap: 1px; background: var(--b3-border-color); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
 
 .edit-mode .grid-cell {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .grid-corner, .grid-header, .time-label { background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); }
@@ -391,7 +394,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 .period-num { font-weight: 600; color: var(--b3-theme-on-background); }
 .period-time { font-size: 9px; color: var(--b3-theme-on-surface-light); }
 
-.grid-cell { background: var(--b3-theme-background); min-height: 36px; overflow: hidden; position: relative; transition: background 0.15s; display: flex; align-items: center; justify-content: center; }
+.grid-cell { background: var(--b3-theme-background); min-height: 48px; overflow: hidden; position: relative; transition: background 0.15s; }
 
 /* Locked cell in view mode */
 .cell-locked:not(.cell-edit-locked) {
