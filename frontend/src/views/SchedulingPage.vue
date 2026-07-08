@@ -41,7 +41,7 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
 const weightLabels: Record<string, string> = {
   teacher_preference: '教师偏好时段',
   course_dispersed: '课程分散度',
-  teacher_days_limit: '教师到校天数',
+  teacher_days_limit: '教师到校天数（按各自MaxDays）',
   low_floor_preference: '优先低楼层',
   pe_preferred_periods: '体育课时段',
   avoid_saturday: '避开周六',
