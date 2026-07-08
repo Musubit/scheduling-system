@@ -125,26 +125,48 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 	log(fmt.Sprintf("INFO 将进行 %d 轮迭代，取最优方案", numIterations))
 
-	validStarts := []int{0, 2, 4, 6, 8}
-	scorer := NewScoringService()
+		validStarts := []int{0, 2, 4, 6, 8}
+		scorer := NewScoringService()
 
-	var bestEntries []models.ScheduleEntry
-	var bestScheduled int
-	var bestScore = -1.0
+		var bestEntries []models.ScheduleEntry
+		var bestScheduled int
+		var bestScore = -1.0
 
-	for iter := 0; iter < numIterations; iter++ {
-		iterRng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(iter*1000)))
-		var iterEntries []models.ScheduleEntry
-		roomOccupied := make(map[string]bool)
-		teacherOccupied := make(map[string]bool)
-		classOccupied := make(map[string]bool)
-		teacherLoad := make(map[uint]int)
-		scheduled := 0
+		for iter := 0; iter < numIterations; iter++ {
+			iterRng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(iter*1000)))
+			var iterEntries []models.ScheduleEntry
+			roomOccupied := make(map[string]bool)
+			teacherOccupied := make(map[string]bool)
+			classOccupied := make(map[string]bool)
+			teacherLoad := make(map[uint]int)
+			// Soft constraint tracking maps
+			courseDays := make(map[uint]map[int]bool)  // courseID -> set of days placed
+			teacherDaySet := make(map[uint]map[int]bool) // teacherID -> set of days teaching
+			scheduled := 0
 
-		for _, course := range courses {
-			placed := false
-			days := iterRng.Perm(7)
-			for _, day := range days {
+			for _, course := range courses {
+				placed := false
+				// Base day order: random
+				baseDays := iterRng.Perm(7)
+
+				// 软约束-课程分散：该课程已排的天放到末尾
+				var days []int
+				if hasConstraint(config.Constraints, "course_dispersed") {
+					fresh, used := []int{}, []int{}
+					for _, d := range baseDays {
+						if courseDays[course.ID] != nil && courseDays[course.ID][d] {
+							used = append(used, d)
+						} else {
+							fresh = append(fresh, d)
+						}
+					}
+					iterRng.Shuffle(len(fresh), func(i, j int) { fresh[i], fresh[j] = fresh[j], fresh[i] })
+					days = append(fresh, used...)
+				} else {
+					days = baseDays
+				}
+
+				for _, day := range days {
 				if placed {
 					break
 				}
@@ -198,6 +220,28 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 					for _, teacher := range teacherCandidates {
 						if teacherLoad[teacher.ID] >= 32 { // max 32 periods
 							continue
+						}
+						// 软约束-教师偏好时段：避开早课/晚课
+						if hasConstraint(config.Constraints, "teacher_preference") {
+							if teacher.PreferNoEarly && start <= 1 {
+								continue
+							}
+							if teacher.PreferNoLate && start >= 6 {
+								continue
+							}
+						}
+						// 软约束-到校天数限制：已达上限时只接受已到校的日期
+						if hasConstraint(config.Constraints, "teacher_days_limit") {
+							maxDays := teacher.MaxDaysPerWeek
+							if maxDays <= 0 {
+								maxDays = 3
+							}
+							currentDays := len(teacherDaySet[teacher.ID])
+							if currentDays >= maxDays {
+								if teacherDaySet[teacher.ID] == nil || !teacherDaySet[teacher.ID][day] {
+									continue // 已达上限且今天是新的一天，跳过
+								}
+							}
 						}
 						teacherBusy := false
 						for p := start; p < start+span; p++ {
@@ -275,6 +319,15 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 							}
 							teacherLoad[teacher.ID] += span
 							scheduled++
+							// Track soft constraint state
+							if courseDays[course.ID] == nil {
+								courseDays[course.ID] = make(map[int]bool)
+							}
+							courseDays[course.ID][day] = true
+							if teacherDaySet[teacher.ID] == nil {
+								teacherDaySet[teacher.ID] = make(map[int]bool)
+							}
+							teacherDaySet[teacher.ID][day] = true
 							placed = true
 							break
 						}
@@ -402,6 +455,16 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 	}
 
 	return count
+}
+
+// hasConstraint checks if a constraint key is in the enabled list.
+func hasConstraint(constraints []string, key string) bool {
+	for _, c := range constraints {
+		if c == key {
+			return true
+		}
+	}
+	return false
 }
 
 // deptMap maps course dept codes to teacher dept names (Chinese)
