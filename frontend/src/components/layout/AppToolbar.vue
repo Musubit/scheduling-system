@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
+import { NButton, NSelect } from 'naive-ui'
 import { useAppStore } from '../../stores/app'
 
 const appStore = useAppStore()
+
+const semesterOptions = [
+  { label: '2025-2026 第二学期', value: '2025-2026 第二学期' },
+  { label: '2025-2026 第一学期', value: '2025-2026 第一学期' },
+  { label: '2024-2025 第二学期', value: '2024-2025 第二学期' },
+]
 </script>
 
 <template>
@@ -13,6 +19,15 @@ const appStore = useAppStore()
       <span class="breadcrumb-current">{{ appStore.breadcrumbPath[1] || '' }}</span>
     </div>
     <div class="toolbar-spacer"></div>
+
+    <!-- 学期选择（仅课表中心显示） -->
+    <n-select
+      v-if="appStore.currentPage === 'schedule'"
+      v-model:value="appStore.semesterFilter"
+      :options="semesterOptions"
+      size="small"
+      style="width: 170px"
+    />
 
     <!-- 主题切换 -->
     <n-button
