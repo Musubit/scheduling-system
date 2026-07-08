@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
-import { NButton, NInput, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
+import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 
@@ -101,6 +101,61 @@ const deptOptions = [
   { label: '全部院系', value: '全部院系' },
   ...DEPARTMENTS.map(d => ({ label: d.name, value: d.name })),
 ]
+
+// ===== Modal state =====
+const showModal = ref(false)
+const editingItem = ref<any>(null)
+const formData = ref<Record<string, any>>({})
+
+function openCreate() { editingItem.value = null; formData.value = {}; showModal.value = true }
+function openEdit(row: any) { editingItem.value = row; formData.value = { ...row }; showModal.value = true }
+function closeModal() { showModal.value = false; editingItem.value = null }
+
+async function saveItem() {
+  const tab = resourceStore.activeTab
+  const data = getMockData(tab)
+  if (editingItem.value) {
+    const idx = data.findIndex((i: any) => i.id === editingItem.value.id)
+    if (idx >= 0) Object.assign(data[idx], formData.value)
+  } else {
+    data.push({ ...formData.value, id: Date.now() })
+  }
+  resourceStore.loadAll()
+  closeModal()
+}
+
+async function deleteItem(row: any) {
+  if (!confirm('确定要删除这条记录吗？')) return
+  const data = getMockData(resourceStore.activeTab)
+  const idx = data.findIndex((i: any) => i.id === row.id)
+  if (idx >= 0) data.splice(idx, 1)
+  resourceStore.loadAll()
+}
+
+function getMockData(tab: string): any[] {
+  const map: Record<string, any[]> = { teacher: mockTeachers, classroom: mockClassrooms, course: mockCourses, class: mockClasses }
+  return map[tab] || []
+}
+
+const formFields = computed(() => {
+  const fields: Record<string, { key: string; label: string; type?: string }[]> = {
+    teacher: [{ key: 'code', label: '工号' }, { key: 'name', label: '姓名' }, { key: 'dept', label: '院系' }, { key: 'title', label: '职称' }],
+    classroom: [{ key: 'code', label: '编号' }, { key: 'name', label: '教室名' }, { key: 'building', label: '教学楼' }, { key: 'capacity', label: '容量', type: 'number' }, { key: 'type', label: '类型' }],
+    course: [{ key: 'code', label: '编号' }, { key: 'name', label: '课程名' }, { key: 'dept', label: '院系' }, { key: 'credit', label: '学分', type: 'number' }, { key: 'type', label: '类型' }, { key: 'hours', label: '课时', type: 'number' }],
+    class: [{ key: 'code', label: '编号' }, { key: 'name', label: '班级名' }, { key: 'dept', label: '院系' }, { key: 'grade', label: '年级', type: 'number' }, { key: 'students', label: '人数', type: 'number' }],
+  }
+  return fields[resourceStore.activeTab] || []
+})
+
+const actionRender = (row: any) => h(NSpace, { size: 'small' }, { default: () => [
+  h(NButton, { size: 'tiny', text: true, onClick: () => openEdit(row) }, { default: () => '编辑' }),
+  h(NButton, { size: 'tiny', text: true, type: 'error', onClick: () => deleteItem(row) }, { default: () => '删除' }),
+]})
+
+const teacherCols = [...teacherColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
+const classroomCols = [...classroomColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
+const courseCols = [...courseColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
+const classCols = [...classColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
 </script>
 
 <template>
@@ -131,17 +186,33 @@ const deptOptions = [
         default-value="全部院系"
       />
       <div class="spacer"></div>
-      <n-button size="small" type="primary">+ 新增</n-button>
+      <n-button size="small" type="primary" @click="openCreate()">+ 新增</n-button>
       <n-button size="small">导入</n-button>
       <n-button size="small">导出</n-button>
     </div>
 
     <div class="resource-table">
-      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherColumns" :data="resourceStore.filteredTeachers.length ? resourceStore.filteredTeachers : mockTeachers" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomColumns" :data="resourceStore.filteredClassrooms.length ? resourceStore.filteredClassrooms : mockClassrooms" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseColumns" :data="resourceStore.filteredCourses.length ? resourceStore.filteredCourses : mockCourses" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classColumns" :data="resourceStore.filteredClasses.length ? resourceStore.filteredClasses : mockClasses" :single-line="false" size="small" />
+      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers.length ? resourceStore.filteredTeachers : mockTeachers" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms.length ? resourceStore.filteredClassrooms : mockClassrooms" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses.length ? resourceStore.filteredCourses : mockCourses" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses.length ? resourceStore.filteredClasses : mockClasses" :single-line="false" size="small" />
     </div>
+
+    <!-- Form Modal -->
+    <n-modal v-model:show="showModal" :title="(editingItem ? '编辑' : '新增') + (tabOptions.find(t => t.key === resourceStore.activeTab)?.label || '')">
+      <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
+        <div v-for="f in formFields" :key="f.key" style="display: flex; align-items: center; gap: 8px;">
+          <label style="width: 60px; font-size: 13px; color: var(--b3-theme-on-surface); flex-shrink: 0;">{{ f.label }}</label>
+          <n-input v-model:value="formData[f.key]" size="small" :placeholder="f.label" :type="f.type === 'number' ? 'number' : 'text'" style="flex: 1;" />
+        </div>
+      </div>
+      <template #footer>
+        <n-space justify="end">
+          <n-button size="small" @click="closeModal()">取消</n-button>
+          <n-button size="small" type="primary" @click="saveItem()">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
