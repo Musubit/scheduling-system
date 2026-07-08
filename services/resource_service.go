@@ -105,3 +105,25 @@ func (s *ResourceService) GetScheduleEntries(semester string) ([]models.Schedule
 	result := query.Find(&entries)
 	return entries, result.Error()
 }
+
+// ===== Settings =====
+
+func (s *ResourceService) SaveSetting(key, value string) error {
+	var setting models.Setting
+	result := s.db.Where("key = ?", key).First(&setting)
+	if result.Error() != nil {
+		// Create new
+		return s.db.Create(&models.Setting{Key: key, Value: value}).Error()
+	}
+	// Update existing
+	setting.Value = value
+	return s.db.Save(&setting).Error()
+}
+
+func (s *ResourceService) GetSetting(key string) (string, error) {
+	var setting models.Setting
+	if err := s.db.Where("key = ?", key).First(&setting).Error(); err != nil {
+		return "", err
+	}
+	return setting.Value, nil
+}

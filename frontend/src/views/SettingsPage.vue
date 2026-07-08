@@ -70,14 +70,15 @@ function removeLockedSlot(index: number) {
   saveLockedSlots()
 }
 
-function saveLockedSlots() {
+async function saveLockedSlots() {
   localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
-  // Also save to backend Setting table
+  // Persist to backend Setting table
   try {
-    import('../../bindings/scheduling-system/services/resourceservice').then(async ({ CreateSetting, UpdateSetting }) => {
-      // Simplified: use localStorage for now
-    })
-  } catch {}
+    const { SaveSetting } = await import('../../bindings/scheduling-system/services/resourceservice')
+    await SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
+  } catch {
+    console.warn('Failed to save locked slots to backend, using localStorage only')
+  }
 }
 
 loadLockedSlots()
