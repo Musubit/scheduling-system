@@ -58,8 +58,20 @@ const classOptions = computed(() => {
   if (filterDept.value) {
     list = list.filter(c => c.dept === filterDept.value)
   }
-  return list.map(c => ({ label: c.name, value: c.ID }))
+	return list.map(c => ({ label: c.name, value: c.ID }))
 })
+
+// Subsequence fuzzy match for Chinese — 搜"职师"能匹配"职业技术师范学院"
+function fuzzyFilter(pattern: string, option: { label: string; value: any }) {
+  if (!pattern) return true
+  const p = pattern.toLowerCase()
+  const l = option.label.toLowerCase()
+  let pi = 0
+  for (let li = 0; li < l.length && pi < p.length; li++) {
+    if (l[li] === p[pi]) pi++
+  }
+  return pi === p.length
+}
 
 // Whether to show the schedule
 const showSchedule = computed(() => {
@@ -182,6 +194,8 @@ const exportOptions = [
           v-model:value="filterTeacherId"
           :options="teacherOptions"
           placeholder="选择教师"
+          filterable
+          :filter="fuzzyFilter"
           clearable
           size="small"
           style="width: 120px"
@@ -192,6 +206,8 @@ const exportOptions = [
           v-model:value="filterClassId"
           :options="classOptions"
           placeholder="选择班级"
+          filterable
+          :filter="fuzzyFilter"
           clearable
           size="small"
           style="width: 140px"
