@@ -127,3 +127,60 @@ func (s *ResourceService) GetSetting(key string) (string, error) {
 	}
 	return setting.Value, nil
 }
+
+// ===== Semesters =====
+
+func (s *ResourceService) GetSemesters() ([]models.Semester, error) {
+	var semesters []models.Semester
+	result := s.db.Order("id desc").Find(&semesters)
+	return semesters, result.Error()
+}
+
+func (s *ResourceService) GetActiveSemester() (*models.Semester, error) {
+	var semester models.Semester
+	if err := s.db.Where("is_active = ?", true).First(&semester).Error(); err != nil {
+		return nil, err
+	}
+	return &semester, nil
+}
+
+func (s *ResourceService) CreateSemester(sem models.Semester) error {
+	// If this is the first semester or marked active, deactivate all others
+	if sem.IsActive {
+		var active []models.Semester
+		if err := s.db.Where("is_active = ?", true).Find(&active).Error(); err != nil {
+			return err
+		}
+		for _, a := range active {
+			a.IsActive = false
+			if err := s.db.Save(&a).Error(); err != nil {
+				return err
+			}
+		}
+	}
+	return s.db.Create(&sem).Error()
+}
+
+func (s *ResourceService) UpdateSemester(sem models.Semester) error {
+	// If activating this semester, deactivate all others
+	if sem.IsActive {
+		var active []models.Semester
+		if err := s.db.Where("is_active = ?", true).Find(&active).Error(); err != nil {
+			return err
+		}
+		for _, a := range active {
+			if a.ID == sem.ID {
+				continue
+			}
+			a.IsActive = false
+			if err := s.db.Save(&a).Error(); err != nil {
+				return err
+			}
+		}
+	}
+	return s.db.Save(&sem).Error()
+}
+
+func (s *ResourceService) DeleteSemester(id uint) error {
+	return s.db.Delete(&models.Semester{}, id).Error()
+}

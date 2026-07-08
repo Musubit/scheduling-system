@@ -44,7 +44,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 
 	// Load the entry being moved
 	var entry models.ScheduleEntry
-	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
+	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").Preload("TeachingTask").
 		First(&entry, req.EntryID).Error(); err != nil {
 		result.Valid = false
 		result.Conflicts = append(result.Conflicts, MoveConflict{
@@ -137,29 +137,47 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 	}
 
 	// 4. Check class group conflict
-	if entry.ClassGroupID != nil {
+	// Check using TeachingTask if available, otherwise fall back to ClassGroupID
+	var entryClassIDs []uint
+	if entry.TeachingTaskID != nil && entry.TeachingTask != nil {
+		var ttClasses []models.TeachingTaskClass
+		s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses)
+		for _, tc := range ttClasses {
+			entryClassIDs = append(entryClassIDs, tc.ClassGroupID)
+		}
+	} else if entry.ClassGroupID != nil {
+		entryClassIDs = append(entryClassIDs, *entry.ClassGroupID)
+	}
+
+	for _, cid := range entryClassIDs {
 		for _, other := range others {
-			if other.ClassGroupID == nil || *other.ClassGroupID != *entry.ClassGroupID {
-				continue
-			}
-			if int(other.DayOfWeek) != req.NewDay {
-				continue
-			}
-			if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
-				var cg models.ClassGroup
-				s.db.First(&cg, *entry.ClassGroupID)
-				result.Valid = false
-				result.Conflicts = append(result.Conflicts, MoveConflict{
-					Type:        "class",
-					Description: fmt.Sprintf("%s在周%s %d-%d节已有课程",
-						cg.Name,
-						models.DayOfWeek(req.NewDay).String(),
-						other.StartPeriod.DisplayNum(),
-						int(other.StartPeriod)+other.Span),
-					Entity: cg.Name,
-				})
+			// Check if other entry shares any class group
+			otherClassIDs := s.getClassIDs(other)
+			for _, otherCID := range otherClassIDs {
+				if otherCID != cid {
+					continue
+				}
+				if int(other.DayOfWeek) != req.NewDay {
+					continue
+				}
+				if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
+					var cg models.ClassGroup
+					s.db.First(&cg, cid)
+					result.Valid = false
+					result.Conflicts = append(result.Conflicts, MoveConflict{
+						Type:        "class",
+						Description: fmt.Sprintf("%s在周%s %d-%d节已有课程",
+							cg.Name,
+							models.DayOfWeek(req.NewDay).String(),
+							other.StartPeriod.DisplayNum(),
+							int(other.StartPeriod)+other.Span),
+						Entity: cg.Name,
+					})
+					goto nextClass
+				}
 			}
 		}
+	nextClass:
 	}
 
 	return result
@@ -182,4 +200,21 @@ func (s *MoveService) MoveEntry(req CheckMoveRequest) error {
 	}
 
 	return s.db.Save(&entry).Error()
+}
+
+// getClassIDs returns all class group IDs associated with a schedule entry.
+func (s *MoveService) getClassIDs(entry models.ScheduleEntry) []uint {
+	if entry.TeachingTaskID != nil {
+		var ttClasses []models.TeachingTaskClass
+		s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses)
+		ids := make([]uint, len(ttClasses))
+		for i, tc := range ttClasses {
+			ids[i] = tc.ClassGroupID
+		}
+		return ids
+	}
+	if entry.ClassGroupID != nil {
+		return []uint{*entry.ClassGroupID}
+	}
+	return nil
 }

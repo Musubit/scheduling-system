@@ -126,16 +126,8 @@ function handleNavClick(child: NavChild) {
           </div>
         </div>
       </div>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="user-avatar">李</div>
-      <div class="user-info">
-        <div class="user-name">李明华</div>
-        <div class="user-role">教务处 · 管理员</div>
-      </div>
-    </div>
-  </aside>
+	    </nav>
+	  </aside>
 </template>
 
 <style scoped>

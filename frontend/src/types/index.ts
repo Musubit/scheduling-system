@@ -55,6 +55,36 @@ export interface Semester {
   ID: number
   name: string
   isActive: boolean
+  startDate?: string // e.g. "2025-09-01"
+}
+
+/** 教学任务-班级关联 */
+export interface TeachingTaskClass {
+  ID: number
+  teachingTaskId: number
+  classGroupId: number
+  classGroup?: ClassGroup
+}
+
+/** 教学任务：一门课+一名教师+多班级 */
+export interface TeachingTask {
+  ID: number
+  courseId: number
+  teacherId: number
+  semesterId: number
+  status: 'active' | 'inactive'
+  course?: Course
+  teacher?: Teacher
+  semester?: Semester
+  classes?: TeachingTaskClass[]
+}
+
+/** 可合班建议组 */
+export interface MergeableGroup {
+  courseName: string
+  teacherName: string
+  tasks: TeachingTask[]
+  classGroups: ClassGroup[]
 }
 
 /** 排课条目 */

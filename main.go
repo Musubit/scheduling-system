@@ -22,9 +22,15 @@ func main() {
 
 	// Create services
 	resources := services.NewResourceService(db)
+	teachingTasks := services.NewTeachingTaskService(db)
 	snapshots := services.NewSnapshotService(db)
 	scheduler := services.NewSchedulingService(db, snapshots)
 	moves := services.NewMoveService(db)
+	orchestrator := services.NewSolverOrchestrator()
+
+	// Try to start OR-Tools service (non-fatal if unavailable)
+	// pythonPath and scriptPath would be resolved at runtime from embedded resources
+	_ = orchestrator
 
 	// Create Wails application
 	app := application.New(application.Options{
@@ -32,6 +38,7 @@ func main() {
 		Description: "高校智能排课管理系统",
 		Services: []application.Service{
 			application.NewService(resources),
+			application.NewService(teachingTasks),
 			application.NewService(scheduler),
 			application.NewService(snapshots),
 			application.NewService(moves),

@@ -2,8 +2,10 @@
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
+import type { TeachingTask } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
+import * as TS from '../../bindings/scheduling-system/services/teachingtaskservice'
 import * as XLSX from 'xlsx'
 import { useAppStore } from '../stores/app'
 
@@ -12,9 +14,21 @@ const resourceStore = useResourceStore()
 const dialog = useDialog()
 const message = useMessage()
 
-onMounted(() => { resourceStore.loadAll() })
+onMounted(async () => { 
+  resourceStore.loadAll()
+  try {
+    activeSemester.value = await RS.GetActiveSemester()
+    if (activeSemester.value) {
+      resourceStore.loadTeachingTasks(activeSemester.value.ID)
+    }
+  } catch { /* no active semester */ }
+})
 
-const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级' }
+const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级', teachingTask: '教学任务' }
+
+// ===== 教学任务状态 =====
+const activeSemester = ref<any>(null)
+const mergeableGroups = ref<any[]>([])
 
 // Reactive search - switches store ref based on active tab
 const searchText = computed({
@@ -24,6 +38,7 @@ const searchText = computed({
       case 'classroom': return resourceStore.classroomSearch
       case 'course': return resourceStore.courseSearch
       case 'class': return resourceStore.classSearch
+      case 'teachingTask': return resourceStore.teachingTaskSearch
       default: return ''
     }
   },
@@ -33,6 +48,7 @@ const searchText = computed({
       case 'classroom': resourceStore.classroomSearch = val; break
       case 'course': resourceStore.courseSearch = val; break
       case 'class': resourceStore.classSearch = val; break
+      case 'teachingTask': resourceStore.teachingTaskSearch = val; break
     }
   }
 })
@@ -160,8 +176,20 @@ function toggleStatus(row: any) {
   } catch { /* fallback: already updated locally */ }
 }
 
-function openCreate() { editingItem.value = null; formData.value = {}; showModal.value = true }
-function openEdit(row: any) { editingItem.value = row; formData.value = { ...row }; showModal.value = true }
+function openCreate() { 
+  if (resourceStore.activeTab === 'teachingTask') {
+    openTeachingTaskEdit()
+    return
+  }
+  editingItem.value = null; formData.value = {}; showModal.value = true 
+}
+function openEdit(row: any) { 
+  if (resourceStore.activeTab === 'teachingTask') {
+    openTeachingTaskEdit(row)
+    return
+  }
+  editingItem.value = row; formData.value = { ...row }; showModal.value = true 
+}
 function closeModal() { showModal.value = false; editingItem.value = null }
 
 async function saveItem() {
@@ -216,6 +244,12 @@ async function callCreate(tab: string, item: any) {
     case 'classroom': await RS.CreateClassroom(m); break
     case 'course': await RS.CreateCourse(m); break
     case 'class': await RS.CreateClassGroup(m); break
+    case 'teachingTask': {
+      // Extract classGroupIDs from the form data
+      const classIds = (formData.value._classIds || []) as number[]
+      await TS.CreateTeachingTask({ courseId: m.courseId, teacherId: m.teacherId, semesterId: m.semesterId, status: 'active' }, classIds)
+      break
+    }
   }
 }
 async function callUpdate(tab: string, id: number, item: any) {
@@ -225,6 +259,11 @@ async function callUpdate(tab: string, id: number, item: any) {
     case 'classroom': await RS.UpdateClassroom(m); break
     case 'course': await RS.UpdateCourse(m); break
     case 'class': await RS.UpdateClassGroup(m); break
+    case 'teachingTask': {
+      const classIds = (formData.value._classIds || []) as number[]
+      await TS.UpdateTeachingTask(id, { courseId: m.courseId, teacherId: m.teacherId, semesterId: m.semesterId, status: 'active' }, classIds)
+      break
+    }
   }
 }
 async function callDelete(tab: string, id: number) {
@@ -233,19 +272,24 @@ async function callDelete(tab: string, id: number) {
     case 'classroom': await RS.DeleteClassroom(id); break
     case 'course': await RS.DeleteCourse(id); break
     case 'class': await RS.DeleteClassGroup(id); break
+    case 'teachingTask': await TS.DeleteTeachingTask(id); break
   }
 }
-function toModel(_tab: string, item: any): any {
+function toModel(tab: string, item: any): any {
+  if (tab === 'teachingTask') {
+    return { ...item, ID: item.ID || 0, status: item.status || 'active' }
+  }
   return { ...item, ID: item.ID || 0 }
 }
 
 function getMockData(tab: string): any[] {
+  if (tab === 'teachingTask') return resourceStore.teachingTasks as any[]
   const map: Record<string, any[]> = { teacher: mockTeachers, classroom: mockClassrooms, course: mockCourses, class: mockClasses }
   return map[tab] || []
 }
 
-	const formFields = computed(() => {
-	  const fields: Record<string, { key: string; label: string; type?: string; options?: {label:string;value:any}[][]; filterable?: boolean; min?: number; max?: number }[]> = {
+		const formFields = computed(() => {
+		  const fields: Record<string, { key: string; label: string; type?: string; options?: {label:string;value:any}[] | string; filterable?: boolean; min?: number; max?: number }[]> = {
 	    teacher: [
 	      { key: 'code', label: '工号' },
 	      { key: 'name', label: '姓名' },
@@ -271,21 +315,114 @@ function getMockData(tab: string): any[] {
 	      { key: 'type', label: '类型' },
 	      { key: 'hours', label: '课时', type: 'number', min: 1 },
 	    ],
-	    class: [
-	      { key: 'code', label: '编号' },
-	      { key: 'name', label: '班级名' },
-	      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
-	      { key: 'grade', label: '年级', type: 'number', min: 2000 },
-	      { key: 'students', label: '人数', type: 'number', min: 1 },
-	    ],
-	  }
-	  return fields[resourceStore.activeTab] || []
-	})
+		    class: [
+		      { key: 'code', label: '编号' },
+		      { key: 'name', label: '班级名' },
+		      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
+		      { key: 'grade', label: '年级', type: 'number', min: 2000 },
+		      { key: 'students', label: '人数', type: 'number', min: 1 },
+		    ],
+		    teachingTask: [
+		      { key: 'courseId', label: '课程', type: 'select', options: 'courses' as any, filterable: true },
+		      { key: 'teacherId', label: '教师', type: 'select', options: 'teachers' as any, filterable: true },
+		      { key: '_classIds', label: '班级', type: 'multiSelect', options: 'classGroups' as any, filterable: true },
+		    ],
+		  }
+			  return fields[resourceStore.activeTab] || []
+			})
 
+// actionRender - shared by all tabs
 const actionRender = (row: any) => h(NSpace, { size: 'small' }, { default: () => [
   h(NButton, { size: 'tiny', text: true, onClick: () => openEdit(row) }, { default: () => '编辑' }),
   h(NButton, { size: 'tiny', text: true, type: 'error', onClick: () => deleteItem(row) }, { default: () => '删除' }),
 ]})
+
+// ===== 教学任务专用列 =====
+const teachingTaskCols = [
+  { key: 'courseName', width: 140, render: (row: any) => row.course?.name || '-' },
+  { key: 'teacherName', width: 100, render: (row: any) => row.teacher?.name || '-' },
+  { key: 'classes', width: 200, render: (row: any) => {
+    const names = (row.classes || []).map((c: any) => c.classGroup?.name || c.classGroup?.code || '').filter(Boolean)
+    return h('div', { style: 'display:flex;flex-wrap:wrap;gap:4px' }, names.map((n: string) => h(NTag, { size: 'small', bordered: false }, { default: () => n })))
+  }},
+  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+  { key: 'actions', width: 140, render: actionRender },
+]
+
+// ===== 智能检测合班 =====
+async function handleDetectMerge() {
+  if (!activeSemester.value) {
+    message.warning('请先在设置中激活一个学期')
+    return
+  }
+  try {
+    mergeableGroups.value = await TS.DetectMergeableTasks(activeSemester.value.ID) || []
+    if (mergeableGroups.value.length === 0) {
+      message.info('未发现可合班的教学任务')
+    } else {
+      message.success(`发现 ${mergeableGroups.value.length} 组可合班方案`)
+    }
+  } catch (e) {
+    message.error('检测失败：' + (e as any).message)
+  }
+}
+
+async function handleConfirmMerge(group: any) {
+  // Group contains tasks array and classGroups array
+  // We merge by keeping the first task and deleting the rest, updating classes
+  if (!group.tasks || group.tasks.length < 2) return
+  try {
+    const firstTask = group.tasks[0]
+    const allClassIds = group.classGroups.map((c: any) => c.ID)
+    await TS.UpdateTeachingTask(firstTask.ID, {
+      courseId: firstTask.courseId,
+      teacherId: firstTask.teacherId,
+      semesterId: firstTask.semesterId,
+      status: 'active',
+    }, allClassIds)
+    // Delete remaining tasks
+    for (let i = 1; i < group.tasks.length; i++) {
+      await TS.DeleteTeachingTask(group.tasks[i].ID)
+    }
+    message.success('合班完成')
+    mergeableGroups.value = []
+    if (activeSemester.value) resourceStore.loadTeachingTasks(activeSemester.value.ID)
+  } catch (e) {
+    message.error('合班失败：' + (e as any).message)
+  }
+}
+
+// 打开教学任务编辑时，加载课程/教师/班级选项
+function openTeachingTaskEdit(row?: any) {
+  const allCourses = resourceStore.courses.map(c => ({ label: `${c.code} ${c.name}`, value: c.ID }))
+  const allTeachers = resourceStore.teachers.map(t => ({ label: `${t.code} ${t.name}`, value: t.ID }))
+  const allClasses = resourceStore.classGroups.map(c => ({ label: `${c.code} ${c.name}`, value: c.ID }))
+  // Store these options for the form to use
+  ;(window as any).__ttCourseOptions = allCourses
+  ;(window as any).__ttTeacherOptions = allTeachers
+  ;(window as any).__ttClassOptions = allClasses
+  
+  if (row) {
+    editingItem.value = row
+    formData.value = { 
+      courseId: row.courseId, 
+      teacherId: row.teacherId, 
+      semesterId: row.semesterId,
+      _classIds: (row.classes || []).map((c: any) => c.classGroupId || c.ClassGroupID),
+    }
+  } else {
+    editingItem.value = null
+    formData.value = { semesterId: activeSemester.value?.ID || 0, _classIds: [] }
+  }
+  showModal.value = true
+}
+
+function resolveOptions(field: any): any[] {
+  if (field.options === 'courses') return (window as any).__ttCourseOptions || []
+  if (field.options === 'teachers') return (window as any).__ttTeacherOptions || []
+  if (field.options === 'classGroups') return (window as any).__ttClassOptions || []
+  return field.options || []
+}
 
 const teacherCols = [...teacherColumns.slice(0, -1), { key: 'actions', width: 140, render: actionRender }]
 const classroomCols = [...classroomColumns.slice(0, -1), { key: 'actions', width: 140, render: actionRender }]
@@ -343,10 +480,14 @@ function downloadTemplate() {
       headers = ['code', 'name', 'dept', 'credit', 'type', 'hours']
       example = ['CS999', '新课程', 'cs', '3.0', '专业选修', '48']
       break
-    case 'class':
-      headers = ['code', 'name', 'dept', 'grade', 'students']
-      example = ['XX2301', '班级名', '计算机学院', '2023', '60']
-      break
+	    case 'class':
+	      headers = ['code', 'name', 'dept', 'grade', 'students']
+	      example = ['XX2301', '班级名', '计算机学院', '2023', '60']
+	      break
+	    case 'teachingTask':
+	      headers = ['课程编号', '教师编号', '班级编号列表']
+	      example = ['CS301', 'T001', 'CS2301,CS2302']
+	      break
   }
   const ws = XLSX.utils.aoa_to_sheet([headers, example])
   const wb = XLSX.utils.book_new()
@@ -375,23 +516,36 @@ function downloadTemplate() {
       <n-button size="small" type="primary" @click="openCreate()">+ 新增</n-button>
       <n-button size="small" @click="triggerImport()">导入Excel</n-button>
       <n-button size="small" @click="downloadTemplate()">下载模板</n-button>
+      <n-button v-if="resourceStore.activeTab === 'teachingTask'" size="small" type="warning" @click="handleDetectMerge()">智能检测合班</n-button>
       <input ref="importFileRef" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileChange" />
     </div>
 
-    <div class="resource-table">
-      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses" :single-line="false" size="small" />
-    </div>
+	    <div class="resource-table">
+	      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers" :single-line="false" size="small" />
+	      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms" :single-line="false" size="small" />
+	      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses" :single-line="false" size="small" />
+	      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses" :single-line="false" size="small" />
+	      <div v-else-if="resourceStore.activeTab === 'teachingTask'" class="teaching-task-area">
+	        <!-- 智能检测面板 -->
+	        <div v-if="mergeableGroups.length > 0" class="merge-panel">
+	          <div class="merge-panel-title">💡 检测到可合班教学任务</div>
+	          <div v-for="(g, gi) in mergeableGroups" :key="gi" class="merge-item">
+	            <span class="merge-info">{{ g.courseName }} — {{ g.teacherName }}（{{ g.classGroups.length }}个班）</span>
+	            <n-button size="tiny" type="primary" @click="handleConfirmMerge(g)">一键合班</n-button>
+	          </div>
+	        </div>
+	        <n-data-table :columns="teachingTaskCols" :data="resourceStore.filteredTeachingTasks" :single-line="false" size="small" />
+	      </div>
+	    </div>
 
     <!-- Form Modal -->
-    <n-modal v-model:show="showModal" preset="card" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')" style="width: 480px;" :mask-closable="false">
+    <n-modal v-model:show="showModal" preset="card" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')" style="width: 520px;" :mask-closable="false">
       <n-form label-placement="left" label-width="110" :style="{ padding: '8px 0' }">
         <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
           <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
           <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
-          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="f.options" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
+          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
+          <n-select v-else-if="f.type === 'multiSelect'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :multiple="true" :clearable="true" :placeholder="'请选择' + f.label" />
           <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>
@@ -436,5 +590,40 @@ function downloadTemplate() {
   height: 200px;
   color: var(--b3-theme-on-surface);
   font-size: 14px;
+}
+
+.teaching-task-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.merge-panel {
+  background: var(--b3-warning-lightest, #fff8e1);
+  border: 1px solid var(--b3-warning, #ff9800);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.merge-panel-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.merge-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-top: 1px solid var(--b3-border-color, #e0e0e0);
+}
+
+.merge-item:first-child {
+  border-top: none;
+}
+
+.merge-info {
+  font-size: 13px;
 }
 </style>

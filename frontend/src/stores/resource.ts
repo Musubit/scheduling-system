@@ -1,16 +1,17 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Teacher, Classroom, Course, ClassGroup } from '@/types'
+import type { Teacher, Classroom, Course, ClassGroup, TeachingTask } from '@/types'
 import { DEPT_NAME_MAP, DEPT_CODE_MAP } from '@/types'
-import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups } from '../../bindings/scheduling-system/services/resourceservice'
+import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups, GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
+import { ListTeachingTasks } from '../../bindings/scheduling-system/services/teachingtaskservice'
 import type { models } from '../../bindings/scheduling-system/services/models'
 import { useAppStore } from './app'
 
 /**
- * 资源管理状态：教师、教室、课程、班级
+ * 资源管理状态：教师、教室、课程、班级、教学任务
  */
 export const useResourceStore = defineStore('resource', () => {
-  const activeTab = ref<'teacher' | 'classroom' | 'course' | 'class'>('teacher')
+  const activeTab = ref<'teacher' | 'classroom' | 'course' | 'class' | 'teachingTask'>('teacher')
   const isLoading = ref(false)
   const appStore = useAppStore()
 
@@ -22,21 +23,23 @@ export const useResourceStore = defineStore('resource', () => {
       DEPT_CODE_MAP[itemDept] === appStore.deptFilter
   }
 
-  function switchTab(tab: 'teacher' | 'classroom' | 'course' | 'class') {
-    activeTab.value = tab
-  }
+	function switchTab(tab: 'teacher' | 'classroom' | 'course' | 'class' | 'teachingTask') {
+	  activeTab.value = tab
+	}
 
-  // ===== Data =====
-  const teachers = ref<Teacher[]>([])
-  const classrooms = ref<Classroom[]>([])
-  const courses = ref<Course[]>([])
-  const classGroups = ref<ClassGroup[]>([])
+	  // ===== Data =====
+	  const teachers = ref<Teacher[]>([])
+	  const classrooms = ref<Classroom[]>([])
+	  const courses = ref<Course[]>([])
+	  const classGroups = ref<ClassGroup[]>([])
+	  const teachingTasks = ref<TeachingTask[]>([])
 
-  // ===== Filters =====
-  const teacherSearch = ref('')
-  const classroomSearch = ref('')
-  const courseSearch = ref('')
-  const classSearch = ref('')
+	  // ===== Filters =====
+	  const teacherSearch = ref('')
+	  const classroomSearch = ref('')
+	  const courseSearch = ref('')
+	  const classSearch = ref('')
+	  const teachingTaskSearch = ref('')
 
   // ===== Computed filtered lists =====
   const filteredTeachers = computed(() => {
@@ -65,44 +68,64 @@ export const useResourceStore = defineStore('resource', () => {
     return list
   })
 
-  const filteredClasses = computed(() => {
-    let list = classGroups.value
-    if (classSearch.value) {
-      const q = classSearch.value.toLowerCase()
-      list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
-    }
-    list = list.filter(c => deptMatch(c.dept))
-    return list
-  })
+	  const filteredClasses = computed(() => {
+	    let list = classGroups.value
+	    if (classSearch.value) {
+	      const q = classSearch.value.toLowerCase()
+	      list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
+	    }
+	    list = list.filter(c => deptMatch(c.dept))
+	    return list
+	  })
 
-  // ===== Load from Go backend =====
-  async function loadAll() {
-    isLoading.value = true
-    try {
-      const [t, c, co, cg] = await Promise.all([
-        GetTeachers(),
-        GetClassrooms(),
-        GetCourses(),
-        GetClassGroups(),
-      ])
-      teachers.value = t || []
-      classrooms.value = c || []
-      courses.value = co || []
-      classGroups.value = cg || []
-    } catch (e) {
-      console.warn('Failed to load resources from Go backend, using empty data:', e)
-    } finally {
-      isLoading.value = false
-    }
-  }
+	  const filteredTeachingTasks = computed(() => {
+	    let list = teachingTasks.value
+	    if (teachingTaskSearch.value) {
+	      const q = teachingTaskSearch.value.toLowerCase()
+	      list = list.filter(t => 
+	        (t.course?.name || '').toLowerCase().includes(q) ||
+	        (t.teacher?.name || '').toLowerCase().includes(q)
+	      )
+	    }
+	    return list
+	  })
 
-  return {
-    activeTab,
-    isLoading,
-    switchTab,
-    teachers, classrooms, courses, classGroups,
-    filteredTeachers, filteredClassrooms, filteredCourses, filteredClasses,
-    teacherSearch, classroomSearch, courseSearch, classSearch,
-    loadAll,
-  }
+	  // ===== Load from Go backend =====
+	  async function loadAll() {
+	    isLoading.value = true
+	    try {
+	      const [t, c, co, cg] = await Promise.all([
+	        GetTeachers(),
+	        GetClassrooms(),
+	        GetCourses(),
+	        GetClassGroups(),
+	      ])
+	      teachers.value = t || []
+	      classrooms.value = c || []
+	      courses.value = co || []
+	      classGroups.value = cg || []
+	    } catch (e) {
+	      console.warn('Failed to load resources from Go backend, using empty data:', e)
+	    } finally {
+	      isLoading.value = false
+	    }
+	  }
+
+	  async function loadTeachingTasks(semesterID: number) {
+	    try {
+	      teachingTasks.value = await ListTeachingTasks(semesterID) || []
+	    } catch (e) {
+	      console.warn('Failed to load teaching tasks:', e)
+	    }
+	  }
+
+	  return {
+	    activeTab,
+	    isLoading,
+	    switchTab,
+	    teachers, classrooms, courses, classGroups, teachingTasks,
+	    filteredTeachers, filteredClassrooms, filteredCourses, filteredClasses, filteredTeachingTasks,
+	    teacherSearch, classroomSearch, courseSearch, classSearch, teachingTaskSearch,
+	    loadAll, loadTeachingTasks,
+	  }
 })

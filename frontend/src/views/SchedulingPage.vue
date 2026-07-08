@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
-import { NButton, NSelect, NInputNumber, NCheckbox, NProgress, NTag, NSteps, NStep } from 'naive-ui'
+import { NButton, NSelect, NCheckbox, NProgress, NTag, NSteps, NStep, NCollapse, NCollapseItem, NSlider } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 
 const store = useSchedulingStore()
+const showAdvanced = ref(false)
 
 // Step indicator
 const currentStep = computed(() => {
@@ -20,10 +21,6 @@ const scopeOptions = [
   ...DEPARTMENTS.map(d => ({ label: d.name, value: d.name })),
 ]
 
-const semesterOptions = [
-  { label: '2025-2026 第二学期', value: '2025-2026 第二学期' },
-]
-
 const scoreColor = computed(() => {
   const s = store.result?.score
   if (s == null) return 'var(--b3-theme-on-surface)'
@@ -32,21 +29,30 @@ const scoreColor = computed(() => {
   return 'var(--b3-theme-error)'
 })
 
-// Per-category max score depends on how many constraints are enabled
+// Per-category max score
 const categoryMax = computed(() => {
   const count = store.config.constraints.length || 4
   return Math.round(100 / count * 100) / 100
 })
 
-// Whether a specific constraint category is enabled
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
+
+// Constraint weight labels for sliders
+const weightLabels: Record<string, string> = {
+  teacher_preference: '教师偏好时段',
+  course_dispersed: '课程分散度',
+  teacher_days_limit: '教师到校天数',
+  low_floor_preference: '优先低楼层',
+  avoid_saturday: '避开周六',
+  avoid_sunday: '避开周日',
+}
 </script>
 
 <template>
   <div class="scheduling-page">
     <!-- Quick guide -->
     <div class="quick-guide" v-if="!store.isRunning && store.progress === 0">
-      💡 <strong>操作流程：</strong>左侧配参数 → 点「开始自动排课」→ 等算法完成 → 自动跳转课表查看 → 如有冲突去「冲突检测」处理
+      💡 <strong>操作流程：</strong>选择范围 → 选择约束预设 → 点「开始自动排课」→ 查看课表结果
     </div>
 
     <div class="scheduling-layout">
@@ -54,25 +60,30 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
       <div class="config-panel">
         <h3 class="panel-title">排课参数配置</h3>
 
+        <!-- 当前学期显示 -->
+        <div class="form-group" v-if="store.activeSemesterName">
+          <label class="form-label">当前学期</label>
+          <div class="semester-badge">{{ store.activeSemesterName }}</div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">排课范围</label>
           <n-select v-model:value="store.config.scope" :options="scopeOptions" size="small" />
         </div>
 
+        <!-- 约束预设 -->
         <div class="form-group">
-          <label class="form-label">排课学期</label>
-          <n-select v-model:value="store.config.semester" :options="semesterOptions" size="small" />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">优先级策略</label>
+          <label class="form-label">约束方案</label>
           <n-select
-            v-model:value="store.config.strategy"
-            :options="store.strategyOptions.map(s => ({ label: s.label, value: s.value }))"
+            v-model:value="store.activePreset"
+            :options="store.CONSTRAINT_PRESETS.map(p => ({ label: p.label, value: p.name }))"
             size="small"
+            @update:value="store.applyPreset"
           />
+          <span class="form-hint">切换方案自动调整约束权重</span>
         </div>
 
+        <!-- 约束开关 -->
         <div class="form-group">
           <label class="form-label">约束条件</label>
           <div class="checkbox-group">
@@ -88,32 +99,43 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">求解时间</label>
-          <n-select
-            v-model:value="store.timePreset"
-            :options="store.timePresets"
-            size="small"
-          />
-          <span class="form-hint">时间越长，排课质量越高，但等待更久</span>
-        </div>
+        <!-- 高级设置 -->
+        <n-collapse class="advanced-collapse">
+          <n-collapse-item title="高级设置" name="advanced">
+            <!-- 约束权重滑块 -->
+            <div class="form-group" v-for="opt in store.constraintOptions" :key="'w-'+opt.key">
+              <label class="form-label" style="font-size:12px">{{ weightLabels[opt.key] || opt.label }}</label>
+              <n-slider
+                v-model:value="store.constraintWeights[opt.key]"
+                :min="0"
+                :max="100"
+                :step="5"
+                :disabled="!store.config.constraints.includes(opt.key)"
+              />
+            </div>
+
+            <!-- 求解引擎 -->
+            <div class="form-group">
+              <label class="form-label">求解引擎</label>
+              <n-select
+                v-model:value="store.engine"
+                :options="store.engineOptions"
+                size="small"
+              />
+              <span class="form-hint">智能模式自动选择最优引擎，OR-Tools不可用时自动降级</span>
+            </div>
+          </n-collapse-item>
+        </n-collapse>
 
         <n-button
           type="primary"
           block
+          size="large"
           :loading="store.isRunning"
           @click="store.startScheduling()"
-          style="margin-top: 12px"
+          style="margin-top: 16px"
         >
           {{ store.isRunning ? '排课中...' : '开始自动排课' }}
-        </n-button>
-        <n-button
-          v-if="store.isRunning"
-          block
-          @click="store.stopScheduling()"
-          style="margin-top: 8px"
-        >
-          停止排课
         </n-button>
       </div>
 
@@ -121,7 +143,6 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
       <div class="result-panel">
         <h3 class="panel-title">排课进度与结果</h3>
 
-        <!-- Step indicator -->
         <n-steps :current="currentStep" size="small" style="margin-bottom: 16px;">
           <n-step title="准备" description="加载资源" />
           <n-step title="清空" description="清除旧课表" />
@@ -143,11 +164,11 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
         <div class="stats-row">
           <div class="stat-card">
             <div class="stat-value">{{ store.result?.scheduled || '-' }}</div>
-            <div class="stat-label">已排课程</div>
+            <div class="stat-label">已排教学任务</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">{{ store.result?.utilization ? (store.result.utilization * 100).toFixed(1) + '%' : '-' }}</div>
-            <div class="stat-label">教室利用率</div>
+            <div class="stat-label">完成率</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" style="color: var(--b3-theme-error)">{{ store.result?.conflicts ?? '-' }}</div>
@@ -290,10 +311,24 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
   margin-top: 4px;
 }
 
+.semester-badge {
+  display: inline-block;
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .checkbox-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.advanced-collapse {
+  margin-top: 16px;
 }
 
 .progress-section {

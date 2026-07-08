@@ -1,0 +1,12 @@
+[project]
+name = "scheduling-ortools"
+version = "1.0.0"
+description = "OR-Tools CP-SAT scheduling microservice"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",
+    "ortools>=9.10",
+]
+
+[tool.uv]
+dev-dependencies = []

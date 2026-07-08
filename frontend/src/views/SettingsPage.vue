@@ -1,109 +1,102 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from 'vue'
-import { NSwitch, NButton, NInputNumber, NSelect, NSpace, NTag } from 'naive-ui'
+import { reactive, ref, onMounted } from 'vue'
+import { NSwitch, NButton, NInput, NInputNumber, NModal, NForm, NFormItem, NSelect, NSpace, NDatePicker } from 'naive-ui'
 import { useAppStore } from '../stores/app'
-import { DAY_NAMES } from '../types'
 
 const appStore = useAppStore()
 
-// Settings reactive object
+// Basic settings
 const settings = reactive({
   autoSave: true,
   realtimeCheck: true,
-  iterations: 5000,
-  maxDailyHours: 8,
-  bufferMinutes: 10,
 })
 
-// Load from localStorage
 const saved = localStorage.getItem('scheduling-settings')
 if (saved) {
   try { Object.assign(settings, JSON.parse(saved)) } catch {}
 }
 
-// Auto-save to localStorage on change
-watch(settings, (val) => {
-  localStorage.setItem('scheduling-settings', JSON.stringify(val))
-}, { deep: true })
-
-function resetDefaults() {
-  Object.assign(settings, {
-    autoSave: true,
-    realtimeCheck: true,
-    iterations: 5000,
-    maxDailyHours: 8,
-    bufferMinutes: 10,
-  })
-  alert('已恢复默认设置')
+// ===== Semester Management =====
+interface SemesterData {
+  ID: number
+  name: string
+  isActive: boolean
+  startDate: string
 }
 
-// ===== Locked Time Slots =====
-interface LockedSlot {
-  dayOfWeek: number
-  startPeriod: number
-  span: number
-}
+const semesters = ref<SemesterData[]>([])
+const showSemesterModal = ref(false)
+const editingSemester = ref<SemesterData | null>(null)
+const semesterForm = reactive({ name: '', isActive: false, startDate: '' })
 
-const lockedSlots = ref<LockedSlot[]>([])
-const newSlot = reactive<LockedSlot>({ dayOfWeek: 3, startPeriod: 4, span: 2 })
-
-// Load locked slots from backend
-async function loadLockedSlots() {
+async function loadSemesters() {
   try {
-    const { GetSettings } = await import('../../bindings/scheduling-system/services/resourceservice')
-    // Read from Setting table via resource service (simplified)
-    // For now, load from localStorage
-    const saved = localStorage.getItem('locked-time-slots')
-    if (saved) {
-      try { lockedSlots.value = JSON.parse(saved) } catch {}
-    }
-  } catch {}
-}
-
-function addLockedSlot() {
-  lockedSlots.value.push({ ...newSlot })
-  saveLockedSlots()
-}
-
-function removeLockedSlot(index: number) {
-  lockedSlots.value.splice(index, 1)
-  saveLockedSlots()
-}
-
-async function saveLockedSlots() {
-  localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
-  // Persist to backend Setting table
-  try {
-    const { SaveSetting } = await import('../../bindings/scheduling-system/services/resourceservice')
-    await SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
-  } catch {
-    console.warn('Failed to save locked slots to backend, using localStorage only')
+      const { GetSemesters } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const result = await GetSemesters()
+    semesters.value = (result || []) as SemesterData[]
+  } catch (e) {
+    console.warn('Failed to load semesters:', e)
   }
 }
 
-loadLockedSlots()
+function openNewSemester() {
+  editingSemester.value = null
+  semesterForm.name = ''
+  semesterForm.isActive = false
+  semesterForm.startDate = ''
+  showSemesterModal.value = true
+}
 
-const periodLabels = [
-  { value: 0, label: '第1节 (08:20)' },
-  { value: 2, label: '第3节 (10:15)' },
-  { value: 4, label: '第5节 (14:00)' },
-  { value: 6, label: '第7节 (15:55)' },
-  { value: 8, label: '第9节 (18:30)' },
-]
+function openEditSemester(sem: SemesterData) {
+  editingSemester.value = sem
+  semesterForm.name = sem.name
+  semesterForm.isActive = sem.isActive
+  semesterForm.startDate = sem.startDate || ''
+  showSemesterModal.value = true
+}
 
-const dayOptions = DAY_NAMES.map((name, i) => ({ value: i, label: name }))
+async function saveSemester() {
+  try {
+    const { CreateSemester, UpdateSemester } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const data = {
+      ID: editingSemester.value?.ID || 0,
+      name: semesterForm.name,
+      isActive: semesterForm.isActive,
+      startDate: semesterForm.startDate,
+    }
+    if (editingSemester.value) {
+      await UpdateSemester(data)
+    } else {
+      await CreateSemester(data)
+    }
+    await loadSemesters()
+    showSemesterModal.value = false
+  } catch (e) {
+    console.warn('Failed to save semester:', e)
+  }
+}
 
-const spanOptions = [
-  { value: 1, label: '1节' },
-  { value: 2, label: '2节' },
-  { value: 3, label: '3节' },
-]
+async function deleteSemester(id: number) {
+  if (!confirm('确定要删除该学期吗？')) return
+  try {
+    const { DeleteSemester } = await import('../../bindings/scheduling-system/services/resourceservice')
+    await DeleteSemester(id)
+    await loadSemesters()
+  } catch (e) {
+    console.warn('Failed to delete semester:', e)
+  }
+}
+
+onMounted(() => {
+  loadSemesters()
+})
 </script>
 
 <template>
   <div class="settings-page">
     <h2 class="page-title">系统设置</h2>
 
+    <!-- 基本设置 -->
     <div class="settings-section">
       <h3 class="section-title">基本设置</h3>
       <div class="setting-item">
@@ -129,59 +122,31 @@ const spanOptions = [
       </div>
     </div>
 
+    <!-- 学期管理 -->
     <div class="settings-section">
-      <h3 class="section-title">排课参数</h3>
-      <div class="setting-item">
-        <div>
-          <div class="setting-label">默认算法迭代次数</div>
-          <div class="setting-desc">自动排课时的遗传算法迭代轮数</div>
-        </div>
-        <n-input-number v-model:value="settings.iterations" :min="100" :max="50000" size="small" style="width:120px" />
-      </div>
-      <div class="setting-item">
-        <div>
-          <div class="setting-label">每日最大课时</div>
-          <div class="setting-desc">单个班级每天最多安排的课时数</div>
-        </div>
-        <n-input-number v-model:value="settings.maxDailyHours" :min="4" :max="12" size="small" style="width:120px" />
-      </div>
-      <div class="setting-item">
-        <div>
-          <div class="setting-label">教室缓冲时间</div>
-          <div class="setting-desc">两节课之间教室的间隔分钟数</div>
-        </div>
-        <n-select
-          v-model:value="settings.bufferMinutes"
-          :options="[{label:'0分钟',value:0},{label:'10分钟',value:10},{label:'15分钟',value:15},{label:'20分钟',value:20}]"
-          size="small"
-          style="width:120px"
-        />
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-title">锁定时间段</h3>
-      <div class="setting-desc" style="margin-bottom:12px">设置全校不可排课的时间段（如周四下午全院会议），排课引擎将跳过这些时段。</div>
+      <h3 class="section-title">学期管理</h3>
+      <div class="setting-desc" style="margin-bottom:12px">管理学期信息，排课时使用当前激活的学期。学期第一天用于确定日期-星期对应关系。</div>
       
-      <!-- Existing locked slots -->
-      <div v-for="(slot, idx) in lockedSlots" :key="idx" class="setting-item">
+      <div v-for="sem in semesters" :key="sem.ID" class="setting-item">
         <div>
-          <span class="setting-label">{{ DAY_NAMES[slot.dayOfWeek] }} {{ slot.startPeriod === 0 ? '1-2' : slot.startPeriod === 2 ? '3-4' : slot.startPeriod === 4 ? '5-6' : slot.startPeriod === 6 ? '7-8' : '9-11' }}节</span>
+          <span class="setting-label">
+            {{ sem.name }}
+            <span v-if="sem.isActive" style="color: var(--b3-theme-success); font-size: 11px; margin-left: 6px;">● 当前学期</span>
+          </span>
+          <div class="setting-desc" v-if="sem.startDate">学期第一天：{{ sem.startDate }}</div>
         </div>
-        <n-button size="tiny" type="error" text @click="removeLockedSlot(idx)">移除</n-button>
-      </div>
-      
-      <!-- Add new locked slot -->
-      <div class="setting-item" style="border-top:1px dashed var(--b3-border-color); padding-top:12px;">
-        <n-space align="center" :wrap="false">
-          <n-select v-model:value="newSlot.dayOfWeek" :options="dayOptions" size="tiny" style="width:80px" />
-          <n-select v-model:value="newSlot.startPeriod" :options="periodLabels" size="tiny" style="width:130px" />
-          <n-select v-model:value="newSlot.span" :options="spanOptions" size="tiny" style="width:70px" />
-          <n-button size="tiny" type="primary" @click="addLockedSlot">添加</n-button>
+        <n-space>
+          <n-button size="tiny" @click="openEditSemester(sem)">编辑</n-button>
+          <n-button size="tiny" type="error" text @click="deleteSemester(sem.ID)">删除</n-button>
         </n-space>
       </div>
+      
+      <div class="setting-item" style="border-top:1px dashed var(--b3-border-color); padding-top:12px;">
+        <n-button size="small" type="primary" @click="openNewSemester">+ 新增学期</n-button>
+      </div>
     </div>
 
+    <!-- 数据管理 -->
     <div class="settings-section">
       <h3 class="section-title">数据管理</h3>
       <div class="setting-item">
@@ -189,7 +154,7 @@ const spanOptions = [
           <div class="setting-label">数据库位置</div>
           <div class="setting-desc">SQLite 数据库文件存储路径</div>
         </div>
-        <span class="setting-value">~/scheduling/data.db</span>
+        <span class="setting-value">scheduling.db</span>
       </div>
       <div class="setting-item">
         <div>
@@ -201,14 +166,28 @@ const spanOptions = [
           <n-button size="small">导入</n-button>
         </n-space>
       </div>
-      <div class="setting-item">
-        <div>
-          <div class="setting-label">恢复默认设置</div>
-          <div class="setting-desc">将所有设置恢复为出厂默认值</div>
-        </div>
-        <n-button size="small" @click="resetDefaults">恢复默认</n-button>
-      </div>
     </div>
+
+    <!-- 学期编辑弹窗 -->
+    <n-modal v-model:show="showSemesterModal" preset="card" :title="editingSemester ? '编辑学期' : '新增学期'" style="width: 420px;">
+      <n-form label-placement="left" label-width="100">
+        <n-form-item label="学期名称">
+          <n-input v-model:value="semesterForm.name" placeholder="如 2025-2026 第二学期" />
+        </n-form-item>
+        <n-form-item label="学期第一天">
+          <n-input v-model:value="semesterForm.startDate" placeholder="如 2025-09-01" />
+        </n-form-item>
+        <n-form-item label="设为当前学期">
+          <n-switch v-model:value="semesterForm.isActive" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showSemesterModal = false">取消</n-button>
+          <n-button type="primary" @click="saveSemester">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 

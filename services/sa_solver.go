@@ -47,22 +47,27 @@ type SAResult struct {
 	ElapsedMs  int64
 }
 
+// teachingTaskData holds pre-loaded data for one teaching task.
+type teachingTaskData struct {
+	Task        models.TeachingTask
+	ClassIDs    []uint // all ClassGroup IDs in this task
+}
+
 // schedulingContext holds all the data needed during solving.
 type schedulingContext struct {
-	courses         []models.Course
-	teachers        []models.Teacher
-	classrooms      []models.Classroom
-	classGroups     []models.ClassGroup
-	lockedSlots     []lockedTimeSlot
-	constraints     []string
-	semester        string
-	courseClassGroups map[uint][]models.ClassGroup
+	teachingTasks []teachingTaskData
+	teachers      []models.Teacher
+	classrooms    []models.Classroom
+	classGroups   []models.ClassGroup
+	lockedSlots   []lockedTimeSlot
+	constraints   []string
+	semester      string
 
 	// Mutable state
-	entries       []models.ScheduleEntry
-	roomOcc       map[string]bool // "day-period-roomID"
-	teacherOcc    map[string]bool
-	classOcc      map[string]bool
+	entries    []models.ScheduleEntry
+	roomOcc    map[string]bool // "day-period-roomID"
+	teacherOcc map[string]bool
+	classOcc   map[string]bool
 
 	rng *rand.Rand
 }
@@ -71,7 +76,7 @@ type schedulingContext struct {
 // cancelCh can be used to interrupt the solver early (nil = no interrupt).
 // progressFn is called periodically with (iteration, currentScore, bestScore, temperature).
 func (s *SASolver) Solve(
-	courses []models.Course,
+	teachingTasks []models.TeachingTask,
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
 	classGroups []models.ClassGroup,
@@ -93,29 +98,29 @@ func (s *SASolver) Solve(
 	rng := rand.New(rand.NewSource(config.Seed))
 	startTime := time.Now()
 
-	// Build context
-	ctx := &schedulingContext{
-		courses:         courses,
-		teachers:        teachers,
-		classrooms:      classrooms,
-		classGroups:     classGroups,
-		lockedSlots:     lockedSlots,
-		constraints:     constraints,
-		semester:        semester,
-		rng:             rng,
+	// Pre-load teaching task data
+	taskData := make([]teachingTaskData, len(teachingTasks))
+	for i, tt := range teachingTasks {
+		classIDs := make([]uint, len(tt.Classes))
+		for j, c := range tt.Classes {
+			classIDs[j] = c.ClassGroupID
+		}
+		taskData[i] = teachingTaskData{
+			Task:     tt,
+			ClassIDs: classIDs,
+		}
 	}
 
-	// Match class groups to courses by department
-	ctx.courseClassGroups = make(map[uint][]models.ClassGroup)
-	for _, course := range courses {
-		targetDept := deptMap[course.Dept]
-		var matched []models.ClassGroup
-		for _, cg := range classGroups {
-			if cg.Dept == targetDept {
-				matched = append(matched, cg)
-			}
-		}
-		ctx.courseClassGroups[course.ID] = matched
+	// Build context
+	ctx := &schedulingContext{
+		teachingTasks: taskData,
+		teachers:      teachers,
+		classrooms:    classrooms,
+		classGroups:   classGroups,
+		lockedSlots:   lockedSlots,
+		constraints:   constraints,
+		semester:      semester,
+		rng:           rng,
 	}
 
 	// Phase 1: Generate initial solution with greedy construction
@@ -127,7 +132,6 @@ func (s *SASolver) Solve(
 	copy(bestEntries, ctx.entries)
 	bestScore := currentScore
 
-	scheduled := len(ctx.entries)
 	temperature := config.InitialTemp
 	totalIterations := 0
 
@@ -198,13 +202,13 @@ done:
 	return &SAResult{
 		Entries:    bestEntries,
 		Score:      bestScore,
-		Scheduled:  scheduled,
+		Scheduled:  len(bestEntries),
 		Iterations: totalIterations,
 		ElapsedMs:  elapsed,
 	}
 }
 
-// buildInitial constructs a greedy initial solution.
+// buildInitial constructs a greedy initial solution from teaching tasks.
 func (ctx *schedulingContext) buildInitial() {
 	ctx.entries = nil
 	ctx.roomOcc = make(map[string]bool)
@@ -213,8 +217,17 @@ func (ctx *schedulingContext) buildInitial() {
 
 	validStarts := []int{0, 2, 4, 6, 8} // 第1/3/5/7/9节
 
-	for _, course := range ctx.courses {
+	// Shuffle teaching tasks for randomness
+	taskOrder := make([]int, len(ctx.teachingTasks))
+	for i := range taskOrder {
+		taskOrder[i] = i
+	}
+	ctx.rng.Shuffle(len(taskOrder), func(i, j int) { taskOrder[i], taskOrder[j] = taskOrder[j], taskOrder[i] })
+
+	for _, ti := range taskOrder {
+		td := ctx.teachingTasks[ti]
 		placed := false
+
 		// Try days in random order, but push weekends to end if avoidance is on
 		baseDays := ctx.rng.Perm(7)
 		var days []int
@@ -244,15 +257,6 @@ func (ctx *schedulingContext) buildInitial() {
 			if placed {
 				break
 			}
-			// Check if day is completely locked
-			dayBlocked := false
-			for _, ls := range ctx.lockedSlots {
-				if int(ls.DayOfWeek) == day {
-					dayBlocked = true
-					break
-				}
-			}
-			_ = dayBlocked
 
 			starts := make([]int, len(validStarts))
 			copy(starts, validStarts)
@@ -276,126 +280,125 @@ func (ctx *schedulingContext) buildInitial() {
 					continue
 				}
 
-				// Find matching teachers (same department)
-				candidates := findTeachersForCourse(course, ctx.teachers)
-				ctx.rng.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
-
-				for _, teacher := range candidates {
-					if placed {
-						break
-					}
-					// Check teacher constraints
-					if ctx.hasConstraint("teacher_preference") {
-						if teacher.PreferNoEarly && start <= 1 {
-							continue
-						}
-						if teacher.PreferNoLate && start >= 6 {
-							continue
-						}
-					}
-					// Check teacher busy
-					teacherBusy := false
-					for p := start; p < start+span; p++ {
-						key := fmt.Sprintf("%d-%d-%d", day, p, teacher.ID)
-						if ctx.teacherOcc[key] {
-							teacherBusy = true
+				// Check teacher preferences
+				if ctx.hasConstraint("teacher_preference") {
+					for _, t := range ctx.teachers {
+						if t.ID == td.Task.TeacherID {
+							if t.PreferNoEarly && start <= 1 {
+								continue
+							}
+							if t.PreferNoLate && start >= 6 {
+								continue
+							}
 							break
 						}
 					}
-					if teacherBusy {
-						continue
-					}
+				}
 
-					// Try rooms
-					rooms := ctx.classrooms
-					ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
-
-					for _, room := range rooms {
-						roomBusy := false
-						for p := start; p < start+span; p++ {
-							key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
-							if ctx.roomOcc[key] {
-								roomBusy = true
-								break
-							}
-						}
-						if roomBusy {
-							continue
-						}
-
-						// Pick a class group
-						cgs := ctx.courseClassGroups[course.ID]
-						var classGroupID *uint
-						for _, cg := range cgs {
-							cgBusy := false
-							for p := start; p < start+span; p++ {
-								key := fmt.Sprintf("%d-%d-%d", day, p, cg.ID)
-								if ctx.classOcc[key] {
-									cgBusy = true
-									break
-								}
-							}
-							if !cgBusy {
-								cgid := cg.ID
-								classGroupID = &cgid
-								break
-							}
-						}
-
-						entry := models.ScheduleEntry{
-							CourseID:     course.ID,
-							TeacherID:    teacher.ID,
-							ClassroomID:  room.ID,
-							ClassGroupID: classGroupID,
-							Semester:     ctx.semester,
-							DayOfWeek:    models.DayOfWeek(day),
-							StartPeriod:  models.Period(start),
-							Span:         span,
-							Weeks:        "1-16",
-						}
-						ctx.entries = append(ctx.entries, entry)
-
-						for p := start; p < start+span; p++ {
-							ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
-							ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, teacher.ID)] = true
-							if classGroupID != nil {
-								ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, *classGroupID)] = true
-							}
-						}
-						placed = true
+				// Check teacher busy
+				teacherBusy := false
+				for p := start; p < start+span; p++ {
+					key := fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)
+					if ctx.teacherOcc[key] {
+						teacherBusy = true
 						break
 					}
 				}
+				if teacherBusy {
+					continue
+				}
+
+				// Check all class groups are free (combined class support)
+				classBusy := false
+				for _, cid := range td.ClassIDs {
+					for p := start; p < start+span; p++ {
+						key := fmt.Sprintf("%d-%d-%d", day, p, cid)
+						if ctx.classOcc[key] {
+							classBusy = true
+							break
+						}
+					}
+					if classBusy {
+						break
+					}
+				}
+				if classBusy {
+					continue
+				}
+
+				// Try rooms
+				rooms := make([]models.Classroom, len(ctx.classrooms))
+				copy(rooms, ctx.classrooms)
+				ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
+
+				for _, room := range rooms {
+					roomBusy := false
+					for p := start; p < start+span; p++ {
+						key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+						if ctx.roomOcc[key] {
+							roomBusy = true
+							break
+						}
+					}
+					if roomBusy {
+						continue
+					}
+
+					// All constraints satisfied, create entry
+					entry := models.ScheduleEntry{
+						CourseID:       td.Task.CourseID,
+						TeacherID:      td.Task.TeacherID,
+						ClassroomID:    room.ID,
+						TeachingTaskID: &td.Task.ID,
+						ClassGroupID:   nil, // controlled by TeachingTask now
+						Semester:       ctx.semester,
+						DayOfWeek:      models.DayOfWeek(day),
+						StartPeriod:    models.Period(start),
+						Span:           span,
+						Weeks:          "1-16",
+					}
+					ctx.entries = append(ctx.entries, entry)
+
+					// Occupy room, teacher, and all class groups
+					for p := start; p < start+span; p++ {
+						ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
+						ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
+					}
+					for _, cid := range td.ClassIDs {
+						for p := start; p < start+span; p++ {
+							ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+						}
+					}
+					placed = true
+					break
+				}
 			}
 		}
-		// If not placed, skip this course (will be noted in result)
-		_ = placed
+		if !placed {
+			// Teaching task could not be placed — will be noted in result
+			_ = placed
+		}
 	}
 }
 
 // Neighbor operation types
 type neighborOp struct {
-	kind         string // "move" or "swap"
-	entryIdx     int    // index in ctx.entries for "move"
-	swapIdx1     int    // first index for "swap"
-	swapIdx2     int    // second index for "swap"
-	oldDay       models.DayOfWeek
-	oldStart     models.Period
-	oldTeacher   uint
-	oldRoom      uint
-	oldClassGrp  *uint
-	newDay       models.DayOfWeek
-	newStart     models.Period
-	newTeacher   uint
-	newRoom      uint
-	newClassGrp  *uint
-	applied      bool
+	kind        string // "move" or "swap"
+	entryIdx    int    // index in ctx.entries for "move"
+	swapIdx1    int    // first index for "swap"
+	swapIdx2    int    // second index for "swap"
+	oldDay      models.DayOfWeek
+	oldStart    models.Period
+	oldRoom     uint
+	newDay      models.DayOfWeek
+	newStart    models.Period
+	newRoom     uint
+	applied     bool
 }
 
 var lastNeighbor neighborOp
 
 // tryNeighbor attempts a random neighbor move and returns the new score.
-// The caller must call undoNeighbor if the move is rejected.
 func (ctx *schedulingContext) tryNeighbor(currentScore float64) float64 {
 	if len(ctx.entries) == 0 {
 		return currentScore
@@ -411,7 +414,8 @@ func (ctx *schedulingContext) tryNeighbor(currentScore float64) float64 {
 	return ctx.trySwap(currentScore)
 }
 
-// tryMove moves one schedule entry to a new (day, period, teacher, room).
+// tryMove moves one schedule entry to a new (day, period, room).
+// Teacher and teaching task (class groups) remain fixed — only time and room change.
 func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	idx := ctx.rng.Intn(len(ctx.entries))
 	entry := ctx.entries[idx]
@@ -421,9 +425,7 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	lastNeighbor.entryIdx = idx
 	lastNeighbor.oldDay = entry.DayOfWeek
 	lastNeighbor.oldStart = entry.StartPeriod
-	lastNeighbor.oldTeacher = entry.TeacherID
 	lastNeighbor.oldRoom = entry.ClassroomID
-	lastNeighbor.oldClassGrp = entry.ClassGroupID
 
 	// Remove old occupancy
 	ctx.removeOccupancy(entry)
@@ -434,8 +436,7 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	day := ctx.rng.Intn(7)
 	if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
 		if ctx.rng.Float64() < 0.8 {
-			// Pick a weekday (0-4)
-			day = ctx.rng.Intn(5)
+			day = ctx.rng.Intn(5) // weekday only
 		}
 	}
 	start := validStarts[ctx.rng.Intn(len(validStarts))]
@@ -444,91 +445,79 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	// Check locked slots
 	for _, ls := range ctx.lockedSlots {
 		if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
-			// Restore old occupancy and return
 			ctx.restoreOccupancy(entry)
 			return currentScore
 		}
 	}
 
-	// Try to find a free teacher
-	candidates := findTeachersForEntry(entry, ctx.teachers, ctx.courseClassGroups)
-	ctx.rng.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
-
-	for _, teacher := range candidates {
-		if ctx.hasConstraint("teacher_preference") {
-			if teacher.PreferNoEarly && start <= 1 {
-				continue
-			}
-			if teacher.PreferNoLate && start >= 6 {
-				continue
-			}
-		}
-
-		teacherBusy := false
-		for p := start; p < start+span; p++ {
-			key := fmt.Sprintf("%d-%d-%d", day, p, teacher.ID)
-			if ctx.teacherOcc[key] {
-				teacherBusy = true
+	// Check teacher preferences
+	if ctx.hasConstraint("teacher_preference") {
+		for _, t := range ctx.teachers {
+			if t.ID == entry.TeacherID {
+				if t.PreferNoEarly && start <= 1 {
+					ctx.restoreOccupancy(entry)
+					return currentScore
+				}
+				if t.PreferNoLate && start >= 6 {
+					ctx.restoreOccupancy(entry)
+					return currentScore
+				}
 				break
 			}
 		}
-		if teacherBusy {
+	}
+
+	// Check teacher busy at new position
+	teacherBusy := false
+	for p := start; p < start+span; p++ {
+		key := fmt.Sprintf("%d-%d-%d", day, p, entry.TeacherID)
+		if ctx.teacherOcc[key] {
+			teacherBusy = true
+			break
+		}
+	}
+	if teacherBusy {
+		ctx.restoreOccupancy(entry)
+		return currentScore
+	}
+
+	// Check class groups busy (from teaching task)
+	classBusy := ctx.classGroupsBusy(entry, day, start, span)
+	if classBusy {
+		ctx.restoreOccupancy(entry)
+		return currentScore
+	}
+
+	// Try rooms
+	rooms := make([]models.Classroom, len(ctx.classrooms))
+	copy(rooms, ctx.classrooms)
+	ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
+
+	for _, room := range rooms {
+		roomBusy := false
+		for p := start; p < start+span; p++ {
+			key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+			if ctx.roomOcc[key] {
+				roomBusy = true
+				break
+			}
+		}
+		if roomBusy {
 			continue
 		}
 
-		// Try rooms
-		rooms := ctx.classrooms
-		ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
+		// Apply move
+		ctx.entries[idx].DayOfWeek = models.DayOfWeek(day)
+		ctx.entries[idx].StartPeriod = models.Period(start)
+		ctx.entries[idx].ClassroomID = room.ID
 
-		for _, room := range rooms {
-			roomBusy := false
-			for p := start; p < start+span; p++ {
-				key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
-				if ctx.roomOcc[key] {
-					roomBusy = true
-					break
-				}
-			}
-			if roomBusy {
-				continue
-			}
+		lastNeighbor.newDay = models.DayOfWeek(day)
+		lastNeighbor.newStart = models.Period(start)
+		lastNeighbor.newRoom = room.ID
+		lastNeighbor.applied = true
 
-			// Pick class group
-			cgs := ctx.courseClassGroups[entry.CourseID]
-			var classGroupID *uint
-			for _, cg := range cgs {
-				cgBusy := false
-				for p := start; p < start+span; p++ {
-					key := fmt.Sprintf("%d-%d-%d", day, p, cg.ID)
-					if ctx.classOcc[key] {
-						cgBusy = true
-						break
-					}
-				}
-				if !cgBusy {
-					cgid := cg.ID
-					classGroupID = &cgid
-					break
-				}
-			}
-
-			// Apply move
-			ctx.entries[idx].DayOfWeek = models.DayOfWeek(day)
-			ctx.entries[idx].StartPeriod = models.Period(start)
-			ctx.entries[idx].TeacherID = teacher.ID
-			ctx.entries[idx].ClassroomID = room.ID
-			ctx.entries[idx].ClassGroupID = classGroupID
-
-			lastNeighbor.newDay = models.DayOfWeek(day)
-			lastNeighbor.newStart = models.Period(start)
-			lastNeighbor.newTeacher = teacher.ID
-			lastNeighbor.newRoom = room.ID
-			lastNeighbor.newClassGrp = classGroupID
-			lastNeighbor.applied = true
-
-			ctx.addOccupancy(ctx.entries[idx])
-			return ctx.computeScore()
-		}
+		ctx.addOccupancy(ctx.entries[idx])
+		return ctx.computeScore()
 	}
 
 	// No valid move found, restore
@@ -536,7 +525,7 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	return currentScore
 }
 
-// trySwap swaps the time slots of two entries (keeping teacher/room assignments).
+// trySwap swaps the time slots of two entries (keeping teaching task and room assignments).
 func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 	i1 := ctx.rng.Intn(len(ctx.entries))
 	i2 := ctx.rng.Intn(len(ctx.entries))
@@ -546,20 +535,16 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 
 	e1, e2 := ctx.entries[i1], ctx.entries[i2]
 
-	// Check if the swap would cause conflicts at the new positions
-	// e1 moving to e2's slot, e2 moving to e1's slot
-
 	// Remove both from occupancy
 	ctx.removeOccupancy(e1)
 	ctx.removeOccupancy(e2)
 
 	// Check e1 at e2's position
-	conflict1 := ctx.hasConflict(e1.CourseID, e1.TeacherID, e1.ClassroomID, int(e2.DayOfWeek), int(e2.StartPeriod), e1.Span, e1.ClassGroupID)
+	conflict1 := ctx.checkPositionConflict(e1, int(e2.DayOfWeek), int(e2.StartPeriod))
 	// Check e2 at e1's position
-	conflict2 := ctx.hasConflict(e2.CourseID, e2.TeacherID, e2.ClassroomID, int(e1.DayOfWeek), int(e1.StartPeriod), e2.Span, e2.ClassGroupID)
+	conflict2 := ctx.checkPositionConflict(e2, int(e1.DayOfWeek), int(e1.StartPeriod))
 
 	if conflict1 || conflict2 {
-		// Restore
 		ctx.addOccupancy(e1)
 		ctx.addOccupancy(e2)
 		return currentScore
@@ -571,16 +556,12 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 	lastNeighbor.swapIdx2 = i2
 	lastNeighbor.oldDay = e1.DayOfWeek
 	lastNeighbor.oldStart = e1.StartPeriod
-	lastNeighbor.oldTeacher = e1.TeacherID
 	lastNeighbor.oldRoom = e1.ClassroomID
-	lastNeighbor.oldClassGrp = e1.ClassGroupID
 	lastNeighbor.newDay = e2.DayOfWeek
 	lastNeighbor.newStart = e2.StartPeriod
-	lastNeighbor.newTeacher = e2.TeacherID
 	lastNeighbor.newRoom = e2.ClassroomID
-	lastNeighbor.newClassGrp = e2.ClassGroupID
 
-	// Swap day/period
+	// Swap day/period (keep teacher, room, teaching task)
 	ctx.entries[i1].DayOfWeek, ctx.entries[i2].DayOfWeek = e2.DayOfWeek, e1.DayOfWeek
 	ctx.entries[i1].StartPeriod, ctx.entries[i2].StartPeriod = e2.StartPeriod, e1.StartPeriod
 
@@ -588,6 +569,59 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 	ctx.addOccupancy(ctx.entries[i1])
 	ctx.addOccupancy(ctx.entries[i2])
 	return ctx.computeScore()
+}
+
+// checkPositionConflict checks if an entry would conflict at a new (day, start) position.
+func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day, start int) bool {
+	span := e.Span
+
+	// Check locked slots
+	for _, ls := range ctx.lockedSlots {
+		if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+			return true
+		}
+	}
+
+	// Check teacher busy
+	for p := start; p < start+span; p++ {
+		key := fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)
+		if ctx.teacherOcc[key] {
+			return true
+		}
+	}
+
+	// Check room busy
+	for p := start; p < start+span; p++ {
+		key := fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)
+		if ctx.roomOcc[key] {
+			return true
+		}
+	}
+
+	// Check class groups busy
+	return ctx.classGroupsBusy(e, day, start, span)
+}
+
+// classGroupsBusy checks if any class group in the entry's teaching task is occupied.
+func (ctx *schedulingContext) classGroupsBusy(e models.ScheduleEntry, day, start, span int) bool {
+	if e.TeachingTaskID == nil {
+		return false
+	}
+	// Find the teaching task data
+	for _, td := range ctx.teachingTasks {
+		if td.Task.ID == *e.TeachingTaskID {
+			for _, cid := range td.ClassIDs {
+				for p := start; p < start+span; p++ {
+					key := fmt.Sprintf("%d-%d-%d", day, p, cid)
+					if ctx.classOcc[key] {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	}
+	return false
 }
 
 // undoNeighbor reverts the last neighbor operation.
@@ -602,9 +636,7 @@ func (ctx *schedulingContext) undoNeighbor() {
 		ctx.removeOccupancy(ctx.entries[idx])
 		ctx.entries[idx].DayOfWeek = lastNeighbor.oldDay
 		ctx.entries[idx].StartPeriod = lastNeighbor.oldStart
-		ctx.entries[idx].TeacherID = lastNeighbor.oldTeacher
 		ctx.entries[idx].ClassroomID = lastNeighbor.oldRoom
-		ctx.entries[idx].ClassGroupID = lastNeighbor.oldClassGrp
 		ctx.addOccupancy(ctx.entries[idx])
 
 	case "swap":
@@ -613,8 +645,10 @@ func (ctx *schedulingContext) undoNeighbor() {
 		ctx.removeOccupancy(ctx.entries[i2])
 		ctx.entries[i1].DayOfWeek = lastNeighbor.oldDay
 		ctx.entries[i1].StartPeriod = lastNeighbor.oldStart
+		ctx.entries[i1].ClassroomID = lastNeighbor.oldRoom
 		ctx.entries[i2].DayOfWeek = lastNeighbor.newDay
 		ctx.entries[i2].StartPeriod = lastNeighbor.newStart
+		ctx.entries[i2].ClassroomID = lastNeighbor.newRoom
 		ctx.addOccupancy(ctx.entries[i1])
 		ctx.addOccupancy(ctx.entries[i2])
 	}
@@ -638,8 +672,18 @@ func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
 	for p := start; p < start+span; p++ {
 		delete(ctx.roomOcc, fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID))
 		delete(ctx.teacherOcc, fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID))
-		if e.ClassGroupID != nil {
-			delete(ctx.classOcc, fmt.Sprintf("%d-%d-%d", day, p, *e.ClassGroupID))
+	}
+	// Remove class group occupancy for all classes in the teaching task
+	if e.TeachingTaskID != nil {
+		for _, td := range ctx.teachingTasks {
+			if td.Task.ID == *e.TeachingTaskID {
+				for _, cid := range td.ClassIDs {
+					for p := start; p < start+span; p++ {
+						delete(ctx.classOcc, fmt.Sprintf("%d-%d-%d", day, p, cid))
+					}
+				}
+				break
+			}
 		}
 	}
 }
@@ -649,47 +693,24 @@ func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 	for p := start; p < start+span; p++ {
 		ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
 		ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
-		if e.ClassGroupID != nil {
-			ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, *e.ClassGroupID)] = true
+	}
+	// Add class group occupancy for all classes in the teaching task
+	if e.TeachingTaskID != nil {
+		for _, td := range ctx.teachingTasks {
+			if td.Task.ID == *e.TeachingTaskID {
+				for _, cid := range td.ClassIDs {
+					for p := start; p < start+span; p++ {
+						ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+					}
+				}
+				break
+			}
 		}
 	}
 }
 
 func (ctx *schedulingContext) restoreOccupancy(e models.ScheduleEntry) {
 	ctx.addOccupancy(e)
-}
-
-func (ctx *schedulingContext) hasConflict(courseID, teacherID, roomID uint, day, start, span int, classGroupID *uint) bool {
-	// Check locked slots
-	for _, ls := range ctx.lockedSlots {
-		if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
-			return true
-		}
-	}
-	// Check teacher
-	for p := start; p < start+span; p++ {
-		key := fmt.Sprintf("%d-%d-%d", day, p, teacherID)
-		if ctx.teacherOcc[key] {
-			return true
-		}
-	}
-	// Check room
-	for p := start; p < start+span; p++ {
-		key := fmt.Sprintf("%d-%d-%d", day, p, roomID)
-		if ctx.roomOcc[key] {
-			return true
-		}
-	}
-	// Check class group
-	if classGroupID != nil {
-		for p := start; p < start+span; p++ {
-			key := fmt.Sprintf("%d-%d-%d", day, p, *classGroupID)
-			if ctx.classOcc[key] {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (ctx *schedulingContext) hasConstraint(key string) bool {
@@ -701,28 +722,256 @@ func (ctx *schedulingContext) hasConstraint(key string) bool {
 	return false
 }
 
-// ---- Helpers ----
+// SolveMultiRun runs SA multiple times with different random seeds and returns the best result.
+// This implements the "multi-restart" strategy (algorithm C).
+func (s *SASolver) SolveMultiRun(
+	teachingTasks []models.TeachingTask,
+	teachers []models.Teacher,
+	classrooms []models.Classroom,
+	classGroups []models.ClassGroup,
+	lockedSlots []lockedTimeSlot,
+	constraints []string,
+	semester string,
+	config SAConfig,
+	runs int,
+	cancelCh <-chan struct{},
+	progressFn func(iter, total int, currentScore, bestScore, temp float64),
+) *SAResult {
+	if runs <= 0 {
+		runs = 3 // default: 3 runs
+	}
 
-func findTeachersForCourse(course models.Course, teachers []models.Teacher) []models.Teacher {
-	targetDept := deptMap[course.Dept]
-	var same, other []models.Teacher
-	for _, t := range teachers {
-		if t.Dept == targetDept {
-			same = append(same, t)
-		} else {
-			other = append(other, t)
+	// Distribute time budget across runs
+	timePerRun := config.MaxTimeSeconds / float64(runs)
+	runConfig := config
+	runConfig.MaxTimeSeconds = timePerRun
+
+	var bestResult *SAResult
+	totalIterations := 0
+
+	for i := 0; i < runs; i++ {
+		// Check cancel
+		select {
+		case <-cancelCh:
+			break
+		default:
+		}
+
+		// Use different seed per run
+		runConfig.Seed = time.Now().UnixNano() + int64(i*31337)
+
+		result := s.Solve(teachingTasks, teachers, classrooms, classGroups,
+			lockedSlots, constraints, semester, runConfig, cancelCh, nil)
+
+		totalIterations += result.Iterations
+
+		if bestResult == nil || result.Score > bestResult.Score {
+			bestResult = result
 		}
 	}
-	result := append(same, other...)
-	return result
+
+	bestResult.Iterations = totalIterations
+	return bestResult
 }
 
-func findTeachersForEntry(entry models.ScheduleEntry, teachers []models.Teacher, courseClassGroups map[uint][]models.ClassGroup) []models.Teacher {
-	// Find the course to determine department
-	// We don't have courses directly, but we match by teacher department via the class groups
-	// Fall back to all teachers
-	return teachers
+// PostOptimize performs greedy post-optimization on the best solution (algorithm D).
+// It identifies the N lowest-scoring entries and tries to improve them via exhaustive
+// local search of all feasible (day × period × room) combinations.
+func (s *SASolver) PostOptimize(
+	entries []models.ScheduleEntry,
+	teachingTasks []models.TeachingTask,
+	teachers []models.Teacher,
+	classrooms []models.Classroom,
+	lockedSlots []lockedTimeSlot,
+	constraints []string,
+	topN int,
+) []models.ScheduleEntry {
+	if len(entries) == 0 || topN <= 0 {
+		return entries
+	}
+
+	// Build teaching task lookup
+	taskMap := make(map[uint]teachingTaskData)
+	for _, tt := range teachingTasks {
+		classIDs := make([]uint, len(tt.Classes))
+		for j, c := range tt.Classes {
+			classIDs[j] = c.ClassGroupID
+		}
+		taskMap[tt.ID] = teachingTaskData{Task: tt, ClassIDs: classIDs}
+	}
+
+	validStarts := []int{0, 2, 4, 6, 8}
+
+	// Score each entry individually to find the worst ones
+	type entryScore struct {
+		idx   int
+		entry models.ScheduleEntry
+	}
+	// Use a simple heuristic: entries on weekends or with early/late periods score lower
+	var scored []entryScore
+	for i, e := range entries {
+		scored = append(scored, entryScore{idx: i, entry: e})
+	}
+
+	// Sort by a simple quality heuristic (weekend = worse, early/late = worse)
+	// We'll just try all entries up to topN
+	limit := topN
+	if limit > len(entries) {
+		limit = len(entries)
+	}
+
+	// Shuffle entries to avoid bias
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(entries), func(i, j int) { entries[i], entries[j] = entries[j], entries[i] })
+
+	// Build current occupancy from all OTHER entries (excluding the one being optimized)
+	buildOcc := func(excludeIdx int) (roomOcc, teacherOcc, classOcc map[string]bool) {
+		roomOcc = make(map[string]bool)
+		teacherOcc = make(map[string]bool)
+		classOcc = make(map[string]bool)
+		for i, e := range entries {
+			if i == excludeIdx {
+				continue
+			}
+			day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
+			for p := start; p < start+span; p++ {
+				roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
+				teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
+			}
+			if td, ok := taskMap[*e.TeachingTaskID]; ok {
+				for _, cid := range td.ClassIDs {
+					for p := start; p < start+span; p++ {
+						classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+					}
+				}
+			}
+		}
+		return
+	}
+
+	improved := 0
+	for _, es := range scored {
+		if improved >= limit {
+			break
+		}
+
+		e := es.entry
+		eIdx := es.idx
+		span := e.Span
+		originalDay, originalStart, originalRoom := int(e.DayOfWeek), int(e.StartPeriod), e.ClassroomID
+
+		roomOcc, teacherOcc, classOcc := buildOcc(eIdx)
+
+		bestDay, bestStart, bestRoom := originalDay, originalStart, originalRoom
+		bestPenalty := 999 // lower is better for this heuristic
+
+		// Simple penalty: early/late/wekkend
+		calcPenalty := func(day, start int) int {
+			p := 0
+			if day >= 5 {
+				p += 3 // weekend penalty
+			}
+			if start <= 1 {
+				p += 1 // early
+			}
+			if start >= 6 {
+				p += 1 // late
+			}
+			return p
+		}
+
+		for _, day := range rng.Perm(7) {
+			// Check locked slots
+			lsBlocked := false
+			for _, ls := range lockedSlots {
+				if int(ls.DayOfWeek) == day && periodsOverlapInt(0, 11, int(ls.StartPeriod), ls.Span) {
+					// Check if any start period would overlap
+					for _, start := range validStarts {
+						if periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+							lsBlocked = true
+							break
+						}
+					}
+				}
+			}
+			if lsBlocked {
+				continue
+			}
+
+			for _, start := range validStarts {
+				penalty := calcPenalty(day, start)
+				if penalty > bestPenalty {
+					continue
+				}
+
+				// Check teacher busy
+				teacherBusy := false
+				for p := start; p < start+span; p++ {
+					if teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] {
+						teacherBusy = true
+						break
+					}
+				}
+				if teacherBusy {
+					continue
+				}
+
+				// Check class groups busy
+				classBusy := false
+				if td, ok := taskMap[*e.TeachingTaskID]; ok {
+					for _, cid := range td.ClassIDs {
+						for p := start; p < start+span; p++ {
+							if classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] {
+								classBusy = true
+								break
+							}
+						}
+						if classBusy {
+							break
+						}
+					}
+				}
+				if classBusy {
+					continue
+				}
+
+				// Try rooms
+				for _, room := range classrooms {
+					roomBusy := false
+					for p := start; p < start+span; p++ {
+						if roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] {
+							roomBusy = true
+							break
+						}
+					}
+					if roomBusy {
+						continue
+					}
+
+					if penalty < bestPenalty || (penalty == bestPenalty && day == originalDay && start == originalStart && room.ID == originalRoom) {
+						bestDay, bestStart, bestRoom = day, start, room.ID
+						bestPenalty = penalty
+						if penalty == 0 {
+							goto found
+						}
+					}
+				}
+			}
+		}
+	found:
+		if bestDay != originalDay || bestStart != originalStart || bestRoom != originalRoom {
+			e.DayOfWeek = models.DayOfWeek(bestDay)
+			e.StartPeriod = models.Period(bestStart)
+			e.ClassroomID = bestRoom
+			entries[eIdx] = e
+			improved++
+		}
+	}
+
+	return entries
 }
+
+// ---- Helpers ----
 
 func periodsOverlapInt(start1, span1, start2, span2 int) bool {
 	end1 := start1 + span1

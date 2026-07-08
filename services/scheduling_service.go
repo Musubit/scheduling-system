@@ -25,6 +25,7 @@ type SchedulingConfig struct {
 	TimeLimit   int              `json:"timeLimit"` // max solve time in seconds, default 60
 	Constraints []string         `json:"constraints"`
 	LockedSlots []lockedTimeSlot `json:"lockedSlots,omitempty"`
+	SemesterID  uint             `json:"semesterId,omitempty"` // active semester ID
 }
 
 type SchedulingResult struct {
@@ -51,30 +52,54 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg))
 	}
 
-	// Load courses
-	var courses []models.Course
-	scopeCode := reverseDeptMap[config.Scope]
-	scopeSQL := config.Scope
-	if scopeCode != "" {
-		scopeSQL = scopeCode
+	// Load teaching tasks for the active semester
+	var teachingTasks []models.TeachingTask
+	taskQuery := s.db.Where("status = ?", "active")
+	if config.SemesterID > 0 {
+		taskQuery = taskQuery.Where("semester_id = ?", config.SemesterID)
 	}
-	if config.Scope == "全校所有院系" {
-		if err := s.db.Find(&courses).Error(); err != nil {
-			result.Error = "加载课程失败: " + err.Error()
-			return result
-		}
-	} else {
-		if err := s.db.Where("dept = ?", scopeSQL).Find(&courses).Error(); err != nil {
-			result.Error = "加载课程失败: " + err.Error()
-			return result
-		}
-	}
-	result.TotalCourses = len(courses)
-	if len(courses) == 0 {
-		result.Error = "没有找到课程"
+	if err := taskQuery.Find(&teachingTasks).Error(); err != nil {
+		result.Error = "加载教学任务失败: " + err.Error()
 		return result
 	}
-	log(fmt.Sprintf("排课引擎启动（模拟退火），共 %d 门课程待排", len(courses)))
+
+	// Filter by scope if needed
+	if config.Scope != "" && config.Scope != "全校所有院系" {
+		scopeCode := reverseDeptMap[config.Scope]
+		if scopeCode == "" {
+			scopeCode = config.Scope
+		}
+		// Filter teaching tasks by course department
+		var filtered []models.TeachingTask
+		for _, tt := range teachingTasks {
+			var course models.Course
+			if err := s.db.First(&course, tt.CourseID).Error(); err == nil {
+				if course.Dept == scopeCode {
+					filtered = append(filtered, tt)
+				}
+			}
+		}
+		teachingTasks = filtered
+	}
+
+	// Load classes for each teaching task
+	for i := range teachingTasks {
+		var classes []models.TeachingTaskClass
+		if err := s.db.Where("teaching_task_id = ?", teachingTasks[i].ID).
+			Preload("ClassGroup").Find(&classes).Error(); err == nil {
+			teachingTasks[i].Classes = classes
+		}
+		// Preload course and teacher
+		s.db.First(&teachingTasks[i].Course, teachingTasks[i].CourseID)
+		s.db.First(&teachingTasks[i].Teacher, teachingTasks[i].TeacherID)
+	}
+
+	result.TotalCourses = len(teachingTasks)
+	if len(teachingTasks) == 0 {
+		result.Error = "没有找到教学任务，请先在资源管理中创建教学任务"
+		return result
+	}
+	log(fmt.Sprintf("排课引擎启动（模拟退火），共 %d 个教学任务待排", len(teachingTasks)))
 
 	// Load resources
 	var classrooms []models.Classroom
@@ -118,28 +143,35 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	log(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
 
-	// Run SA solver
+	// Run SA solver with multi-restart
 	solver := NewSASolver()
-	saResult := solver.Solve(
-		courses, teachers, classrooms, classGroups,
+	saResult := solver.SolveMultiRun(
+		teachingTasks, teachers, classrooms, classGroups,
 		lockedSlots, config.Constraints, config.Semester,
 		saConfig,
-		nil, // cancelCh, nil = no interrupt for now
-		func(iter, total int, currentScore, bestScore, temp float64) {
-			if iter%1000 == 0 || iter == total {
-				log(fmt.Sprintf("SA进度: %d次迭代, 温度=%.2f, 最优分=%.1f", iter, temp, bestScore))
-			}
-		},
+		3, // 3 runs with different seeds
+		nil,
+		nil,
 	)
+
+	// Greedy post-optimization on worst entries
+	saResult.Entries = solver.PostOptimize(
+		saResult.Entries, teachingTasks, teachers, classrooms,
+		lockedSlots, config.Constraints,
+		max(5, len(saResult.Entries)/10), // top 10% or at least 5 entries
+	)
+
+	// Re-score after post-optimization
+	postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
+	saResult.Score = postBreakdown.Total
 
 	log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
 		saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
 
-		// Save result to database
-		err := s.db.Transaction(func(tx database.DB) error {
-			// Hard-delete old entries (Unscoped prevents soft-delete which would
-			// leave rows occupying the unique index and cause conflicts on re-insert)
-			if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+	// Save result to database
+	err := s.db.Transaction(func(tx database.DB) error {
+		// Hard-delete old entries for the semester
+		if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
 			return fmt.Errorf("清空旧课表失败: %w", err)
 		}
 		if len(saResult.Entries) > 0 {
@@ -169,10 +201,10 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
 	result.ScoreDetail = &finalBreakdown
 
-	log(fmt.Sprintf("排课完成！已排 %d/%d 门，利用率 %.1f%%，评分 %.1f/100",
+	log(fmt.Sprintf("排课完成！已排 %d/%d 个教学任务，利用率 %.1f%%，评分 %.1f/100",
 		len(saResult.Entries), result.TotalCourses, result.Utilization*100, saResult.Score))
 	if len(saResult.Entries) < result.TotalCourses {
-		log(fmt.Sprintf("WARN 剩余 %d 门课程需手动调整", result.TotalCourses-len(saResult.Entries)))
+		log(fmt.Sprintf("WARN 剩余 %d 个教学任务需手动调整", result.TotalCourses-len(saResult.Entries)))
 	}
 
 	// Auto-snapshot after scheduling
@@ -209,38 +241,35 @@ func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
 func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) int {
 	count := 0
 
-		// Room conflicts
-		roomSlots := make(map[string]bool)
-		for _, e := range entries {
-			for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-				key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
-				if roomSlots[key] {
-					count++
-				}
-				roomSlots[key] = true
+	// Room conflicts
+	roomSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
+			if roomSlots[key] {
+				count++
 			}
+			roomSlots[key] = true
 		}
-	
-		// Teacher conflicts
-		teacherSlots := make(map[string]bool)
-		for _, e := range entries {
-			for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-				key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
-				if teacherSlots[key] {
-					count++
-				}
-				teacherSlots[key] = true
+	}
+
+	// Teacher conflicts
+	teacherSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
+			if teacherSlots[key] {
+				count++
 			}
+			teacherSlots[key] = true
 		}
-	
-		// Class group conflicts
-		classSlots := make(map[string]bool)
-		for _, e := range entries {
-			if e.ClassGroupID == nil {
-				continue
-			}
-			for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("c-%d-%d-%d", *e.ClassGroupID, e.DayOfWeek, p)
+	}
+
+	// Class group conflicts (using TeachingTask data)
+	classSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := fmt.Sprintf("c-%d-%d-%d", e.TeachingTaskID, e.DayOfWeek, p)
 			if classSlots[key] {
 				count++
 			}
@@ -252,6 +281,7 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 }
 
 // deptMap maps course dept codes to teacher dept names (Chinese)
+// Kept for scope filtering and backward compatibility.
 var deptMap = map[string]string{
 	"mech": "机械工程学院", "elec": "电气与电子工程学院",
 	"mate": "材料与化学工程学院", "bio": "生物工程与食品学院",

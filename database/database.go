@@ -119,6 +119,8 @@ func InitDB() (*GormAdapter, error) {
 		&models.Setting{},
 		&models.ScheduleSnapshot{},
 		&models.SnapshotDetail{},
+		&models.TeachingTask{},
+		&models.TeachingTaskClass{},
 	)
 	if err != nil {
 		return nil, err

@@ -1,8 +1,82 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { SchedulingConfig, SchedulingResult } from '@/types'
 import { RunScheduling } from '../../bindings/scheduling-system/services/schedulingservice'
+import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
 import type { models } from '../../bindings/scheduling-system/services/models'
+
+// Constraint weight presets
+export interface ConstraintPreset {
+  name: string
+  label: string
+  weights: Record<string, number>
+}
+
+export const CONSTRAINT_PRESETS: ConstraintPreset[] = [
+  {
+    name: 'balanced',
+    label: '均衡（推荐）',
+    weights: {
+      teacher_preference: 50,
+      course_dispersed: 50,
+      teacher_days_limit: 50,
+      low_floor_preference: 50,
+      avoid_saturday: 30,
+      avoid_sunday: 30,
+    },
+  },
+  {
+    name: 'teacher_first',
+    label: '保护教师体验',
+    weights: {
+      teacher_preference: 100,
+      course_dispersed: 30,
+      teacher_days_limit: 80,
+      low_floor_preference: 30,
+      avoid_saturday: 20,
+      avoid_sunday: 20,
+    },
+  },
+  {
+    name: 'dispersed',
+    label: '课表分散均衡',
+    weights: {
+      teacher_preference: 30,
+      course_dispersed: 100,
+      teacher_days_limit: 50,
+      low_floor_preference: 20,
+      avoid_saturday: 60,
+      avoid_sunday: 60,
+    },
+  },
+  {
+    name: 'low_floor',
+    label: '教室优先低层',
+    weights: {
+      teacher_preference: 40,
+      course_dispersed: 40,
+      teacher_days_limit: 40,
+      low_floor_preference: 100,
+      avoid_saturday: 20,
+      avoid_sunday: 20,
+    },
+  },
+]
+
+const constraintOptions = [
+  { key: 'teacher_preference', label: '教师偏好时段（避免早课/晚课）' },
+  { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
+  { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
+  { key: 'low_floor_preference', label: '优先低楼层教室' },
+  { key: 'avoid_saturday', label: '尽量避开周六排课' },
+  { key: 'avoid_sunday', label: '尽量避开周日排课' },
+]
+
+const engineOptions = [
+  { value: 'auto', label: '智能（推荐）——自动选择最佳引擎' },
+  { value: 'sa', label: 'SA优化——模拟退火多轮求解' },
+  { value: 'ortools', label: 'OR-Tools精确——最优解引擎' },
+]
 
 export const useSchedulingStore = defineStore('scheduling', () => {
   const config = ref<SchedulingConfig>({
@@ -14,29 +88,33 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     constraints: ['teacher_preference', 'course_dispersed', 'teacher_days_limit', 'low_floor_preference'],
   })
 
-  const constraintOptions = [
-    { key: 'teacher_preference', label: '教师偏好时段（避免早课/晚课）' },
-    { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
-    { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
-    { key: 'low_floor_preference', label: '优先低楼层教室' },
-    { key: 'avoid_saturday', label: '尽量避开周六排课' },
-    { key: 'avoid_sunday', label: '尽量避开周日排课' },
-  ]
+  // Constraint weights (0-100 per constraint)
+  const constraintWeights = ref<Record<string, number>>({ ...CONSTRAINT_PRESETS[0].weights })
+  const activePreset = ref<string>('balanced')
+  const showAdvanced = ref(false)
+  const engine = ref<string>('auto')
+  const activeSemesterId = ref<number>(0)
+  const activeSemesterName = ref<string>('')
 
-  // Time presets for non-technical users
-  const timePresets = [
-    { value: 15, label: '⚡ 快速（15秒）' },
-    { value: 60, label: '⭐ 标准（60秒）——推荐' },
-    { value: 120, label: '🔍 深度（2分钟）' },
-    { value: 300, label: '🏆 极致（5分钟）' },
-  ]
-  const timePreset = ref(60)
+  // Load active semester on init
+  async function loadActiveSemester() {
+    try {
+      const sem = await GetActiveSemester()
+      if (sem) {
+        activeSemesterId.value = sem.ID
+        activeSemesterName.value = sem.name
+      }
+    } catch { /* no active semester */ }
+  }
 
-  const strategyOptions = [
-    { value: 'teacher_first', label: '教师时间优先' },
-    { value: 'room_utilization', label: '教室利用率优先' },
-    { value: 'student_balance', label: '学生课表均衡优先' },
-  ]
+  // Apply preset weights
+  function applyPreset(name: string) {
+    activePreset.value = name
+    const preset = CONSTRAINT_PRESETS.find(p => p.name === name)
+    if (preset) {
+      constraintWeights.value = { ...preset.weights }
+    }
+  }
 
   const isRunning = ref(false)
   const progress = ref(0)
@@ -61,12 +139,12 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     isRunning.value = false
   }
 
-  // Real scheduling via Go backend
+  // Start scheduling with current config
   async function startScheduling() {
     if (isRunning.value) return
     isRunning.value = true
     progress.value = 5
-    logs.value = ['🔍 正在加载课程和教师数据...']
+    logs.value = ['🔍 正在加载教学任务数据...']
 
     try {
       // Load locked slots from localStorage
@@ -76,14 +154,17 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         if (saved) { lockedSlots = JSON.parse(saved) }
       } catch {}
 
-      const goConfig: models.SchedulingConfig = {
+      // Build config for Go backend
+      const semesterName = activeSemesterName.value || config.value.semester
+      const goConfig: any = {
         scope: config.value.scope,
-        semester: config.value.semester,
-        strategy: config.value.strategy,
-        iterations: config.value.iterations,
-        timeLimit: timePreset.value,  // use selected time preset
+        semester: semesterName,
+        strategy: 'auto',
+        iterations: 5000,
+        timeLimit: 60,
         constraints: config.value.constraints,
         lockedSlots: lockedSlots.length > 0 ? lockedSlots : undefined,
+        semesterId: activeSemesterId.value,
       }
       progress.value = 20
       logs.value.push('⚙️ 正在清空旧课表，准备排课...')
@@ -105,6 +186,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             courseSpacing: goResult.scoreDetail.courseSpacing || 0,
             teacherDays: goResult.scoreDetail.teacherDays || 0,
             lowFloorPref: goResult.scoreDetail.lowFloorPref || 0,
+            weekendAvoid: (goResult.scoreDetail as any).weekendAvoid || 0,
           } : undefined,
           logs: goResult.logs || [],
         }
@@ -127,10 +209,16 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
   function stopScheduling() { isRunning.value = false }
 
+  // Initialize
+  loadActiveSemester()
+
   return {
-    config, constraintOptions, strategyOptions,
-    timePresets, timePreset,
+    config, constraintOptions,
+    constraintWeights, activePreset, showAdvanced, engine, engineOptions,
+    activeSemesterId, activeSemesterName,
+    CONSTRAINT_PRESETS,
     isRunning, progress, result, logs, progressText,
     toggleConstraint, resetProgress, startScheduling, stopScheduling,
+    applyPreset,
   }
 })

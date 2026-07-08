@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { inject, computed, ref } from 'vue'
+import { inject, computed, ref, onMounted, watch } from 'vue'
 import { PERIODS, DAY_NAMES } from '../../types'
-import type { ScheduleEntry } from '../../types'
+import type { ScheduleEntry, LockedTimeSlot } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
 import { useMessage } from 'naive-ui'
 
@@ -11,7 +11,119 @@ const message = useMessage()
 
 const displayEntries = computed(() => scheduleStore.entries)
 
-// Drag state
+// ---- Locked Time Slot Editing Mode ----
+const editMode = ref(false)
+const lockedSlots = ref<LockedTimeSlot[]>([])
+const dragLockStart = ref<{ day: number; period: number } | null>(null)
+const dragLockEnd = ref<{ day: number; period: number } | null>(null)
+
+// Default locked slots: Thursday periods 4-7 (第5-8节)
+const DEFAULT_LOCKED: LockedTimeSlot[] = [
+  { dayOfWeek: 3, startPeriod: 4, span: 4 }, // 周四 5-8节
+]
+
+function loadLockedSlots() {
+  try {
+    const saved = localStorage.getItem('locked-time-slots')
+    if (saved) {
+      lockedSlots.value = JSON.parse(saved)
+    } else {
+      lockedSlots.value = [...DEFAULT_LOCKED]
+      saveLockedSlots()
+    }
+  } catch {
+    lockedSlots.value = [...DEFAULT_LOCKED]
+  }
+}
+
+function saveLockedSlots() {
+  localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
+  // Also persist to backend
+  try {
+    import('../../../bindings/scheduling-system/services/resourceservice').then(({ SaveSetting }) => {
+      SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
+    })
+  } catch { /* backend not available */ }
+}
+
+function isLocked(day: number, period: number): boolean {
+  return lockedSlots.value.some(ls =>
+    ls.dayOfWeek === day &&
+    period >= ls.startPeriod &&
+    period < ls.startPeriod + ls.span
+  )
+}
+
+function toggleLockCell(day: number, period: number) {
+  if (!editMode.value) return
+
+  // Check if this cell is already part of a locked slot
+  const existingIdx = lockedSlots.value.findIndex(ls =>
+    ls.dayOfWeek === day &&
+    period >= ls.startPeriod &&
+    period < ls.startPeriod + ls.span
+  )
+
+  if (existingIdx >= 0) {
+    // Remove the locked slot containing this cell
+    lockedSlots.value.splice(existingIdx, 1)
+  } else {
+    // Add a 2-period lock (matching course span)
+    const span = 2
+    const startPeriod = period % 2 === 0 ? period : period - 1
+    lockedSlots.value.push({ dayOfWeek: day, startPeriod, span })
+  }
+  saveLockedSlots()
+}
+
+// Drag-to-select in edit mode
+function onLockCellMouseDown(day: number, period: number, e: MouseEvent) {
+  if (!editMode.value) return
+  dragLockStart.value = { day, period }
+  dragLockEnd.value = { day, period }
+}
+
+function onLockCellMouseEnter(day: number, period: number) {
+  if (!editMode.value || !dragLockStart.value) return
+  dragLockEnd.value = { day, period }
+}
+
+function onLockCellMouseUp() {
+  if (!editMode.value || !dragLockStart.value || !dragLockEnd.value) return
+  const { day: d1, period: p1 } = dragLockStart.value
+  const { day: d2, period: p2 } = dragLockEnd.value
+  dragLockStart.value = null
+  dragLockEnd.value = null
+
+  if (d1 !== d2) return // only handle same-day selection for now
+  const start = Math.min(p1, p2)
+  const end = Math.max(p1, p2)
+  const span = end - start + 1
+
+  if (span <= 0) return
+
+  // Toggle: if all cells in range are locked, unlock; otherwise lock
+  const allLocked = Array.from({ length: span }, (_, i) => start + i).every(p => isLocked(d1, p))
+
+  if (allLocked) {
+    // Remove all locks that overlap with this range
+    lockedSlots.value = lockedSlots.value.filter(ls =>
+      !(ls.dayOfWeek === d1 && ls.startPeriod <= end && ls.startPeriod + ls.span > start)
+    )
+  } else {
+    lockedSlots.value.push({ dayOfWeek: d1, startPeriod: start, span })
+  }
+  saveLockedSlots()
+}
+
+// Prevent default drag behavior on locked cells
+document.addEventListener('mouseup', onLockCellMouseUp)
+
+onMounted(() => {
+  loadLockedSlots()
+})
+
+// ---- Drag & Drop for schedule entries (only in view mode) ----
 const dragEntry = ref<ScheduleEntry | null>(null)
 const dragOverDay = ref(-1)
 const dragOverPeriod = ref(-1)
@@ -44,14 +156,12 @@ function isFirstCell(entry: ScheduleEntry, period: number): boolean {
   return entry.startPeriod === period
 }
 
-// Get grid-row span for a cell (hide cells that are "covered" by a multi-period course)
 function cellStyle(day: number, period: number): Record<string, string> {
   const entry = getCourseAt(day, period)
   if (!entry) return {}
   if (isFirstCell(entry, period)) {
     return { gridRow: `span ${entry.span}` }
   }
-  // This cell is covered by a course above it
   return { display: 'none' }
 }
 
@@ -60,8 +170,9 @@ function openCourseDetail(entry: ScheduleEntry) {
   drawerRef.value.openDrawer(entry)
 }
 
-// ---- Drag & Drop ----
+// Drag & Drop handlers
 function onDragStart(e: DragEvent, entry: ScheduleEntry) {
+  if (editMode.value) return
   dragEntry.value = entry
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
@@ -76,6 +187,7 @@ function onDragEnd() {
 }
 
 function onDragOver(e: DragEvent, day: number, period: number) {
+  if (editMode.value) return
   e.preventDefault()
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = 'move'
@@ -90,6 +202,7 @@ function onDragLeave() {
 }
 
 async function onDrop(e: DragEvent, day: number, period: number) {
+  if (editMode.value) return
   e.preventDefault()
   dragOverDay.value = -1
   dragOverPeriod.value = -1
@@ -97,14 +210,19 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   if (!dragEntry.value) return
   const entry = dragEntry.value
 
-  // Don't drop on same position
   if (entry.dayOfWeek === day && entry.startPeriod === period) {
     dragEntry.value = null
     return
   }
 
+  // Check locked slots
+  if (isDropBlockedByLock(day, period, entry.span)) {
+    message.error('该时段为全校锁定时间，无法排课')
+    dragEntry.value = null
+    return
+  }
+
   try {
-    // Call CheckMove API
     const { CheckMove } = await import('../../../bindings/scheduling-system/services/moveservice')
     const result = await CheckMove({
       entryId: entry.ID,
@@ -114,7 +232,6 @@ async function onDrop(e: DragEvent, day: number, period: number) {
     })
 
     if (!result.valid) {
-      // Show conflict feedback
       conflictFlash.value = { day, period }
       const conflictDesc = result.conflicts?.[0]?.description || '冲突'
       message.error(`无法移动：${conflictDesc}`)
@@ -123,7 +240,6 @@ async function onDrop(e: DragEvent, day: number, period: number) {
       return
     }
 
-    // Execute the move
     const { MoveEntry } = await import('../../../bindings/scheduling-system/services/moveservice')
     await MoveEntry({
       entryId: entry.ID,
@@ -133,7 +249,6 @@ async function onDrop(e: DragEvent, day: number, period: number) {
     })
 
     message.success('课表已调整')
-    // Reload schedule
     await scheduleStore.loadSchedule(scheduleStore.currentSemester)
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))
@@ -142,20 +257,36 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   dragEntry.value = null
 }
 
-// Check if a cell is a valid drop target (not occupied by another course, not locked)
 function isDropTarget(day: number, period: number): boolean {
+  if (editMode.value) return false
+  if (isLocked(day, period)) return false
   const existing = getCourseAt(day, period)
   if (!existing) return true
-  // Can drop on cells occupied by the dragged entry itself
   if (dragEntry.value && existing.ID === dragEntry.value.ID) return true
+  return false
+}
+
+function isDropBlockedByLock(day: number, period: number, span: number): boolean {
+  for (let p = period; p < period + span; p++) {
+    if (isLocked(day, p)) return true
+  }
   return false
 }
 </script>
 
 <template>
   <div class="week-view">
-    <div v-if="displayEntries.length === 0" class="empty-state">暂无排课数据，请先运行自动排课</div>
-    <div v-else class="schedule-grid">
+    <!-- Mode toggle -->
+    <div class="week-toolbar" v-if="displayEntries.length > 0 || editMode">
+      <span class="mode-label" v-if="editMode">🔒 锁定时段编辑模式</span>
+      <span class="mode-label" v-else>📋 课表查看模式</span>
+      <button class="mode-toggle-btn" @click="editMode = !editMode">
+        {{ editMode ? '返回查看' : '编辑锁定时段' }}
+      </button>
+    </div>
+
+    <div v-if="displayEntries.length === 0 && !editMode" class="empty-state">暂无排课数据，请先运行自动排课</div>
+    <div v-else class="schedule-grid" :class="{ 'edit-mode': editMode }">
       <div class="grid-corner">节次</div>
       <div v-for="(name, di) in DAY_NAMES" :key="di" class="grid-header" :class="{ today: di === todayDow }">
         <span class="day-name">{{ name }}</span>
@@ -170,17 +301,23 @@ function isDropTarget(day: number, period: number): boolean {
           v-for="(_, di) in DAY_NAMES"
           :key="di"
           class="grid-cell"
-          :style="cellStyle(di, pi)"
+          :style="editMode ? {} : cellStyle(di, pi)"
           :class="{
-            'drag-over': dragOverDay === di && dragOverPeriod === pi && isDropTarget(di, pi),
-            'conflict-flash': conflictFlash?.day === di && conflictFlash?.period === pi,
-            'drop-target': dragEntry && isDropTarget(di, pi),
+            'cell-locked': isLocked(di, pi),
+            'cell-edit-locked': editMode && isLocked(di, pi),
+            'cell-edit-free': editMode && !isLocked(di, pi),
+            'drag-over': !editMode && dragOverDay === di && dragOverPeriod === pi && isDropTarget(di, pi),
+            'conflict-flash': !editMode && conflictFlash?.day === di && conflictFlash?.period === pi,
+            'drop-target': !editMode && dragEntry && isDropTarget(di, pi),
           }"
-          @dragover="onDragOver($event, di, pi)"
-          @dragleave="onDragLeave"
-          @drop="onDrop($event, di, pi)"
+          @mousedown="editMode ? onLockCellMouseDown(di, pi, $event) : undefined"
+          @mouseenter="editMode ? onLockCellMouseEnter(di, pi) : undefined"
+          @click="editMode ? toggleLockCell(di, pi) : undefined"
+          @dragover="!editMode ? onDragOver($event, di, pi) : undefined"
+          @dragleave="!editMode ? onDragLeave : undefined"
+          @drop="!editMode ? onDrop($event, di, pi) : undefined"
         >
-          <template v-if="getCourseAt(di, pi) && isFirstCell(getCourseAt(di, pi)!, pi)">
+          <template v-if="!editMode && getCourseAt(di, pi) && isFirstCell(getCourseAt(di, pi)!, pi)">
             <div
               class="course-card"
               :class="['course-' + (getCourseAt(di, pi)!.course?.dept || 'cs')]"
@@ -193,6 +330,9 @@ function isDropTarget(day: number, period: number): boolean {
               <div class="course-detail">{{ getCourseAt(di, pi)!.classroom?.name || '' }} · {{ getCourseAt(di, pi)!.teacher?.name || '' }}</div>
             </div>
           </template>
+          <template v-if="editMode && isLocked(di, pi)">
+            <span class="lock-icon">🔒</span>
+          </template>
         </div>
       </template>
     </div>
@@ -201,8 +341,47 @@ function isDropTarget(day: number, period: number): boolean {
 
 <style scoped>
 .week-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+.week-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-s);
+}
+
+.mode-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--b3-theme-on-surface);
+}
+
+.mode-toggle-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.mode-toggle-btn:hover {
+  background: var(--b3-theme-primary-light);
+}
+
 .empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--b3-theme-on-surface-light); font-size: 14px; }
+
 .schedule-grid { flex: 1; display: grid; grid-template-columns: 60px repeat(7, 1fr); grid-template-rows: auto repeat(11, minmax(36px, 1fr)); gap: 1px; background: var(--b3-border-color); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
+
+.edit-mode .grid-cell {
+  cursor: pointer;
+}
+
 .grid-corner, .grid-header, .time-label { background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); }
 .grid-header { flex-direction: column; gap: 1px; }
 .grid-header.today { background: var(--b3-theme-primary-lightest); color: var(--b3-theme-primary); }
@@ -211,7 +390,34 @@ function isDropTarget(day: number, period: number): boolean {
 .time-label { flex-direction: column; gap: 1px; font-size: 11px; }
 .period-num { font-weight: 600; color: var(--b3-theme-on-background); }
 .period-time { font-size: 9px; color: var(--b3-theme-on-surface-light); }
-.grid-cell { background: var(--b3-theme-background); min-height: 48px; overflow: hidden; position: relative; transition: background 0.15s; }
+
+.grid-cell { background: var(--b3-theme-background); min-height: 36px; overflow: hidden; position: relative; transition: background 0.15s; display: flex; align-items: center; justify-content: center; }
+
+/* Locked cell in view mode */
+.cell-locked:not(.cell-edit-locked) {
+  background: repeating-linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-surface) 3px, transparent 3px, transparent 6px);
+  cursor: not-allowed;
+}
+
+/* Locked cell in edit mode */
+.cell-edit-locked {
+  background: rgba(244, 67, 54, 0.25) !important;
+}
+
+/* Free cell in edit mode */
+.cell-edit-free {
+  background: var(--b3-theme-background);
+}
+.cell-edit-free:hover {
+  background: var(--b3-theme-primary-lightest);
+}
+
+.lock-icon {
+  font-size: 14px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
 .grid-cell.drop-target { background: var(--b3-theme-primary-lightest); opacity: 0.85; }
 .grid-cell.drag-over { background: var(--b3-theme-primary-light); outline: 2px dashed var(--b3-theme-primary); outline-offset: -2px; z-index: 1; }
 .grid-cell.conflict-flash { animation: conflictPulse 0.3s ease 3; background: var(--b3-theme-error-lightest) !important; }
@@ -219,7 +425,7 @@ function isDropTarget(day: number, period: number): boolean {
   0%, 100% { background: var(--b3-theme-error-lightest); }
   50% { background: var(--b3-theme-error); }
 }
-.course-card { height: 100%; padding: 4px 6px; font-size: 11px; cursor: grab; transition: box-shadow 0.15s, opacity 0.15s; border-left: 3px solid; overflow: hidden; }
+.course-card { height: 100%; padding: 4px 6px; font-size: 11px; cursor: grab; transition: box-shadow 0.15s, opacity 0.15s; border-left: 3px solid; overflow: hidden; display: flex; flex-direction: column; }
 .course-card:active { cursor: grabbing; }
 .course-card:hover { box-shadow: var(--b3-point-shadow); }
 .course-name { font-weight: 600; color: var(--b3-theme-on-background); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
