@@ -44,6 +44,17 @@ function isFirstCell(entry: ScheduleEntry, period: number): boolean {
   return entry.startPeriod === period
 }
 
+// Get grid-row span for a cell (hide cells that are "covered" by a multi-period course)
+function cellStyle(day: number, period: number): Record<string, string> {
+  const entry = getCourseAt(day, period)
+  if (!entry) return {}
+  if (isFirstCell(entry, period)) {
+    return { gridRow: `span ${entry.span}` }
+  }
+  // This cell is covered by a course above it
+  return { display: 'none' }
+}
+
 function openCourseDetail(entry: ScheduleEntry) {
   if (!drawerRef?.value) return
   drawerRef.value.openDrawer(entry)
@@ -159,6 +170,7 @@ function isDropTarget(day: number, period: number): boolean {
           v-for="(_, di) in DAY_NAMES"
           :key="di"
           class="grid-cell"
+          :style="cellStyle(di, pi)"
           :class="{
             'drag-over': dragOverDay === di && dragOverPeriod === pi && isDropTarget(di, pi),
             'conflict-flash': conflictFlash?.day === di && conflictFlash?.period === pi,
@@ -172,7 +184,6 @@ function isDropTarget(day: number, period: number): boolean {
             <div
               class="course-card"
               :class="['course-' + (getCourseAt(di, pi)!.course?.dept || 'cs')]"
-              :style="{ gridRow: 'span ' + getCourseAt(di, pi)!.span }"
               draggable="true"
               @dragstart="onDragStart($event, getCourseAt(di, pi)!)"
               @dragend="onDragEnd"
