@@ -27,6 +27,9 @@ frontend/dist/
 # Wails build cache
 .task/
 
+# Windows syso (generated per build)
+*.syso
+
 # OS
 .DS_Store
 Thumbs.db
