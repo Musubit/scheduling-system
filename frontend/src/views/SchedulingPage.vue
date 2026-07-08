@@ -178,6 +178,11 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
               <n-progress :percentage="store.result.scoreDetail.lowFloorPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
               <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/{{ categoryMax }}</span>
             </div>
+            <div class="breakdown-item" v-if="isConstraintEnabled('avoid_saturday') || isConstraintEnabled('avoid_sunday')">
+              <span class="breakdown-label">周末避让</span>
+              <n-progress :percentage="(store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(0) }}/{{ categoryMax }}</span>
+            </div>
           </div>
         </div>
 

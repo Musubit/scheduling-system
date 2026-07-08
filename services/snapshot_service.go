@@ -39,6 +39,7 @@ func (s *SnapshotService) CreateSnapshot(
 		CourseSpacing: breakdown.CourseSpacing,
 		TeacherDays:   breakdown.TeacherDays,
 		LowFloorPref:  breakdown.LowFloorPref,
+		WeekendAvoid:  breakdown.WeekendAvoid,
 
 		TotalEntries: len(entries),
 		SolveTimeMs:  solveTimeMs,

@@ -180,6 +180,7 @@ export interface ScoreBreakdown {
   courseSpacing: number
   teacherDays: number
   lowFloorPref: number
+  weekendAvoid: number
 }
 
 /** 冲突 */

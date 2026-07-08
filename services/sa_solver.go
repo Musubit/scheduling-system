@@ -215,8 +215,30 @@ func (ctx *schedulingContext) buildInitial() {
 
 	for _, course := range ctx.courses {
 		placed := false
-		// Try days in random order
-		days := ctx.rng.Perm(7)
+		// Try days in random order, but push weekends to end if avoidance is on
+		baseDays := ctx.rng.Perm(7)
+		var days []int
+		if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
+			prefer, avoid := []int{}, []int{}
+			for _, d := range baseDays {
+				isAvoid := false
+				if ctx.hasConstraint("avoid_saturday") && d == int(models.Sat) {
+					isAvoid = true
+				}
+				if ctx.hasConstraint("avoid_sunday") && d == int(models.Sun) {
+					isAvoid = true
+				}
+				if isAvoid {
+					avoid = append(avoid, d)
+				} else {
+					prefer = append(prefer, d)
+				}
+			}
+			ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
+			days = append(prefer, avoid...)
+		} else {
+			days = baseDays
+		}
 
 		for _, day := range days {
 			if placed {
@@ -408,7 +430,14 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 
 	// Try new assignments
 	validStarts := []int{0, 2, 4, 6, 8}
+	// Pick day: prefer non-weekend if avoidance is on (80% chance weekdays)
 	day := ctx.rng.Intn(7)
+	if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
+		if ctx.rng.Float64() < 0.8 {
+			// Pick a weekday (0-4)
+			day = ctx.rng.Intn(5)
+		}
+	}
 	start := validStarts[ctx.rng.Intn(len(validStarts))]
 	span := entry.Span
 

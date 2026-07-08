@@ -222,6 +222,16 @@ onMounted(() => {
                 />
                 <span class="bar-value">{{ selectedSnapshot.lowFloorPref?.toFixed(1) }}</span>
               </div>
+              <div class="score-bar-item" v-if="selectedSnapshot.weekendAvoid !== undefined">
+                <span>周末避让</span>
+                <n-progress
+                  type="line"
+                  :percentage="((selectedSnapshot.weekendAvoid || 0) / 25) * 100"
+                  :color="scoreColor((selectedSnapshot.weekendAvoid || 0) * 4)"
+                  :height="16"
+                />
+                <span class="bar-value">{{ (selectedSnapshot.weekendAvoid || 0).toFixed(1) }}</span>
+              </div>
             </div>
           </n-card>
 

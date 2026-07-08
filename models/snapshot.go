@@ -27,6 +27,7 @@ type ScheduleSnapshot struct {
 	CourseSpacing  float64 `json:"courseSpacing"`
 	TeacherDays    float64 `json:"teacherDays"`
 	LowFloorPref   float64 `json:"lowFloorPref"`
+	WeekendAvoid   float64 `json:"weekendAvoid"`
 	CapacityWarn   int     `json:"capacityWarn"` // 容量不足警告数
 
 	// Statistics

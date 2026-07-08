@@ -19,6 +19,7 @@ type ScoreBreakdown struct {
 	CourseSpacing float64 `json:"courseSpacing"` // 课程间隔均匀度 (0-25)
 	TeacherDays   float64 `json:"teacherDays"`   // 教师到校天数 (0-25)
 	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层 (0-25)
+	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让 (0-25)
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
@@ -38,7 +39,23 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	}
 
 	// Count enabled categories and per-category max
-	enabledCount := len(enabledConstraints)
+	// Weekend avoidance counts as one category if either saturday or sunday avoidance is on
+	enabledCount := 0
+	if enabled["teacher_preference"] {
+		enabledCount++
+	}
+	if enabled["course_dispersed"] {
+		enabledCount++
+	}
+	if enabled["teacher_days_limit"] {
+		enabledCount++
+	}
+	if enabled["low_floor_preference"] {
+		enabledCount++
+	}
+	if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
+		enabledCount++
+	}
 	perCategoryMax := 100.0 / float64(enabledCount)
 	if enabledCount == 0 {
 		perCategoryMax = 25.0
@@ -74,7 +91,12 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		breakdown.LowFloorPref = s.scoreLowFloorPref(entries, teacherMap, classroomMap, perCategoryMax)
 	}
 
-	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref)*100) / 100
+	// 5. Weekend avoidance scoring
+	if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
+		breakdown.WeekendAvoid = s.scoreWeekendAvoid(entries, enabled, perCategoryMax)
+	}
+
+	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid)*100) / 100
 	return breakdown
 }
 
@@ -284,4 +306,39 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 
 	avgScore := totalScore / float64(len(stats))
 	return math.Round(maxScore*avgScore*100) / 100
+}
+
+// scoreWeekendAvoid penalizes entries placed on Saturday and/or Sunday.
+// Full score = no weekend entries. Each weekend entry reduces the score proportionally.
+func (s *ScoringService) scoreWeekendAvoid(entries []models.ScheduleEntry, enabled map[string]bool, maxScore float64) float64 {
+	if len(entries) == 0 {
+		return maxScore
+	}
+
+	avoidSaturday := enabled["avoid_saturday"]
+	avoidSunday := enabled["avoid_sunday"]
+
+	saturdayCount := 0
+	sundayCount := 0
+	for _, e := range entries {
+		if avoidSaturday && e.DayOfWeek == models.Sat {
+			saturdayCount++
+		}
+		if avoidSunday && e.DayOfWeek == models.Sun {
+			sundayCount++
+		}
+	}
+
+	totalWeekend := saturdayCount + sundayCount
+	if totalWeekend == 0 {
+		return maxScore
+	}
+
+	// Penalty: each weekend entry loses 1/N of the max score, where N is total entries
+	penalty := float64(totalWeekend) / float64(len(entries))
+	score := maxScore * (1.0 - penalty)
+	if score < 0 {
+		score = 0
+	}
+	return math.Round(score*100) / 100
 }
