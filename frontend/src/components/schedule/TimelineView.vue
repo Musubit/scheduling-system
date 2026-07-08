@@ -104,15 +104,15 @@ function eventStyle(e: ScheduleEntry, lane: number, totalLanes: number) {
 </template>
 
 <style scoped>
-.timeline-view { flex: 1; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; gap: 2px; }
+.timeline-view { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: 2px; }
 .empty-state { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--b3-theme-on-surface-light); font-size: 14px; }
 .tl-header { display: flex; margin-bottom: 4px; flex-shrink: 0; }
 .tl-day-label { width: 48px; flex-shrink: 0; }
 .tl-hours { display: grid; grid-template-columns: repeat(14, 1fr); flex: 1; }
 .tl-hour { font-size: 10px; color: var(--b3-theme-on-surface-light); text-align: center; }
-.tl-row { display: flex; align-items: stretch; min-height: 36px; }
+.tl-row { display: flex; align-items: stretch; flex: 1; min-height: 0; }
 .tl-day-name { width: 48px; flex-shrink: 0; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); display: flex; align-items: center; padding: 0 4px; }
-.tl-track { flex: 1; position: relative; background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius-s); min-height: 36px; }
+.tl-track { flex: 1; position: relative; background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius-s); min-height: 0; }
 .tl-event { position: absolute; border-radius: 3px; border-left: 3px solid; padding: 2px 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; overflow: hidden; white-space: nowrap; min-width: 0; }
 .tl-event-name { font-weight: 600; color: var(--b3-theme-on-background); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 0; }
 .tl-event-room { opacity: 0.6; color: var(--b3-theme-on-surface); font-size: 10px; flex-shrink: 0; }

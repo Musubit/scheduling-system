@@ -15,24 +15,24 @@ const firstDayOfWeek = computed(() => {
   return d === 0 ? 6 : d - 1
 })
 
-const calendarDays = computed(() => {
-  const days: { date: number; isCurrentMonth: boolean; isToday: boolean; dow: number; courses: string[] }[] = []
-  const prevMonthDays = new Date(year.value, month.value - 1, 0).getDate()
-  for (let i = firstDayOfWeek.value - 1; i >= 0; i--) {
-    days.push({ date: prevMonthDays - i, isCurrentMonth: false, isToday: false, dow: -1, courses: [] })
-  }
-  const today = new Date()
-  for (let d = 1; d <= daysInMonth.value; d++) {
-    const dow = (firstDayOfWeek.value + d - 1) % 7
-    const dt = new Date(year.value, month.value - 1, d)
-    const dayEntries = scheduleStore.entries.filter(e => e.dayOfWeek === dow)
-    days.push({
-      date: d, isCurrentMonth: true,
-      isToday: dt.toDateString() === today.toDateString(),
-      dow,
-      courses: dayEntries.slice(0, 3).map(e => e.course?.name || ''),
-    })
-  }
+	const calendarDays = computed(() => {
+	  const days: { date: number; isCurrentMonth: boolean; isToday: boolean; dow: number; courses: { name: string; dept: string }[] }[] = []
+	  const prevMonthDays = new Date(year.value, month.value - 1, 0).getDate()
+	  for (let i = firstDayOfWeek.value - 1; i >= 0; i--) {
+	    days.push({ date: prevMonthDays - i, isCurrentMonth: false, isToday: false, dow: -1, courses: [] })
+	  }
+	  const today = new Date()
+	  for (let d = 1; d <= daysInMonth.value; d++) {
+	    const dow = (firstDayOfWeek.value + d - 1) % 7
+	    const dt = new Date(year.value, month.value - 1, d)
+	    const dayEntries = scheduleStore.entries.filter(e => e.dayOfWeek === dow)
+	    days.push({
+	      date: d, isCurrentMonth: true,
+	      isToday: dt.toDateString() === today.toDateString(),
+	      dow,
+	      courses: dayEntries.slice(0, 3).map(e => ({ name: e.course?.name || '', dept: e.course?.dept || 'cs' })),
+	    })
+	  }
   const remaining = 7 - (days.length % 7)
   if (remaining < 7) {
     for (let i = 1; i <= remaining; i++) {
@@ -50,7 +50,7 @@ const calendarDays = computed(() => {
       <div v-for="(day, idx) in calendarDays" :key="idx" class="month-cell" :class="{ 'other-month': !day.isCurrentMonth, 'is-today': day.isToday }">
         <div class="date-num">{{ day.date }}</div>
         <div v-if="day.isCurrentMonth" class="month-events">
-          <div v-for="(name, ci) in day.courses" :key="ci" class="month-event">{{ name }}</div>
+          <div v-for="(c, ci) in day.courses" :key="ci" class="month-event" :class="'mo-' + c.dept">{{ c.name }}</div>
         </div>
       </div>
     </div>
@@ -66,6 +66,25 @@ const calendarDays = computed(() => {
 .month-cell.is-today { background: var(--b3-theme-primary-lightest); }
 .month-cell.is-today .date-num { color: var(--b3-theme-primary); font-weight: 700; }
 .date-num { font-size: 12px; color: var(--b3-theme-on-surface); margin-bottom: 4px; }
-.month-events { display: flex; flex-direction: column; gap: 2px; }
-.month-event { font-size: 10px; padding: 1px 4px; border-radius: 2px; border-left: 2px solid var(--b3-theme-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; color: var(--b3-theme-on-surface); background: var(--b3-theme-primary-lightest); }
+.month-events { display: flex; flex-direction: column; gap: 3px; }
+.month-event { font-size: 10px; padding: 2px 4px; border-radius: 2px; border-left: 2px solid; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.5; }
+.mo-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
+.mo-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
+.mo-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
+.mo-bio { background: var(--course-bio-bg); border-left-color: var(--course-bio-border); }
+.mo-civil { background: var(--course-civil-bg); border-left-color: var(--course-civil-border); }
+.mo-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
+.mo-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
+.mo-design { background: var(--course-design-bg); border-left-color: var(--course-design-border); }
+.mo-econ { background: var(--course-econ-bg); border-left-color: var(--course-econ-border); }
+.mo-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
+.mo-sci { background: var(--course-sci-bg); border-left-color: var(--course-sci-border); }
+.mo-marx { background: var(--course-marx-bg); border-left-color: var(--course-marx-border); }
+.mo-voc { background: var(--course-voc-bg); border-left-color: var(--course-voc-border); }
+.mo-intl { background: var(--course-intl-bg); border-left-color: var(--course-intl-border); }
+.mo-pe { background: var(--course-pe-bg); border-left-color: var(--course-pe-border); }
+.mo-cont { background: var(--course-cont-bg); border-left-color: var(--course-cont-border); }
+.mo-innov { background: var(--course-innov-bg); border-left-color: var(--course-innov-border); }
+.mo-engtech { background: var(--course-engtech-bg); border-left-color: var(--course-engtech-border); }
+.mo-detroit { background: var(--course-detroit-bg); border-left-color: var(--course-detroit-border); }
 </style>
