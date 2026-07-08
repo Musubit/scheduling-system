@@ -9,7 +9,7 @@ const scheduleStore = useScheduleStore()
 const drawerRef = inject<any>('drawerRef')
 const message = useMessage()
 
-const displayEntries = computed(() => scheduleStore.entries)
+const displayEntries = computed(() => scheduleStore.displayEntries)
 
 // ---- Locked Time Slot Editing Mode ----
 const editMode = ref(false)

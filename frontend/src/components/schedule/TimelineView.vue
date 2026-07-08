@@ -19,7 +19,7 @@ function periodToMinute(p: number): number {
 }
 
 function getCoursesForDay(day: number): Array<ScheduleEntry & { lane: number; totalLanes: number }> {
-  const entries = scheduleStore.entries.filter(e => e.dayOfWeek === day)
+	  const entries = scheduleStore.displayEntries.filter(e => e.dayOfWeek === day)
   if (entries.length <= 1) return entries.map(e => ({ ...e, lane: 0, totalLanes: 1 }))
 
   // Sort by start time
@@ -75,7 +75,7 @@ function eventStyle(e: ScheduleEntry, lane: number, totalLanes: number) {
 
 <template>
   <div class="timeline-view">
-    <div v-if="scheduleStore.entries.length === 0" class="empty-state">暂无排课数据</div>
+    <div v-if="scheduleStore.displayEntries.length === 0" class="empty-state">暂无排课数据</div>
     <template v-else>
       <div class="tl-header">
         <div class="tl-day-label"></div>

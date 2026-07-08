@@ -23,10 +23,43 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   const entries = ref<ScheduleEntry[]>([])
+
+  // Perspective filtering
+  const perspective = ref<'all' | 'teacher' | 'class'>('all')
+  const selectedTeacherId = ref<number | null>(null)
+  const selectedClassId = ref<number | null>(null)
+
+  const displayEntries = computed(() => {
+    if (perspective.value === 'all') return entries.value
+    if (perspective.value === 'teacher' && selectedTeacherId.value) {
+      return entries.value.filter(e => e.teacherId === selectedTeacherId.value)
+    }
+    if (perspective.value === 'class' && selectedClassId.value) {
+      return entries.value.filter(e => {
+        // Check if entry's class group matches
+        if (e.classGroupId === selectedClassId.value) return true
+        // Also check via TeachingTask association
+        const tt = (e as any).teachingTask
+        if (tt?.classes) {
+          return tt.classes.some((c: any) => c.classGroupId === selectedClassId.value || c.ClassGroupID === selectedClassId.value)
+        }
+        return false
+      })
+    }
+    return []
+  })
+
+  function setPerspective(p: 'all' | 'teacher' | 'class') {
+    perspective.value = p
+    selectedTeacherId.value = null
+    selectedClassId.value = null
+  }
+
   const totalCourses = computed(() => entries.value.length)
+  const filteredCount = computed(() => displayEntries.value.length)
 
   function getEntryAt(day: number, period: number): ScheduleEntry | undefined {
-    return entries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
+    return displayEntries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
   }
 
   async function loadSchedule(semester: string) {
@@ -45,7 +78,9 @@ export const useScheduleStore = defineStore('schedule', () => {
   return {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
-    entries, totalCourses, isLoading,
+    entries, displayEntries, totalCourses, filteredCount, isLoading,
+    perspective, selectedTeacherId, selectedClassId,
+    setPerspective,
     getEntryAt, loadSchedule,
   }
 })

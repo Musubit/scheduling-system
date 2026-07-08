@@ -25,7 +25,7 @@ const firstDayOfWeek = computed(() => {
 	  for (let d = 1; d <= daysInMonth.value; d++) {
 	    const dow = (firstDayOfWeek.value + d - 1) % 7
 	    const dt = new Date(year.value, month.value - 1, d)
-	    const dayEntries = scheduleStore.entries.filter(e => e.dayOfWeek === dow)
+	    const dayEntries = scheduleStore.displayEntries.filter(e => e.dayOfWeek === dow)
 	    days.push({
 	      date: d, isCurrentMonth: true,
 	      isToday: dt.toDateString() === today.toDateString(),
