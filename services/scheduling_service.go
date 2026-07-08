@@ -149,22 +149,43 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 				// Base day order: random
 				baseDays := iterRng.Perm(7)
 
-				// 软约束-课程分散：该课程已排的天放到末尾
-				var days []int
-				if hasConstraint(config.Constraints, "course_dispersed") {
-					fresh, used := []int{}, []int{}
-					for _, d := range baseDays {
-						if courseDays[course.ID] != nil && courseDays[course.ID][d] {
-							used = append(used, d)
-						} else {
-							fresh = append(fresh, d)
-						}
+			// 软约束-课程分散：该课程已排的天放到末尾
+			var days []int
+			if hasConstraint(config.Constraints, "course_dispersed") {
+				fresh, used := []int{}, []int{}
+				for _, d := range baseDays {
+					if courseDays[course.ID] != nil && courseDays[course.ID][d] {
+						used = append(used, d)
+					} else {
+						fresh = append(fresh, d)
 					}
-					iterRng.Shuffle(len(fresh), func(i, j int) { fresh[i], fresh[j] = fresh[j], fresh[i] })
-					days = append(fresh, used...)
-				} else {
-					days = baseDays
 				}
+				iterRng.Shuffle(len(fresh), func(i, j int) { fresh[i], fresh[j] = fresh[j], fresh[i] })
+				days = append(fresh, used...)
+			} else {
+				days = baseDays
+			}
+
+			// 软约束-周末避让：周六(5)/周日(6)排到末尾
+			if hasConstraint(config.Constraints, "avoid_saturday") || hasConstraint(config.Constraints, "avoid_sunday") {
+				prefer, avoid := []int{}, []int{}
+				for _, d := range days {
+					isAvoid := false
+					if hasConstraint(config.Constraints, "avoid_saturday") && d == 5 {
+						isAvoid = true
+					}
+					if hasConstraint(config.Constraints, "avoid_sunday") && d == 6 {
+						isAvoid = true
+					}
+					if isAvoid {
+						avoid = append(avoid, d)
+					} else {
+						prefer = append(prefer, d)
+					}
+				}
+				iterRng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
+				days = append(prefer, avoid...)
+			}
 
 				for _, day := range days {
 				if placed {

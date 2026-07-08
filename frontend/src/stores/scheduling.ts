@@ -18,6 +18,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
     { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
     { key: 'low_floor_preference', label: '优先低楼层教室' },
+    { key: 'avoid_saturday', label: '尽量避开周六排课' },
+    { key: 'avoid_sunday', label: '尽量避开周日排课' },
   ]
 
   const strategyOptions = [
