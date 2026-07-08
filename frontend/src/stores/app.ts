@@ -93,6 +93,9 @@ export const useAppStore = defineStore('app', () => {
 
   function navigateTo(page: PageId, breadcrumb?: string) {
     currentPage.value = page
+    if (page === 'schedule' || page === 'resource') {
+      loadSemesters() // refresh dropdown — store init may have raced with Wails backend
+    }
     if (breadcrumb) {
       breadcrumbPath.value = [pageTitle.value, breadcrumb]
     }
@@ -126,8 +129,11 @@ export const useAppStore = defineStore('app', () => {
   async function loadSemesters() {
     try {
       const result = await GetSemesters()
+      console.log('[appStore] loadSemesters result:', JSON.stringify(result?.map((s: any) => s.name)))
       semesters.value = result || []
-    } catch { /* backend unavailable */ }
+    } catch (e) {
+      console.warn('[appStore] loadSemesters FAILED:', e)
+    }
   }
 
   return {

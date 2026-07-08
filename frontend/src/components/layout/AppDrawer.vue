@@ -152,7 +152,7 @@ defineExpose({ openDrawer, closeDrawer, setAllEntries })
 </script>
 
 <template>
-  <n-drawer v-model:show="isOpen" :width="400" placement="right">
+  <n-drawer v-model:show="isOpen" :width="400" placement="right" :show-mask="false">
     <n-drawer-content title="课程详情" closable>
       <template v-if="selectedEntry">
         <!-- View mode -->
@@ -245,13 +245,5 @@ defineExpose({ openDrawer, closeDrawer, setAllEntries })
   font-size: 13px;
   color: #e65100;
   margin-top: 12px;
-}
-</style>
-
-<style>
-/* Let clicks pass through the drawer mask so the schedule grid remains interactive */
-.n-drawer-mask {
-  pointer-events: none !important;
-  opacity: 0 !important;
 }
 </style>
