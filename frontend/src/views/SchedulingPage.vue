@@ -1,9 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
-import { NButton, NSelect, NInputNumber, NCheckbox, NProgress, NSpace, NTag } from 'naive-ui'
+import { NButton, NSelect, NInputNumber, NCheckbox, NProgress, NTag, NSteps, NStep } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 
 const store = useSchedulingStore()
+
+// Step indicator
+const currentStep = computed(() => {
+  if (!store.isRunning && store.progress === 0) return 0
+  if (store.progress < 30) return 1
+  if (store.progress < 70) return 2
+  if (store.progress < 100) return 3
+  return 4
+})
 
 const scopeOptions = [
   { label: '全校所有院系', value: '全校所有院系' },
@@ -17,6 +27,11 @@ const semesterOptions = [
 
 <template>
   <div class="scheduling-page">
+    <!-- Quick guide -->
+    <div class="quick-guide" v-if="!store.isRunning && store.progress === 0">
+      💡 <strong>操作流程：</strong>左侧配参数 → 点「开始自动排课」→ 等算法完成 → 自动跳转课表查看 → 如有冲突去「冲突检测」处理
+    </div>
+
     <div class="scheduling-layout">
       <!-- 左侧：配置面板 -->
       <div class="config-panel">
@@ -84,6 +99,15 @@ const semesterOptions = [
       <div class="result-panel">
         <h3 class="panel-title">排课进度与结果</h3>
 
+        <!-- Step indicator -->
+        <n-steps :current="currentStep" size="small" style="margin-bottom: 16px;">
+          <n-step title="准备" description="加载资源" />
+          <n-step title="清空" description="清除旧课表" />
+          <n-step title="排课" description="算法分配" />
+          <n-step title="检测" description="冲突扫描" />
+          <n-step title="完成" description="生成课表" />
+        </n-steps>
+
         <div class="progress-section">
           <div class="progress-label">{{ store.progressText }}</div>
           <n-progress
@@ -122,11 +146,8 @@ const semesterOptions = [
 </template>
 
 <style scoped>
-.scheduling-page {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+.scheduling-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.quick-guide { font-size: 13px; color: var(--b3-theme-on-surface); background: var(--b3-theme-primary-lightest); padding: 10px 16px; border-radius: var(--b3-border-radius-s); margin-bottom: 16px; border-left: 3px solid var(--b3-theme-primary); }
 }
 
 .scheduling-layout {

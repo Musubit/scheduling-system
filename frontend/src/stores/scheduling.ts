@@ -55,8 +55,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   async function startScheduling() {
     if (isRunning.value) return
     isRunning.value = true
-    progress.value = 10
-    logs.value = ['排课引擎启动，正在调用后端算法...']
+    progress.value = 5
+    logs.value = ['🔍 正在加载课程和教师数据...']
 
     try {
       const goConfig: models.SchedulingConfig = {
@@ -66,8 +66,12 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         iterations: config.value.iterations,
         constraints: config.value.constraints,
       }
+      progress.value = 20
+      logs.value.push('⚙️ 正在清空旧课表，准备排课...')
+
       const goResult = await RunScheduling(goConfig)
-      progress.value = 100
+      progress.value = 90
+      logs.value.push(...(goResult?.logs || []))
 
       if (goResult) {
         result.value = {
@@ -77,11 +81,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
           utilization: goResult.utilization || 0,
           logs: goResult.logs || [],
         }
-        logs.value = goResult.logs || ['排课完成']
-        // Auto-refresh schedule views
+      }
+      progress.value = 100
+      logs.value.push('✅ 排课完成！正在加载课表...')
+        // Refresh schedule views and navigate to schedule
         const { useScheduleStore } = await import('./schedule')
         const { useAppStore } = await import('./app')
-        useScheduleStore().loadSchedule(useAppStore().semesterFilter)
+        const appStore = useAppStore()
+        await useScheduleStore().loadSchedule(appStore.semesterFilter)
+        appStore.navigateTo('schedule', '周视图课表')
       }
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
