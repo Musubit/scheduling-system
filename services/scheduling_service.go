@@ -9,11 +9,12 @@ import (
 )
 
 type SchedulingService struct {
-	db database.DB
+	db        database.DB
+	snapshots *SnapshotService
 }
 
-func NewSchedulingService(db database.DB) *SchedulingService {
-	return &SchedulingService{db: db}
+func NewSchedulingService(db database.DB, snapshots *SnapshotService) *SchedulingService {
+	return &SchedulingService{db: db, snapshots: snapshots}
 }
 
 type SchedulingConfig struct {
@@ -170,6 +171,20 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		len(saResult.Entries), result.TotalCourses, result.Utilization*100, saResult.Score))
 	if len(saResult.Entries) < result.TotalCourses {
 		log(fmt.Sprintf("WARN 剩余 %d 门课程需手动调整", result.TotalCourses-len(saResult.Entries)))
+	}
+
+	// Auto-snapshot after scheduling
+	if s.snapshots != nil && len(saResult.Entries) > 0 {
+		_, snapErr := s.snapshots.CreateSnapshot(
+			config.Semester, config.Scope, "auto", "simulated_annealing",
+			saResult.Entries, teachers, classrooms, config.Constraints,
+			saResult.ElapsedMs, result.Conflicts,
+		)
+		if snapErr != nil {
+			log("WARN 快照保存失败: " + snapErr.Error())
+		} else {
+			log("快照已自动保存")
+		}
 	}
 
 	return result

@@ -22,6 +22,7 @@ type DB interface {
 	Preload(query string, args ...interface{}) DB
 	First(dest interface{}, conds ...interface{}) DB
 	Model(value interface{}) DB
+	Order(value interface{}) DB
 	Count(count *int64) DB
 	Transaction(fc func(tx DB) error) error
 	AutoMigrate(dst ...interface{}) error
@@ -68,6 +69,10 @@ func (g *GormAdapter) Model(value interface{}) DB {
 	return &GormAdapter{db: g.db.Model(value)}
 }
 
+func (g *GormAdapter) Order(value interface{}) DB {
+	return &GormAdapter{db: g.db.Order(value)}
+}
+
 func (g *GormAdapter) Count(count *int64) DB {
 	return &GormAdapter{db: g.db.Count(count)}
 }
@@ -107,6 +112,8 @@ func InitDB() (*GormAdapter, error) {
 		&models.ScheduleEntry{},
 		&models.Semester{},
 		&models.Setting{},
+		&models.ScheduleSnapshot{},
+		&models.SnapshotDetail{},
 	)
 	if err != nil {
 		return nil, err

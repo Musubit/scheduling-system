@@ -20,13 +20,19 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// Create services
+	resources := services.NewResourceService(db)
+	snapshots := services.NewSnapshotService(db)
+	scheduler := services.NewSchedulingService(db, snapshots)
+
 	// Create Wails application
 	app := application.New(application.Options{
 		Name:        "高校排课系统",
 		Description: "高校智能排课管理系统",
 		Services: []application.Service{
-			application.NewService(services.NewResourceService(db)),
-			application.NewService(services.NewSchedulingService(db)),
+			application.NewService(resources),
+			application.NewService(scheduler),
+			application.NewService(snapshots),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
