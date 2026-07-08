@@ -177,17 +177,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 }
 
 func findTeachers(teachers []models.Teacher, dept string) []models.Teacher {
-	// Prefer same department
 	var same, other []models.Teacher
 	for _, t := range teachers {
-		if t.Dept == dept || (dept == "cs" && t.Dept == "计算机科学学院") ||
-			(dept == "math" && t.Dept == "数学与统计学院") ||
-			(dept == "phys" && t.Dept == "物理学院") ||
-			(dept == "eng" && t.Dept == "外国语学院") ||
-			(dept == "eco" && t.Dept == "经济管理学院") ||
-			(dept == "law" && t.Dept == "法学院") ||
-			(dept == "art" && t.Dept == "艺术学院") ||
-			(dept == "edu" && t.Dept == "教育学院") {
+		if t.Dept == dept {
 			same = append(same, t)
 		} else {
 			other = append(other, t)

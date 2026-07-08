@@ -67,7 +67,7 @@ export interface ScheduleEntry {
 }
 
 /** 院系代码 */
-export type DeptCode = 'cs' | 'math' | 'phys' | 'eng' | 'art' | 'eco' | 'law' | 'edu'
+export type DeptCode = 'mech' | 'elec' | 'mate' | 'bio' | 'civil' | 'cs' | 'art' | 'design' | 'econ' | 'eng' | 'sci' | 'marx' | 'voc' | 'intl' | 'pe' | 'cont' | 'innov' | 'engtech' | 'detroit'
 
 /** 院系信息 */
 export interface Department {
@@ -75,16 +75,27 @@ export interface Department {
   name: string
 }
 
-/** 院系列表 */
+/** 院系列表 - 湖北工业大学19个学院 */
 export const DEPARTMENTS: Department[] = [
-  { code: 'cs', name: '计算机科学学院' },
-  { code: 'math', name: '数学与统计学院' },
-  { code: 'phys', name: '物理学院' },
+  { code: 'mech', name: '机械工程学院' },
+  { code: 'elec', name: '电气与电子工程学院' },
+  { code: 'mate', name: '材料与化学工程学院' },
+  { code: 'bio', name: '生物工程与食品学院' },
+  { code: 'civil', name: '土木建筑与环境学院' },
+  { code: 'cs', name: '计算机学院' },
+  { code: 'art', name: '艺术设计学院' },
+  { code: 'design', name: '工业设计学院' },
+  { code: 'econ', name: '经济与管理学院' },
   { code: 'eng', name: '外国语学院' },
-  { code: 'art', name: '艺术学院' },
-  { code: 'eco', name: '经济管理学院' },
-  { code: 'law', name: '法学院' },
-  { code: 'edu', name: '教育学院' },
+  { code: 'sci', name: '理学院' },
+  { code: 'marx', name: '马克思主义学院' },
+  { code: 'voc', name: '职业技术师范学院' },
+  { code: 'intl', name: '国际学院' },
+  { code: 'pe', name: '体育学院' },
+  { code: 'cont', name: '继续教育学院' },
+  { code: 'innov', name: '创新创业学院' },
+  { code: 'engtech', name: '工程技术学院' },
+  { code: 'detroit', name: '底特律绿色工业学院' },
 ]
 
 /** 时间段 */

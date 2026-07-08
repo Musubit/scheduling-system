@@ -14,16 +14,16 @@ interface MockCourse {
   dept: DeptCode
 }
 const mockCourses: MockCourse[] = [
-  { day: 0, name: '高等数学', dept: 'math' },
+  { day: 0, name: '高等数学', dept: 'sci' },
   { day: 0, name: '数据结构', dept: 'cs' },
   { day: 0, name: '大学英语', dept: 'eng' },
-  { day: 1, name: '线性代数', dept: 'math' },
-  { day: 1, name: '计组', dept: 'cs' },
+  { day: 1, name: '线性代数', dept: 'sci' },
+  { day: 1, name: '电路原理', dept: 'elec' },
   { day: 2, name: '操作系统', dept: 'cs' },
-  { day: 2, name: '大学物理', dept: 'phys' },
-  { day: 3, name: '算法设计', dept: 'cs' },
-  { day: 3, name: '离散数学', dept: 'math' },
-  { day: 4, name: '编译原理', dept: 'cs' },
+  { day: 2, name: '生物化学', dept: 'bio' },
+  { day: 3, name: '机械设计', dept: 'mech' },
+  { day: 3, name: '结构力学', dept: 'civil' },
+  { day: 4, name: '电力系统', dept: 'elec' },
   { day: 4, name: '英语听说', dept: 'eng' },
 ]
 
@@ -177,12 +177,23 @@ const calendarDays = computed(() => {
   line-height: 1.4;
 }
 
+.mev-mech { background: var(--course-mech-bg); color: var(--course-mech-border); border-left-color: var(--course-mech-border); }
+.mev-elec { background: var(--course-elec-bg); color: var(--course-elec-border); border-left-color: var(--course-elec-border); }
+.mev-mate { background: var(--course-mate-bg); color: var(--course-mate-border); border-left-color: var(--course-mate-border); }
+.mev-bio { background: var(--course-bio-bg); color: var(--course-bio-border); border-left-color: var(--course-bio-border); }
+.mev-civil { background: var(--course-civil-bg); color: var(--course-civil-border); border-left-color: var(--course-civil-border); }
 .mev-cs { background: var(--course-cs-bg); color: var(--course-cs-border); border-left-color: var(--course-cs-border); }
-.mev-math { background: var(--course-math-bg); color: var(--course-math-border); border-left-color: var(--course-math-border); }
-.mev-phys { background: var(--course-phys-bg); color: var(--course-phys-border); border-left-color: var(--course-phys-border); }
-.mev-eng { background: var(--course-eng-bg); color: var(--course-eng-border); border-left-color: var(--course-eng-border); }
 .mev-art { background: var(--course-art-bg); color: var(--course-art-border); border-left-color: var(--course-art-border); }
-.mev-eco { background: var(--course-eco-bg); color: var(--course-eco-border); border-left-color: var(--course-eco-border); }
-.mev-law { background: var(--course-law-bg); color: var(--course-law-border); border-left-color: var(--course-law-border); }
-.mev-edu { background: var(--course-edu-bg); color: var(--course-edu-border); border-left-color: var(--course-edu-border); }
+.mev-design { background: var(--course-design-bg); color: var(--course-design-border); border-left-color: var(--course-design-border); }
+.mev-econ { background: var(--course-econ-bg); color: var(--course-econ-border); border-left-color: var(--course-econ-border); }
+.mev-eng { background: var(--course-eng-bg); color: var(--course-eng-border); border-left-color: var(--course-eng-border); }
+.mev-sci { background: var(--course-sci-bg); color: var(--course-sci-border); border-left-color: var(--course-sci-border); }
+.mev-marx { background: var(--course-marx-bg); color: var(--course-marx-border); border-left-color: var(--course-marx-border); }
+.mev-voc { background: var(--course-voc-bg); color: var(--course-voc-border); border-left-color: var(--course-voc-border); }
+.mev-intl { background: var(--course-intl-bg); color: var(--course-intl-border); border-left-color: var(--course-intl-border); }
+.mev-pe { background: var(--course-pe-bg); color: var(--course-pe-border); border-left-color: var(--course-pe-border); }
+.mev-cont { background: var(--course-cont-bg); color: var(--course-cont-border); border-left-color: var(--course-cont-border); }
+.mev-innov { background: var(--course-innov-bg); color: var(--course-innov-border); border-left-color: var(--course-innov-border); }
+.mev-engtech { background: var(--course-engtech-bg); color: var(--course-engtech-border); border-left-color: var(--course-engtech-border); }
+.mev-detroit { background: var(--course-detroit-bg); color: var(--course-detroit-border); border-left-color: var(--course-detroit-border); }
 </style>

@@ -18,14 +18,14 @@ const tabOptions = [
 
 // ===== 模拟数据 =====
 const mockTeachers = [
-  { id: 1, code: 'T001', name: '王建国', dept: '数学与统计学院', title: '教授', status: 'active', weeklyHours: 12 },
-  { id: 2, code: 'T002', name: '张明远', dept: '计算机科学学院', title: '教授', status: 'active', weeklyHours: 10 },
-  { id: 3, code: 'T003', name: '李伟', dept: '计算机科学学院', title: '副教授', status: 'active', weeklyHours: 14 },
+  { id: 1, code: 'T001', name: '张建国', dept: '机械工程学院', title: '教授', status: 'active', weeklyHours: 12 },
+  { id: 2, code: 'T002', name: '李明远', dept: '电气与电子工程学院', title: '教授', status: 'active', weeklyHours: 10 },
+  { id: 3, code: 'T003', name: '王伟', dept: '材料与化学工程学院', title: '副教授', status: 'active', weeklyHours: 14 },
   { id: 4, code: 'T004', name: '刘芳', dept: '外国语学院', title: '讲师', status: 'active', weeklyHours: 16 },
-  { id: 5, code: 'T005', name: '赵秀英', dept: '数学与统计学院', title: '副教授', status: 'active', weeklyHours: 8 },
-  { id: 6, code: 'T006', name: '孙志强', dept: '经济管理学院', title: '教授', status: 'active', weeklyHours: 10 },
-  { id: 7, code: 'T007', name: '周海', dept: '计算机科学学院', title: '副教授', status: 'inactive', weeklyHours: 0 },
-  { id: 8, code: 'T008', name: '钱学森', dept: '物理学院', title: '教授', status: 'active', weeklyHours: 6 },
+  { id: 5, code: 'T005', name: '赵秀英', dept: '理学院', title: '副教授', status: 'active', weeklyHours: 8 },
+  { id: 6, code: 'T006', name: '孙志强', dept: '经济与管理学院', title: '教授', status: 'active', weeklyHours: 10 },
+  { id: 7, code: 'T007', name: '周海', dept: '计算机学院', title: '副教授', status: 'inactive', weeklyHours: 0 },
+  { id: 8, code: 'T008', name: '钱学林', dept: '生物工程与食品学院', title: '教授', status: 'active', weeklyHours: 6 },
 ]
 
 const mockClassrooms = [
@@ -39,23 +39,23 @@ const mockClassrooms = [
 ]
 
 const mockCourses = [
-  { id: 1, code: 'CS301', name: '数据结构', dept: '计算机科学学院', credit: 4.0, type: '专业必修', hours: 64 },
-  { id: 2, code: 'MATH201', name: '高等数学', dept: '数学与统计学院', credit: 5.0, type: '专业必修', hours: 80 },
-  { id: 3, code: 'ENG101', name: '大学英语', dept: '外国语学院', credit: 3.0, type: '公共必修', hours: 48 },
-  { id: 4, code: 'PHY201', name: '大学物理', dept: '物理学院', credit: 4.0, type: '专业必修', hours: 64 },
-  { id: 5, code: 'CS302', name: '操作系统', dept: '计算机科学学院', credit: 4.0, type: '专业必修', hours: 64 },
-  { id: 6, code: 'LAW101', name: '马原', dept: '法学院', credit: 2.0, type: '公共必修', hours: 32 },
-  { id: 7, code: 'ART201', name: '艺术鉴赏', dept: '艺术学院', credit: 2.0, type: '全校选修', hours: 32 },
+  { id: 1, code: 'CS301', name: '数据结构', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64 },
+  { id: 2, code: 'SC201', name: '高等数学', dept: '理学院', credit: 5.0, type: '公共必修', hours: 80 },
+  { id: 3, code: 'EN101', name: '大学英语', dept: '外国语学院', credit: 3.0, type: '公共必修', hours: 48 },
+  { id: 4, code: 'SC203', name: '大学物理', dept: '理学院', credit: 4.0, type: '公共必修', hours: 64 },
+  { id: 5, code: 'CS302', name: '操作系统', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64 },
+  { id: 6, code: 'MX101', name: '马克思主义基本原理', dept: '马克思主义学院', credit: 2.0, type: '公共必修', hours: 32 },
+  { id: 7, code: 'AD201', name: '设计素描', dept: '艺术设计学院', credit: 2.0, type: '专业必修', hours: 32 },
 ]
 
 const mockClasses = [
-  { id: 1, code: 'CS2301', name: '计算机2301', dept: '计算机科学学院', grade: 2023, students: 86 },
-  { id: 2, code: 'CS2302', name: '计算机2302', dept: '计算机科学学院', grade: 2023, students: 82 },
-  { id: 3, code: 'MATH2301', name: '数学2301', dept: '数学与统计学院', grade: 2023, students: 65 },
-  { id: 4, code: 'MATH2302', name: '数学2302', dept: '数学与统计学院', grade: 2023, students: 58 },
-  { id: 5, code: 'PHY2301', name: '物理2301', dept: '物理学院', grade: 2023, students: 45 },
-  { id: 6, code: 'ECO2301', name: '经济2301', dept: '经济管理学院', grade: 2023, students: 72 },
-  { id: 7, code: 'ECO2302', name: '经济2302', dept: '经济管理学院', grade: 2023, students: 68 },
+  { id: 1, code: 'CS2301', name: '计算机2301', dept: '计算机学院', grade: 2023, students: 86 },
+  { id: 2, code: 'CS2302', name: '计算机2302', dept: '计算机学院', grade: 2023, students: 82 },
+  { id: 3, code: 'ME2301', name: '机械2301', dept: '机械工程学院', grade: 2023, students: 72 },
+  { id: 4, code: 'EE2301', name: '电气2301', dept: '电气与电子工程学院', grade: 2023, students: 68 },
+  { id: 5, code: 'CE2301', name: '土木2301', dept: '土木建筑与环境学院', grade: 2023, students: 55 },
+  { id: 6, code: 'EM2301', name: '经管2301', dept: '经济与管理学院', grade: 2023, students: 78 },
+  { id: 7, code: 'AD2301', name: '艺设2301', dept: '艺术设计学院', grade: 2023, students: 40 },
 ]
 
 // ===== 列定义 =====

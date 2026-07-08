@@ -52,22 +52,22 @@ interface MockCourse {
 }
 
 const mockCourses: MockCourse[] = [
-  { day: 0, period: 0, span: 2, name: '高等数学', teacher: '王建国', room: 'A301', dept: 'math', classes: '数学2301' },
-  { day: 0, period: 2, span: 2, name: '数据结构', teacher: '张明远', room: 'C502', dept: 'cs', classes: '计算机2301' },
+  { day: 0, period: 0, span: 2, name: '高等数学', teacher: '赵秀英', room: 'A301', dept: 'sci', classes: '多专业合班' },
+  { day: 0, period: 2, span: 2, name: '数据结构', teacher: '周海', room: 'C502', dept: 'cs', classes: '计算机2301' },
   { day: 0, period: 4, span: 2, name: '大学英语', teacher: '刘芳', room: 'B108', dept: 'eng', classes: '多专业合班' },
-  { day: 0, period: 8, span: 2, name: '体育(篮球)', teacher: '陈刚', room: '体育馆', dept: 'edu', classes: '体育选修' },
+  { day: 0, period: 8, span: 2, name: '体育(篮球)', teacher: '陈刚', room: '体育馆', dept: 'pe', classes: '体育选修' },
   { day: 4, period: 8, span: 3, name: '晚课实验(三连上)', teacher: '周海', room: 'C502', dept: 'cs', classes: '计算机2301' },
-  { day: 1, period: 0, span: 2, name: '线性代数', teacher: '王建国', room: 'B205', dept: 'math', classes: '计算机2301' },
-  { day: 1, period: 2, span: 2, name: '计算机组成原理', teacher: '李伟', room: 'A301', dept: 'cs', classes: '计算机2301', conflict: true },
-  { day: 1, period: 5, span: 2, name: '概率论', teacher: '赵秀英', room: 'B301', dept: 'math', classes: '经济2301' },
+  { day: 1, period: 0, span: 2, name: '线性代数', teacher: '赵秀英', room: 'B205', dept: 'sci', classes: '计算机2301' },
+  { day: 1, period: 2, span: 2, name: '电路原理', teacher: '李明远', room: 'A201', dept: 'elec', classes: '电气2301' },
+  { day: 1, period: 4, span: 2, name: '大学物理', teacher: '钱学林', room: 'C301', dept: 'sci', classes: '多专业合班' },
   { day: 2, period: 0, span: 2, name: '操作系统', teacher: '周海', room: 'C502', dept: 'cs', classes: '计算机2302' },
-  { day: 2, period: 2, span: 2, name: '大学物理', teacher: '钱学森', room: 'A201', dept: 'phys', classes: '物理2301' },
-  { day: 2, period: 4, span: 2, name: '马克思主义基本原理', teacher: '吴芳', room: 'D401', dept: 'law', classes: '多专业合班' },
-  { day: 3, period: 0, span: 2, name: '算法设计', teacher: '张明远', room: 'C301', dept: 'cs', classes: '计算机2301' },
-  { day: 3, period: 2, span: 2, name: '离散数学', teacher: '赵秀英', room: 'B205', dept: 'math', classes: '计算机2301' },
-  { day: 4, period: 0, span: 2, name: '编译原理', teacher: '李伟', room: 'C301', dept: 'cs', classes: '计算机2301' },
+  { day: 2, period: 2, span: 2, name: '生物化学', teacher: '钱学林', room: 'C301', dept: 'bio', classes: '生物2301' },
+  { day: 2, period: 4, span: 2, name: '马克思主义基本原理', teacher: '吴芳', room: 'D401', dept: 'marx', classes: '多专业合班' },
+  { day: 3, period: 0, span: 2, name: '机械设计基础', teacher: '张建国', room: 'B301', dept: 'mech', classes: '机械2301' },
+  { day: 3, period: 2, span: 2, name: '结构力学', teacher: '杨华', room: 'C301', dept: 'civil', classes: '土木2301' },
+  { day: 4, period: 0, span: 2, name: '电力系统分析', teacher: '李明远', room: 'A201', dept: 'elec', classes: '电气2301' },
   { day: 4, period: 2, span: 2, name: '英语听说', teacher: '刘芳', room: 'B108', dept: 'eng', classes: '计算机2301' },
-  { day: 5, period: 2, span: 2, name: '数学建模', teacher: '钱学森', room: 'A201', dept: 'math', classes: '数学2302' },
+  { day: 5, period: 2, span: 2, name: '产品设计', teacher: '黄蕾', room: 'E101', dept: 'design', classes: '艺设2301' },
 ]
 
 </script>
@@ -215,12 +215,23 @@ const mockCourses: MockCourse[] = [
 }
 
 /* Department colors */
+.course-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
+.course-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
+.course-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
+.course-bio { background: var(--course-bio-bg); border-left-color: var(--course-bio-border); }
+.course-civil { background: var(--course-civil-bg); border-left-color: var(--course-civil-border); }
 .course-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
-.course-math { background: var(--course-math-bg); border-left-color: var(--course-math-border); }
-.course-phys { background: var(--course-phys-bg); border-left-color: var(--course-phys-border); }
-.course-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
 .course-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
-.course-eco { background: var(--course-eco-bg); border-left-color: var(--course-eco-border); }
-.course-law { background: var(--course-law-bg); border-left-color: var(--course-law-border); }
-.course-edu { background: var(--course-edu-bg); border-left-color: var(--course-edu-border); }
+.course-design { background: var(--course-design-bg); border-left-color: var(--course-design-border); }
+.course-econ { background: var(--course-econ-bg); border-left-color: var(--course-econ-border); }
+.course-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
+.course-sci { background: var(--course-sci-bg); border-left-color: var(--course-sci-border); }
+.course-marx { background: var(--course-marx-bg); border-left-color: var(--course-marx-border); }
+.course-voc { background: var(--course-voc-bg); border-left-color: var(--course-voc-border); }
+.course-intl { background: var(--course-intl-bg); border-left-color: var(--course-intl-border); }
+.course-pe { background: var(--course-pe-bg); border-left-color: var(--course-pe-border); }
+.course-cont { background: var(--course-cont-bg); border-left-color: var(--course-cont-border); }
+.course-innov { background: var(--course-innov-bg); border-left-color: var(--course-innov-border); }
+.course-engtech { background: var(--course-engtech-bg); border-left-color: var(--course-engtech-border); }
+.course-detroit { background: var(--course-detroit-bg); border-left-color: var(--course-detroit-border); }
 </style>

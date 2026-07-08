@@ -14,19 +14,19 @@ interface MockCourse {
 
 // Shared mock data matching WeekView
 const mockCourses: MockCourse[] = [
-  { day: 0, period: 0, span: 2, name: '高等数学', teacher: '王建国', room: 'A301', dept: 'math' },
-  { day: 0, period: 2, span: 2, name: '数据结构', teacher: '张明远', room: 'C502', dept: 'cs' },
+  { day: 0, period: 0, span: 2, name: '高等数学', teacher: '赵秀英', room: 'A301', dept: 'sci' },
+  { day: 0, period: 2, span: 2, name: '数据结构', teacher: '周海', room: 'C502', dept: 'cs' },
   { day: 0, period: 4, span: 2, name: '大学英语', teacher: '刘芳', room: 'B108', dept: 'eng' },
-  { day: 0, period: 8, span: 2, name: '体育(篮球)', teacher: '陈刚', room: '体育馆', dept: 'edu' },
-  { day: 1, period: 0, span: 2, name: '线性代数', teacher: '王建国', room: 'B205', dept: 'math' },
-  { day: 1, period: 2, span: 2, name: '计算机组成原理', teacher: '李伟', room: 'A301', dept: 'cs' },
-  { day: 1, period: 5, span: 2, name: '概率论', teacher: '赵秀英', room: 'B301', dept: 'math' },
+  { day: 0, period: 8, span: 2, name: '体育(篮球)', teacher: '陈刚', room: '体育馆', dept: 'pe' },
+  { day: 1, period: 0, span: 2, name: '线性代数', teacher: '赵秀英', room: 'B205', dept: 'sci' },
+  { day: 1, period: 2, span: 2, name: '电路原理', teacher: '李明远', room: 'A201', dept: 'elec' },
+  { day: 1, period: 4, span: 2, name: '大学物理', teacher: '钱学林', room: 'C301', dept: 'sci' },
   { day: 2, period: 0, span: 2, name: '操作系统', teacher: '周海', room: 'C502', dept: 'cs' },
-  { day: 2, period: 2, span: 2, name: '大学物理', teacher: '钱学森', room: 'A201', dept: 'phys' },
-  { day: 2, period: 4, span: 2, name: '马原', teacher: '吴芳', room: 'D401', dept: 'law' },
-  { day: 3, period: 0, span: 2, name: '算法设计', teacher: '张明远', room: 'C301', dept: 'cs' },
-  { day: 3, period: 2, span: 2, name: '离散数学', teacher: '赵秀英', room: 'B205', dept: 'math' },
-  { day: 4, period: 0, span: 2, name: '编译原理', teacher: '李伟', room: 'C301', dept: 'cs' },
+  { day: 2, period: 2, span: 2, name: '生物化学', teacher: '钱学林', room: 'C301', dept: 'bio' },
+  { day: 2, period: 4, span: 2, name: '马克思主义基本原理', teacher: '吴芳', room: 'D401', dept: 'marx' },
+  { day: 3, period: 0, span: 2, name: '机械设计基础', teacher: '张建国', room: 'B301', dept: 'mech' },
+  { day: 3, period: 2, span: 2, name: '结构力学', teacher: '杨华', room: 'C301', dept: 'civil' },
+  { day: 4, period: 0, span: 2, name: '电力系统分析', teacher: '李明远', room: 'A201', dept: 'elec' },
   { day: 4, period: 8, span: 3, name: '晚课实验(三连上)', teacher: '周海', room: 'C502', dept: 'cs' },
 ]
 
@@ -169,12 +169,23 @@ function getCoursesForDay(day: number): MockCourse[] {
 }
 
 /* Department colors */
+.tl-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
+.tl-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
+.tl-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
+.tl-bio { background: var(--course-bio-bg); border-left-color: var(--course-bio-border); }
+.tl-civil { background: var(--course-civil-bg); border-left-color: var(--course-civil-border); }
 .tl-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
-.tl-math { background: var(--course-math-bg); border-left-color: var(--course-math-border); }
-.tl-phys { background: var(--course-phys-bg); border-left-color: var(--course-phys-border); }
-.tl-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
 .tl-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
-.tl-eco { background: var(--course-eco-bg); border-left-color: var(--course-eco-border); }
-.tl-law { background: var(--course-law-bg); border-left-color: var(--course-law-border); }
-.tl-edu { background: var(--course-edu-bg); border-left-color: var(--course-edu-border); }
+.tl-design { background: var(--course-design-bg); border-left-color: var(--course-design-border); }
+.tl-econ { background: var(--course-econ-bg); border-left-color: var(--course-econ-border); }
+.tl-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
+.tl-sci { background: var(--course-sci-bg); border-left-color: var(--course-sci-border); }
+.tl-marx { background: var(--course-marx-bg); border-left-color: var(--course-marx-border); }
+.tl-voc { background: var(--course-voc-bg); border-left-color: var(--course-voc-border); }
+.tl-intl { background: var(--course-intl-bg); border-left-color: var(--course-intl-border); }
+.tl-pe { background: var(--course-pe-bg); border-left-color: var(--course-pe-border); }
+.tl-cont { background: var(--course-cont-bg); border-left-color: var(--course-cont-border); }
+.tl-innov { background: var(--course-innov-bg); border-left-color: var(--course-innov-border); }
+.tl-engtech { background: var(--course-engtech-bg); border-left-color: var(--course-engtech-border); }
+.tl-detroit { background: var(--course-detroit-bg); border-left-color: var(--course-detroit-border); }
 </style>
