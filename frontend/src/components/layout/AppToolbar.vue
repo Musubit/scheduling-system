@@ -1,21 +1,8 @@
 <script setup lang="ts">
-import { NButton, NSelect, NInput } from 'naive-ui'
+import { NButton } from 'naive-ui'
 import { useAppStore } from '../../stores/app'
-import { DEPARTMENTS } from '../../types'
 
 const appStore = useAppStore()
-
-const deptOptions = [
-  { label: '全部院系', value: '全部院系' },
-  ...DEPARTMENTS.map(d => ({ label: d.name, value: d.name })),
-]
-
-const semesterOptions = [
-  { label: '2025-2026 第二学期', value: '2025-2026 第二学期' },
-  { label: '2025-2026 第一学期', value: '2025-2026 第一学期' },
-  { label: '2024-2025 第二学期', value: '2024-2025 第二学期' },
-]
-
 </script>
 
 <template>
@@ -26,31 +13,6 @@ const semesterOptions = [
       <span class="breadcrumb-current">{{ appStore.breadcrumbPath[1] || '' }}</span>
     </div>
     <div class="toolbar-spacer"></div>
-
-    <!-- 搜索 -->
-    <n-input
-      v-model:value="appStore.searchQuery"
-      placeholder="搜索课程、教师、教室..."
-      clearable
-      size="small"
-      style="width: 200px"
-    />
-
-    <!-- 院系筛选 -->
-    <n-select
-      v-model:value="appStore.deptFilter"
-      :options="deptOptions"
-      size="small"
-      style="width: 160px"
-    />
-
-    <!-- 学期选择 -->
-    <n-select
-      v-model:value="appStore.semesterFilter"
-      :options="semesterOptions"
-      size="small"
-      style="width: 170px"
-    />
 
     <!-- 主题切换 -->
     <n-button
@@ -86,16 +48,12 @@ const semesterOptions = [
   flex-shrink: 0;
 }
 
-.breadcrumb-sep {
-  opacity: 0.5;
-}
+.breadcrumb-sep { opacity: 0.5; }
 
 .breadcrumb-current {
   color: var(--b3-theme-on-background);
   font-weight: 500;
 }
 
-.toolbar-spacer {
-  flex: 1;
-}
+.toolbar-spacer { flex: 1; }
 </style>

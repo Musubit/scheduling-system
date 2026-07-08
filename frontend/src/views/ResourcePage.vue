@@ -5,12 +5,35 @@ import { DEPARTMENTS } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
 import * as XLSX from 'xlsx'
+import { useAppStore } from '../stores/app'
 
+const appStore = useAppStore()
 const resourceStore = useResourceStore()
 
 onMounted(() => { resourceStore.loadAll() })
 
 const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级' }
+
+// Reactive search - switches store ref based on active tab
+const searchText = computed({
+  get: () => {
+    switch (resourceStore.activeTab) {
+      case 'teacher': return resourceStore.teacherSearch
+      case 'classroom': return resourceStore.classroomSearch
+      case 'course': return resourceStore.courseSearch
+      case 'class': return resourceStore.classSearch
+      default: return ''
+    }
+  },
+  set: (val: string) => {
+    switch (resourceStore.activeTab) {
+      case 'teacher': resourceStore.teacherSearch = val; break
+      case 'classroom': resourceStore.classroomSearch = val; break
+      case 'course': resourceStore.courseSearch = val; break
+      case 'class': resourceStore.classSearch = val; break
+    }
+  }
+})
 
 // ===== 模拟数据 =====
 const mockTeachers = [
@@ -269,16 +292,17 @@ function downloadTemplate() {
   <div class="resource-page">
     <div class="resource-toolbar">
       <n-input
+        v-model:value="searchText"
         :placeholder="`搜索${tabLabels[resourceStore.activeTab] || ''}...`"
         clearable
         size="small"
         style="width: 240px"
       />
       <n-select
+        v-model:value="appStore.deptFilter"
         :options="deptOptions"
         size="small"
         style="width: 160px"
-        default-value="全部院系"
       />
       <div class="spacer"></div>
       <n-button size="small" type="primary" @click="openCreate()">+ 新增</n-button>

@@ -49,15 +49,27 @@ export const useResourceStore = defineStore('resource', () => {
   })
 
   const filteredCourses = computed(() => {
-    if (!courseSearch.value) return courses.value
-    const q = courseSearch.value.toLowerCase()
-    return courses.value.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
+    let list = courses.value
+    if (courseSearch.value) {
+      const q = courseSearch.value.toLowerCase()
+      list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
+    }
+    if (appStore.deptFilter !== '全部院系') {
+      list = list.filter(c => c.dept === appStore.deptFilter)
+    }
+    return list
   })
 
   const filteredClasses = computed(() => {
-    if (!classSearch.value) return classGroups.value
-    const q = classSearch.value.toLowerCase()
-    return classGroups.value.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
+    let list = classGroups.value
+    if (classSearch.value) {
+      const q = classSearch.value.toLowerCase()
+      list = list.filter(c => c.name.includes(q) || c.code.toLowerCase().includes(q))
+    }
+    if (appStore.deptFilter !== '全部院系') {
+      list = list.filter(c => c.dept === appStore.deptFilter)
+    }
+    return list
   })
 
   // ===== Load from Go backend =====
