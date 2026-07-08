@@ -149,7 +149,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	var saResult *SAResult
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	if s.orchestrator != nil {
-		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, lockedSlots, config, sportsCourseIDs, log); ortoolsResult != nil {
+		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, classGroups, lockedSlots, config, sportsCourseIDs, log); ortoolsResult != nil {
 			saResult = ortoolsResult
 		}
 	}
@@ -310,6 +310,7 @@ func (s *SchedulingService) tryORTools(
 	teachingTasks []models.TeachingTask,
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
+	classGroups []models.ClassGroup,
 	lockedSlots []lockedTimeSlot,
 	config SchedulingConfig,
 	sportsCourseIDs map[uint]bool,
@@ -350,6 +351,13 @@ func (s *SchedulingService) tryORTools(
 		input.Teachers = append(input.Teachers, ORToolsTeacher{
 			ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
 			MaxDaysPerWeek: t.MaxDaysPerWeek, PreferLowFloor: t.PreferLowFloor,
+		})
+	}
+
+	// Map class groups (needed for capacity constraint)
+	for _, cg := range classGroups {
+		input.ClassGroups = append(input.ClassGroups, ORToolsClassGroup{
+			ID: cg.ID, Students: cg.Students,
 		})
 	}
 

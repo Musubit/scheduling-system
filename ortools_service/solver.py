@@ -56,6 +56,7 @@ def solve_scheduling(data):
     tasks = data.get("teachingTasks", [])
     teachers_list = data.get("teachers", [])
     classrooms = data.get("classrooms", [])
+    class_groups = data.get("classGroups", [])
     locked_slots = data.get("lockedSlots", [])
     constraints = data.get("constraints", [])
     weights = data.get("constraintWeights", {})
@@ -67,11 +68,16 @@ def solve_scheduling(data):
 
     # Build lookup maps
     teacher_map = {t["id"]: t for t in teachers_list}
+    class_size_map = {cg["id"]: cg.get("students", 0) for cg in class_groups}
     n_tasks = len(tasks)
     n_rooms = len(classrooms)
 
-    # Pre-compute class group IDs per task
+    # Pre-compute class group IDs and total students per task
     task_class_ids = [t.get("classIds", []) for t in tasks]
+    task_total_students = []
+    for cids in task_class_ids:
+        total = sum(class_size_map.get(cid, 0) for cid in cids)
+        task_total_students.append(total)
 
     model = cp_model.CpModel()
     solver = cp_model.CpSolver()
@@ -167,6 +173,15 @@ def solve_scheduling(data):
                 position[i], 2, position[i] + 2, placed[i], f"class_{cid}_task_{i}"
             ))
         model.AddNoOverlap(class_intervals)
+
+    # ===== Hard Constraint: Room Capacity =====
+    for i, total_students in enumerate(task_total_students):
+        if total_students <= 0:
+            continue
+        for r_idx, room in enumerate(classrooms):
+            if room["capacity"] < total_students:
+                # Task i cannot use room r_idx
+                model.Add(room_idx[i] != r_idx)
 
     # ===== Soft Constraints (as objective terms) =====
     objective_terms = []

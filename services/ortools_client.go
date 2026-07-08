@@ -25,14 +25,15 @@ func NewORToolsClient(port int) *ORToolsClient {
 
 // ORToolsInput is the JSON payload sent to the Python solver.
 type ORToolsInput struct {
-	TeachingTasks     []ORToolsTask    `json:"teachingTasks"`
-	Teachers          []ORToolsTeacher `json:"teachers"`
-	Classrooms        []ORToolsRoom    `json:"classrooms"`
-	LockedSlots       []lockedTimeSlot `json:"lockedSlots"`
-	Constraints       []string         `json:"constraints"`
-	ConstraintWeights map[string]int   `json:"constraintWeights"`
-	SportsCourseIDs   []uint           `json:"sportsCourseIDs"`
-	TimeLimitSeconds  int              `json:"timeLimitSeconds"`
+	TeachingTasks     []ORToolsTask      `json:"teachingTasks"`
+	Teachers          []ORToolsTeacher   `json:"teachers"`
+	Classrooms        []ORToolsRoom      `json:"classrooms"`
+	ClassGroups       []ORToolsClassGroup `json:"classGroups"`
+	LockedSlots       []lockedTimeSlot   `json:"lockedSlots"`
+	Constraints       []string           `json:"constraints"`
+	ConstraintWeights map[string]int     `json:"constraintWeights"`
+	SportsCourseIDs   []uint             `json:"sportsCourseIDs"`
+	TimeLimitSeconds  int                `json:"timeLimitSeconds"`
 }
 
 type ORToolsTask struct {
@@ -43,10 +44,10 @@ type ORToolsTask struct {
 }
 
 type ORToolsTeacher struct {
-	ID            uint `json:"id"`
-	PreferNoEarly bool `json:"preferNoEarly"`
-	PreferNoLate  bool `json:"preferNoLate"`
-	MaxDaysPerWeek int `json:"maxDaysPerWeek"`
+	ID             uint `json:"id"`
+	PreferNoEarly  bool `json:"preferNoEarly"`
+	PreferNoLate   bool `json:"preferNoLate"`
+	MaxDaysPerWeek int  `json:"maxDaysPerWeek"`
 	PreferLowFloor bool `json:"preferLowFloor"`
 }
 
@@ -54,6 +55,11 @@ type ORToolsRoom struct {
 	ID       uint `json:"id"`
 	Floor    int  `json:"floor"`
 	Capacity int  `json:"capacity"`
+}
+
+type ORToolsClassGroup struct {
+	ID       uint `json:"id"`
+	Students int  `json:"students"`
 }
 
 // ORToolsOutput is the response from the Python solver.
