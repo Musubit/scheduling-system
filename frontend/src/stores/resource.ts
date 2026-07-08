@@ -1,8 +1,9 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Teacher, Classroom, Course, ClassGroup } from '@/types'
 import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups } from '../../bindings/scheduling-system/services/resourceservice'
 import type { models } from '../../bindings/scheduling-system/services/models'
+import { useAppStore } from './app'
 
 /**
  * 资源管理状态：教师、教室、课程、班级
@@ -10,6 +11,7 @@ import type { models } from '../../bindings/scheduling-system/services/models'
 export const useResourceStore = defineStore('resource', () => {
   const activeTab = ref<'teacher' | 'classroom' | 'course' | 'class'>('teacher')
   const isLoading = ref(false)
+  const appStore = useAppStore()
 
   function switchTab(tab: 'teacher' | 'classroom' | 'course' | 'class') {
     activeTab.value = tab
@@ -23,7 +25,6 @@ export const useResourceStore = defineStore('resource', () => {
 
   // ===== Filters =====
   const teacherSearch = ref('')
-  const teacherDeptFilter = ref('全部院系')
   const classroomSearch = ref('')
   const courseSearch = ref('')
   const classSearch = ref('')
@@ -35,8 +36,8 @@ export const useResourceStore = defineStore('resource', () => {
       const q = teacherSearch.value.toLowerCase()
       list = list.filter(t => t.name.includes(q) || t.code.toLowerCase().includes(q))
     }
-    if (teacherDeptFilter.value !== '全部院系') {
-      list = list.filter(t => t.dept === teacherDeptFilter.value)
+    if (appStore.deptFilter !== '全部院系') {
+      list = list.filter(t => t.dept === appStore.deptFilter)
     }
     return list
   })
@@ -86,7 +87,7 @@ export const useResourceStore = defineStore('resource', () => {
     switchTab,
     teachers, classrooms, courses, classGroups,
     filteredTeachers, filteredClassrooms, filteredCourses, filteredClasses,
-    teacherSearch, teacherDeptFilter, classroomSearch, courseSearch, classSearch,
+    teacherSearch, classroomSearch, courseSearch, classSearch,
     loadAll,
   }
 })

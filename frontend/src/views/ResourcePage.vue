@@ -4,6 +4,7 @@ import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag } from 'naiv
 import { DEPARTMENTS } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
+import * as XLSX from 'xlsx'
 
 const resourceStore = useResourceStore()
 
@@ -205,6 +206,68 @@ const teacherCols = [...teacherColumns.slice(0, -1), { title: '操作', key: 'ac
 const classroomCols = [...classroomColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
 const courseCols = [...courseColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
 const classCols = [...classColumns.slice(0, -1), { title: '操作', key: 'actions', width: 140, render: actionRender }]
+
+// ===== Excel Import / Export =====
+const importFileRef = ref<HTMLInputElement>()
+
+function triggerImport() { importFileRef.value?.click() }
+
+async function handleFileChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async (ev) => {
+    try {
+      const wb = XLSX.read(ev.target?.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
+      if (rows.length < 2) { alert('文件为空或格式不正确'); return }
+      const headers = rows[0] as string[]
+      const data = rows.slice(1).filter((r: any) => r.length > 0 && r[0])
+      let count = 0
+      for (const row of data) {
+        const item: any = {}
+        headers.forEach((h, i) => { item[h] = row[i] ?? '' })
+        try { await callCreate(resourceStore.activeTab, item); count++ } catch {}
+      }
+      alert(`成功导入 ${count} 条记录`)
+      resourceStore.loadAll()
+    } catch (err) {
+      alert('导入失败：' + (err as any).message)
+    }
+  }
+  reader.readAsBinaryString(file)
+  // Reset input
+  if (e.target) (e.target as HTMLInputElement).value = ''
+}
+
+function downloadTemplate() {
+  const tab = resourceStore.activeTab
+  let headers: string[] = []
+  let example: any[] = []
+  switch (tab) {
+    case 'teacher':
+      headers = ['code', 'name', 'dept', 'title']
+      example = ['T099', '张三', '理学院', '讲师']
+      break
+    case 'classroom':
+      headers = ['code', 'name', 'building', 'capacity', 'type']
+      example = ['A999', 'A999', 'A栋', '100', '普通教室']
+      break
+    case 'course':
+      headers = ['code', 'name', 'dept', 'credit', 'type', 'hours']
+      example = ['CS999', '新课程', 'cs', '3.0', '专业选修', '48']
+      break
+    case 'class':
+      headers = ['code', 'name', 'dept', 'grade', 'students']
+      example = ['XX2301', '班级名', '计算机学院', '2023', '60']
+      break
+  }
+  const ws = XLSX.utils.aoa_to_sheet([headers, example])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+  XLSX.writeFile(wb, `${tab}-template.xlsx`)
+}
 </script>
 
 <template>
@@ -236,8 +299,9 @@ const classCols = [...classColumns.slice(0, -1), { title: '操作', key: 'action
       />
       <div class="spacer"></div>
       <n-button size="small" type="primary" @click="openCreate()">+ 新增</n-button>
-      <n-button size="small">导入</n-button>
-      <n-button size="small">导出</n-button>
+      <n-button size="small" @click="triggerImport()">导入Excel</n-button>
+      <n-button size="small" @click="downloadTemplate()">下载模板</n-button>
+      <input ref="importFileRef" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileChange" />
     </div>
 
     <div class="resource-table">
