@@ -272,7 +272,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		}
 
 		// Score this iteration
-		scoreBreakdown := scorer.ScoreSchedule(iterEntries, teachers, classrooms)
+		scoreBreakdown := scorer.ScoreSchedule(iterEntries, teachers, classrooms, config.Constraints)
 		iterScore := scoreBreakdown.Total
 
 		if bestScore < 0 || iterScore > bestScore || (iterScore == bestScore && scheduled > bestScheduled) {
@@ -318,7 +318,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Re-score on final committed data for detailed breakdown
 	var finalEntries []models.ScheduleEntry
 	database.DB.Where("semester = ?", config.Semester).Find(&finalEntries)
-	finalBreakdown := scorer.ScoreSchedule(finalEntries, teachers, classrooms)
+	finalBreakdown := scorer.ScoreSchedule(finalEntries, teachers, classrooms, config.Constraints)
 	result.ScoreDetail = &finalBreakdown
 
 	log(fmt.Sprintf("INFO 排课完成！已排 %d/%d 门，利用率 %.1f%%，评分 %.1f/100，冲突 %d 个",

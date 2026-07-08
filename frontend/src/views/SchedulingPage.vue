@@ -31,6 +31,15 @@ const scoreColor = computed(() => {
   if (s >= 60) return 'var(--b3-theme-warning)'
   return 'var(--b3-theme-error)'
 })
+
+// Per-category max score depends on how many constraints are enabled
+const categoryMax = computed(() => {
+  const count = store.config.constraints.length || 4
+  return Math.round(100 / count * 100) / 100
+})
+
+// Whether a specific constraint category is enabled
+const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
 </script>
 
 <template>
@@ -149,25 +158,25 @@ const scoreColor = computed(() => {
         <div class="score-breakdown" v-if="store.result?.scoreDetail">
           <h4 class="breakdown-title">评分明细（软约束）</h4>
           <div class="breakdown-items">
-            <div class="breakdown-item">
+            <div class="breakdown-item" v-if="isConstraintEnabled('teacher_preference')">
               <span class="breakdown-label">教师偏好满足度</span>
-              <n-progress :percentage="store.result.scoreDetail.teacherPref / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref }}/25</span>
+              <n-progress :percentage="store.result.scoreDetail.teacherPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref }}/{{ categoryMax }}</span>
             </div>
-            <div class="breakdown-item">
+            <div class="breakdown-item" v-if="isConstraintEnabled('course_dispersed')">
               <span class="breakdown-label">课程间隔均匀度</span>
-              <n-progress :percentage="store.result.scoreDetail.courseSpacing / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing }}/25</span>
+              <n-progress :percentage="store.result.scoreDetail.courseSpacing / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing }}/{{ categoryMax }}</span>
             </div>
-            <div class="breakdown-item">
+            <div class="breakdown-item" v-if="isConstraintEnabled('teacher_days_limit')">
               <span class="breakdown-label">教师到校天数</span>
-              <n-progress :percentage="store.result.scoreDetail.teacherDays / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays }}/25</span>
+              <n-progress :percentage="store.result.scoreDetail.teacherDays / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays }}/{{ categoryMax }}</span>
             </div>
-            <div class="breakdown-item">
+            <div class="breakdown-item" v-if="isConstraintEnabled('low_floor_preference')">
               <span class="breakdown-label">老教师低楼层</span>
-              <n-progress :percentage="store.result.scoreDetail.lowFloorPref / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/25</span>
+              <n-progress :percentage="store.result.scoreDetail.lowFloorPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/{{ categoryMax }}</span>
             </div>
           </div>
         </div>

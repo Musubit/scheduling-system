@@ -22,9 +22,27 @@ type ScoreBreakdown struct {
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
+// enabledConstraints: list of constraint keys to evaluate. If empty, all are enabled.
 // Returns a score from 0-100 with detailed breakdown.
-func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom) ScoreBreakdown {
+func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string) ScoreBreakdown {
 	breakdown := ScoreBreakdown{}
+
+	if len(enabledConstraints) == 0 {
+		// Default: enable all
+		enabledConstraints = []string{"teacher_preference", "course_dispersed", "teacher_days_limit", "low_floor_preference"}
+	}
+
+	enabled := make(map[string]bool)
+	for _, c := range enabledConstraints {
+		enabled[c] = true
+	}
+
+	// Count enabled categories and per-category max
+	enabledCount := len(enabledConstraints)
+	perCategoryMax := 100.0 / float64(enabledCount)
+	if enabledCount == 0 {
+		perCategoryMax = 25.0
+	}
 
 	// Build lookup maps
 	teacherMap := make(map[uint]models.Teacher)
@@ -36,26 +54,34 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		classroomMap[c.ID] = c
 	}
 
-	// 1. Teacher preference scoring (0-25)
-	breakdown.TeacherPref = s.scoreTeacherPreferences(entries, teacherMap)
+	// 1. Teacher preference scoring
+	if enabled["teacher_preference"] {
+		breakdown.TeacherPref = s.scoreTeacherPreferences(entries, teacherMap, perCategoryMax)
+	}
 
-	// 2. Course spacing scoring (0-25)
-	breakdown.CourseSpacing = s.scoreCourseSpacing(entries)
+	// 2. Course spacing scoring
+	if enabled["course_dispersed"] {
+		breakdown.CourseSpacing = s.scoreCourseSpacing(entries, perCategoryMax)
+	}
 
-	// 3. Teacher days per week scoring (0-25)
-	breakdown.TeacherDays = s.scoreTeacherDays(entries, teacherMap)
+	// 3. Teacher days per week scoring
+	if enabled["teacher_days_limit"] {
+		breakdown.TeacherDays = s.scoreTeacherDays(entries, teacherMap, perCategoryMax)
+	}
 
-	// 4. Low floor preference scoring (0-25)
-	breakdown.LowFloorPref = s.scoreLowFloorPref(entries, teacherMap, classroomMap)
+	// 4. Low floor preference scoring
+	if enabled["low_floor_preference"] {
+		breakdown.LowFloorPref = s.scoreLowFloorPref(entries, teacherMap, classroomMap, perCategoryMax)
+	}
 
-	breakdown.Total = math.Round((breakdown.TeacherPref+breakdown.CourseSpacing+breakdown.TeacherDays+breakdown.LowFloorPref)*100) / 100
+	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref)*100) / 100
 	return breakdown
 }
 
 // scoreTeacherPreferences evaluates how well teacher time preferences are met.
 // Each teacher with PreferNoEarly should not have entries in periods 0-1 (第1-2节).
 // Each teacher with PreferNoLate should not have entries in periods 6+ (第7节及以后).
-func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher) float64 {
+func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher, maxScore float64) float64 {
 	type teacherStat struct {
 		hasPref    bool
 		earlyCount int
@@ -86,7 +112,7 @@ func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry,
 	}
 
 	if len(stats) == 0 {
-		return 25.0
+		return maxScore
 	}
 
 	totalPenalty := 0.0
@@ -103,12 +129,12 @@ func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry,
 	}
 
 	if prefTeacherCount == 0 {
-		return 25.0
+		return maxScore
 	}
 
-	// Average across preference teachers, scale to 0-25
+	// Average across preference teachers, scale to 0-maxScore
 	avgPenalty := totalPenalty / float64(prefTeacherCount)
-	score := 25.0 * (1.0 - avgPenalty)
+	score := maxScore * (1.0 - avgPenalty)
 	if score < 0 {
 		score = 0
 	}
@@ -117,7 +143,7 @@ func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry,
 
 // scoreCourseSpacing evaluates how evenly each course's sessions are distributed
 // across the week. Courses concentrated on fewer days get lower scores.
-func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry) float64 {
+func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxScore float64) float64 {
 	type courseInfo struct {
 		days      map[int]bool
 		count     int
@@ -135,7 +161,7 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry) floa
 	}
 
 	if len(courses) == 0 {
-		return 25.0
+		return maxScore
 	}
 
 	totalScore := 0.0
@@ -154,12 +180,12 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry) floa
 	}
 
 	avgScore := totalScore / float64(len(courses))
-	return math.Round(25.0*avgScore*100) / 100
+	return math.Round(maxScore*avgScore*100) / 100
 }
 
 // scoreTeacherDays evaluates how many distinct days each teacher comes to campus.
 // Target: ≤3 days per week = full score. Each extra day reduces score.
-func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher) float64 {
+func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher, maxScore float64) float64 {
 	teacherDays := make(map[uint]map[int]bool)
 
 	for _, e := range entries {
@@ -172,7 +198,7 @@ func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teache
 	}
 
 	if len(teacherDays) == 0 {
-		return 25.0
+		return maxScore
 	}
 
 	totalScore := 0.0
@@ -197,12 +223,12 @@ func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teache
 	}
 
 	avgScore := totalScore / float64(len(teacherDays))
-	return math.Round(25.0*avgScore*100) / 100
+	return math.Round(maxScore*avgScore*100) / 100
 }
 
 // scoreLowFloorPref evaluates whether teachers who prefer low floors
 // are assigned to classrooms on lower floors.
-func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher, classroomMap map[uint]models.Classroom) float64 {
+func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teacherMap map[uint]models.Teacher, classroomMap map[uint]models.Classroom, maxScore float64) float64 {
 	type floorStat struct {
 		totalFloor   float64
 		count        int
@@ -228,7 +254,7 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 	}
 
 	if len(stats) == 0 {
-		return 25.0
+		return maxScore
 	}
 
 	// Assume max floor across all classrooms for normalization
@@ -239,7 +265,7 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 		}
 	}
 	if maxFloor <= 1 {
-		return 25.0
+		return maxScore
 	}
 
 	totalScore := 0.0
@@ -257,5 +283,5 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 	}
 
 	avgScore := totalScore / float64(len(stats))
-	return math.Round(25.0*avgScore*100) / 100
+	return math.Round(maxScore*avgScore*100) / 100
 }

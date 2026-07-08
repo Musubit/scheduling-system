@@ -14,12 +14,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   })
 
   const constraintOptions = [
-    { key: 'no_consecutive_teacher', label: '教师不连续排课' },
-    { key: 'course_dispersed', label: '同一课程分散安排' },
-    { key: 'large_class_large_room', label: '大班优先大教室' },
-    { key: 'no_pe_first_period', label: '体育课避开第一节' },
-    { key: 'coordinated_classes', label: '合班课时间协调' },
-    { key: 'teacher_preference', label: '教师偏好时段' },
+    { key: 'teacher_preference', label: '教师偏好时段（避免早课/晚课）' },
+    { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
+    { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
+    { key: 'low_floor_preference', label: '老教师优先低楼层教室' },
   ]
 
   const strategyOptions = [
