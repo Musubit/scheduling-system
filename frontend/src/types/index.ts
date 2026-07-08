@@ -21,6 +21,10 @@ export interface Teacher {
   title: string
   status: 'active' | 'inactive'
   weeklyHours?: number
+  preferNoEarly?: boolean
+  preferNoLate?: boolean
+  maxDaysPerWeek?: number
+  preferLowFloor?: boolean
 }
 
 /** 教室 */
@@ -29,6 +33,7 @@ export interface Classroom {
   code: string
   name: string
   building: string
+  floor?: number
   capacity: number
   type: string
   status: string
@@ -57,6 +62,7 @@ export interface ScheduleEntry {
   courseId: number
   teacherId: number
   classroomId: number
+  classGroupId?: number
   semester: string
   dayOfWeek: number
   startPeriod: number
@@ -65,6 +71,7 @@ export interface ScheduleEntry {
   course?: Course
   teacher?: Teacher
   classroom?: Classroom
+  classGroup?: ClassGroup
 }
 
 /** 院系代码 */
@@ -144,6 +151,14 @@ export interface SchedulingConfig {
   strategy: string
   iterations: number
   constraints: string[]
+  lockedSlots?: LockedTimeSlot[]
+}
+
+/** 锁定时间段 */
+export interface LockedTimeSlot {
+  dayOfWeek: number
+  startPeriod: number
+  span: number
 }
 
 /** 排课结果 */
@@ -152,7 +167,18 @@ export interface SchedulingResult {
   scheduled: number
   conflicts: number
   utilization: number
+  score?: number
+  scoreDetail?: ScoreBreakdown
   logs: string[]
+}
+
+/** 评分明细 */
+export interface ScoreBreakdown {
+  total: number
+  teacherPref: number
+  courseSpacing: number
+  teacherDays: number
+  lowFloorPref: number
 }
 
 /** 冲突 */

@@ -23,6 +23,14 @@ const scopeOptions = [
 const semesterOptions = [
   { label: '2025-2026 第二学期', value: '2025-2026 第二学期' },
 ]
+
+const scoreColor = computed(() => {
+  const s = store.result?.score
+  if (s == null) return 'var(--b3-theme-on-surface)'
+  if (s >= 80) return 'var(--b3-theme-success)'
+  if (s >= 60) return 'var(--b3-theme-warning)'
+  return 'var(--b3-theme-error)'
+})
 </script>
 
 <template>
@@ -128,8 +136,72 @@ const semesterOptions = [
             <div class="stat-label">教室利用率</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" style="color: var(--b3-theme-error)">{{ store.result?.conflicts || '-' }}</div>
+            <div class="stat-value" style="color: var(--b3-theme-error)">{{ store.result?.conflicts ?? '-' }}</div>
             <div class="stat-label">待处理冲突</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" :style="{ color: scoreColor }">{{ store.result?.score != null ? store.result.score + '分' : '-' }}</div>
+            <div class="stat-label">综合评分</div>
+          </div>
+        </div>
+
+        <!-- 评分明细 -->
+        <div class="score-breakdown" v-if="store.result?.scoreDetail">
+          <h4 class="breakdown-title">评分明细（软约束）</h4>
+          <div class="breakdown-items">
+            <div class="breakdown-item">
+              <span class="breakdown-label">教师偏好满足度</span>
+              <n-progress :percentage="store.result.scoreDetail.teacherPref / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref }}/25</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">课程间隔均匀度</span>
+              <n-progress :percentage="store.result.scoreDetail.courseSpacing / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing }}/25</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">教师到校天数</span>
+              <n-progress :percentage="store.result.scoreDetail.teacherDays / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays }}/25</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">老教师低楼层</span>
+              <n-progress :percentage="store.result.scoreDetail.lowFloorPref / 25 * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/25</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 硬约束验证 -->
+        <div class="score-breakdown" v-if="store.result">
+          <h4 class="breakdown-title">硬约束验证</h4>
+          <div class="verify-items">
+            <div class="verify-item">
+              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              </span>
+              <span class="verify-label">教师时间冲突</span>
+              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
+            </div>
+            <div class="verify-item">
+              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              </span>
+              <span class="verify-label">教室占用冲突</span>
+              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
+            </div>
+            <div class="verify-item">
+              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              </span>
+              <span class="verify-label">班级时间冲突</span>
+              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
+            </div>
+            <div class="verify-item">
+              <span class="verify-icon" style="color: var(--b3-theme-success)">✅</span>
+              <span class="verify-label">锁定时间段规避</span>
+              <span class="verify-result">已规避</span>
+            </div>
           </div>
         </div>
 
@@ -148,7 +220,6 @@ const semesterOptions = [
 <style scoped>
 .scheduling-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .quick-guide { font-size: 13px; color: var(--b3-theme-on-surface); background: var(--b3-theme-primary-lightest); padding: 10px 16px; border-radius: var(--b3-border-radius-s); margin-bottom: 16px; border-left: 3px solid var(--b3-theme-primary); }
-}
 
 .scheduling-layout {
   flex: 1;
@@ -212,7 +283,7 @@ const semesterOptions = [
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -262,5 +333,73 @@ const semesterOptions = [
 
 .log-line {
   color: var(--b3-theme-on-surface);
+}
+
+.score-breakdown {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--b3-theme-background);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-s);
+}
+
+.breakdown-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+  margin-bottom: 10px;
+}
+
+.breakdown-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-item {
+  display: grid;
+  grid-template-columns: 120px 1fr 50px;
+  align-items: center;
+  gap: 8px;
+}
+
+.breakdown-label {
+  font-size: 11px;
+  color: var(--b3-theme-on-surface);
+}
+
+.breakdown-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+  text-align: right;
+}
+
+.verify-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.verify-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.verify-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.verify-label {
+  flex: 1;
+  color: var(--b3-theme-on-surface);
+}
+
+.verify-result {
+  font-weight: 500;
+  color: var(--b3-theme-on-background);
 }
 </style>

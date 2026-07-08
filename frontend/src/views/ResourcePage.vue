@@ -39,24 +39,24 @@ const searchText = computed({
 
 // ===== 模拟数据 =====
 const mockTeachers = [
-  { id: 1, code: 'T001', name: '张建国', dept: '机械工程学院', title: '教授', status: 'active', weeklyHours: 12 },
-  { id: 2, code: 'T002', name: '李明远', dept: '电气与电子工程学院', title: '教授', status: 'active', weeklyHours: 10 },
-  { id: 3, code: 'T003', name: '王伟', dept: '材料与化学工程学院', title: '副教授', status: 'active', weeklyHours: 14 },
-  { id: 4, code: 'T004', name: '刘芳', dept: '外国语学院', title: '讲师', status: 'active', weeklyHours: 16 },
-  { id: 5, code: 'T005', name: '赵秀英', dept: '理学院', title: '副教授', status: 'active', weeklyHours: 8 },
-  { id: 6, code: 'T006', name: '孙志强', dept: '经济与管理学院', title: '教授', status: 'active', weeklyHours: 10 },
-  { id: 7, code: 'T007', name: '周海', dept: '计算机学院', title: '副教授', status: 'inactive', weeklyHours: 0 },
-  { id: 8, code: 'T008', name: '钱学林', dept: '生物工程与食品学院', title: '教授', status: 'active', weeklyHours: 6 },
+  { id: 1, code: 'T001', name: '张建国', dept: '机械工程学院', title: '教授', status: 'active', weeklyHours: 12, preferNoEarly: true, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: true },
+  { id: 2, code: 'T002', name: '李明远', dept: '电气与电子工程学院', title: '教授', status: 'active', weeklyHours: 10, preferNoEarly: true, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: true },
+  { id: 3, code: 'T003', name: '王伟',   dept: '材料与化学工程学院', title: '副教授', status: 'active', weeklyHours: 14, preferNoEarly: false, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: false },
+  { id: 4, code: 'T004', name: '刘芳',   dept: '外国语学院', title: '讲师', status: 'active', weeklyHours: 16, preferNoEarly: true, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: false },
+  { id: 5, code: 'T005', name: '赵秀英', dept: '理学院', title: '副教授', status: 'active', weeklyHours: 8, preferNoEarly: false, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: false },
+  { id: 6, code: 'T006', name: '孙志强', dept: '经济与管理学院', title: '教授', status: 'active', weeklyHours: 10, preferNoEarly: false, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: true },
+  { id: 7, code: 'T007', name: '周海',   dept: '计算机学院', title: '副教授', status: 'inactive', weeklyHours: 0, preferNoEarly: false, preferNoLate: false, maxDaysPerWeek: 3, preferLowFloor: false },
+  { id: 8, code: 'T008', name: '钱学林', dept: '生物工程与食品学院', title: '教授', status: 'active', weeklyHours: 6, preferNoEarly: false, preferNoLate: true, maxDaysPerWeek: 3, preferLowFloor: true },
 ]
 
 const mockClassrooms = [
-  { id: 1, code: 'A301', name: 'A301', building: 'A栋', capacity: 80, type: '普通教室', status: 'available' },
-  { id: 2, code: 'B205', name: 'B205', building: 'B栋', capacity: 60, type: '普通教室', status: 'available' },
-  { id: 3, code: 'C502', name: 'C502', building: 'C栋', capacity: 120, type: '多媒体教室', status: 'available' },
-  { id: 4, code: 'D401', name: 'D401', building: 'D栋', capacity: 200, type: '阶梯教室', status: 'maintenance' },
-  { id: 5, code: 'A201', name: 'A201', building: 'A栋', capacity: 90, type: '普通教室', status: 'available' },
-  { id: 6, code: 'E101', name: 'E101', building: 'E栋', capacity: 50, type: '实验室', status: 'available' },
-  { id: 7, code: 'C301', name: 'C301', building: 'C栋', capacity: 100, type: '多媒体教室', status: 'available' },
+  { id: 1, code: 'A301', name: 'A301', building: 'A栋', floor: 3, capacity: 80,  type: '普通教室',   status: 'available' },
+  { id: 2, code: 'B205', name: 'B205', building: 'B栋', floor: 2, capacity: 60,  type: '普通教室',   status: 'available' },
+  { id: 3, code: 'C502', name: 'C502', building: 'C栋', floor: 5, capacity: 120, type: '多媒体教室', status: 'available' },
+  { id: 4, code: 'D401', name: 'D401', building: 'D栋', floor: 4, capacity: 200, type: '阶梯教室',   status: 'maintenance' },
+  { id: 5, code: 'A201', name: 'A201', building: 'A栋', floor: 2, capacity: 90,  type: '普通教室',   status: 'available' },
+  { id: 6, code: 'E101', name: 'E101', building: 'E栋', floor: 1, capacity: 50,  type: '实验室',     status: 'available' },
+  { id: 7, code: 'C301', name: 'C301', building: 'C栋', floor: 3, capacity: 100, type: '多媒体教室', status: 'available' },
 ]
 
 const mockCourses = [
@@ -90,15 +90,16 @@ const teacherColumns = [
   { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 ]
 
-const classroomColumns = [
-  { title: '编号', key: 'code', width: 80 },
-  { title: '教室名', key: 'name', width: 100 },
-  { title: '教学楼', key: 'building', width: 80 },
-  { title: '容量', key: 'capacity', width: 70 },
-  { title: '类型', key: 'type', width: 100 },
-  { title: '状态', key: 'status', width: 80, render: (row: any) => h(NTag, { type: row.status === 'available' ? 'success' : 'warning', size: 'small' }, { default: () => row.status === 'available' ? '可用' : '维护' }) },
-  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
-]
+	const classroomColumns = [
+	  { title: '编号', key: 'code', width: 80 },
+	  { title: '教室名', key: 'name', width: 100 },
+	  { title: '教学楼', key: 'building', width: 80 },
+	  { title: '楼层', key: 'floor', width: 60 },
+	  { title: '容量', key: 'capacity', width: 70 },
+	  { title: '类型', key: 'type', width: 100 },
+	  { title: '状态', key: 'status', width: 80, render: (row: any) => h(NTag, { type: row.status === 'available' ? 'success' : 'warning', size: 'small' }, { default: () => row.status === 'available' ? '可用' : '维护' }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	]
 
 const courseColumns = [
   { title: '编号', key: 'code', width: 80 },
@@ -213,15 +214,31 @@ function getMockData(tab: string): any[] {
   return map[tab] || []
 }
 
-const formFields = computed(() => {
-  const fields: Record<string, { key: string; label: string; type?: string }[]> = {
-    teacher: [{ key: 'code', label: '工号' }, { key: 'name', label: '姓名' }, { key: 'dept', label: '院系' }, { key: 'title', label: '职称' }],
-    classroom: [{ key: 'code', label: '编号' }, { key: 'name', label: '教室名' }, { key: 'building', label: '教学楼' }, { key: 'capacity', label: '容量', type: 'number' }, { key: 'type', label: '类型' }],
-    course: [{ key: 'code', label: '编号' }, { key: 'name', label: '课程名' }, { key: 'dept', label: '院系' }, { key: 'credit', label: '学分', type: 'number' }, { key: 'type', label: '类型' }, { key: 'hours', label: '课时', type: 'number' }],
-    class: [{ key: 'code', label: '编号' }, { key: 'name', label: '班级名' }, { key: 'dept', label: '院系' }, { key: 'grade', label: '年级', type: 'number' }, { key: 'students', label: '人数', type: 'number' }],
-  }
-  return fields[resourceStore.activeTab] || []
-})
+	const formFields = computed(() => {
+	  const fields: Record<string, { key: string; label: string; type?: string }[]> = {
+	    teacher: [
+	      { key: 'code', label: '工号' },
+	      { key: 'name', label: '姓名' },
+	      { key: 'dept', label: '院系' },
+	      { key: 'title', label: '职称' },
+	      { key: 'preferNoEarly', label: '避免早课', type: 'switch' },
+	      { key: 'preferNoLate', label: '避免晚课', type: 'switch' },
+	      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number' },
+	      { key: 'preferLowFloor', label: '优先低楼层', type: 'switch' },
+	    ],
+	    classroom: [
+	      { key: 'code', label: '编号' },
+	      { key: 'name', label: '教室名' },
+	      { key: 'building', label: '教学楼' },
+	      { key: 'floor', label: '楼层', type: 'number' },
+	      { key: 'capacity', label: '容量', type: 'number' },
+	      { key: 'type', label: '类型' },
+	    ],
+	    course: [{ key: 'code', label: '编号' }, { key: 'name', label: '课程名' }, { key: 'dept', label: '院系' }, { key: 'credit', label: '学分', type: 'number' }, { key: 'type', label: '类型' }, { key: 'hours', label: '课时', type: 'number' }],
+	    class: [{ key: 'code', label: '编号' }, { key: 'name', label: '班级名' }, { key: 'dept', label: '院系' }, { key: 'grade', label: '年级', type: 'number' }, { key: 'students', label: '人数', type: 'number' }],
+	  }
+	  return fields[resourceStore.activeTab] || []
+	})
 
 const actionRender = (row: any) => h(NSpace, { size: 'small' }, { default: () => [
   h(NButton, { size: 'tiny', text: true, onClick: () => openEdit(row) }, { default: () => '编辑' }),
@@ -328,9 +345,11 @@ function downloadTemplate() {
 
     <!-- Form Modal -->
     <n-modal v-model:show="showModal" preset="card" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')" style="width: 480px;" :mask-closable="false">
-      <n-form label-placement="left" label-width="64" :style="{ padding: '8px 0' }">
+      <n-form label-placement="left" label-width="110" :style="{ padding: '8px 0' }">
         <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
-          <n-input v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
+          <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
+          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable style="width:100%" />
+          <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>
       <template #footer>

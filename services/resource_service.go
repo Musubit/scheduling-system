@@ -101,12 +101,12 @@ func (s *ResourceService) DeleteClassGroup(id uint) error {
 
 // ===== Schedule =====
 
-func (s *ResourceService) GetScheduleEntries(semester string) ([]models.ScheduleEntry, error) {
-	var entries []models.ScheduleEntry
-	query := s.db().Preload("Course").Preload("Teacher").Preload("Classroom")
-	if semester != "" {
-		query = query.Where("semester = ?", semester)
+	func (s *ResourceService) GetScheduleEntries(semester string) ([]models.ScheduleEntry, error) {
+		var entries []models.ScheduleEntry
+		query := s.db().Preload("Course").Preload("Teacher").Preload("Classroom").Preload("ClassGroup")
+		if semester != "" {
+			query = query.Where("semester = ?", semester)
+		}
+		result := query.Find(&entries)
+		return entries, result.Error
 	}
-	result := query.Find(&entries)
-	return entries, result.Error
-}

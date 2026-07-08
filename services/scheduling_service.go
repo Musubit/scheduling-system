@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"scheduling-system/database"
@@ -15,11 +16,12 @@ type SchedulingService struct{}
 func NewSchedulingService() *SchedulingService { return &SchedulingService{} }
 
 type SchedulingConfig struct {
-	Scope       string   `json:"scope"`
-	Semester    string   `json:"semester"`
-	Strategy    string   `json:"strategy"`
-	Iterations  int      `json:"iterations"`
-	Constraints []string `json:"constraints"`
+	Scope       string           `json:"scope"`
+	Semester    string           `json:"semester"`
+	Strategy    string           `json:"strategy"`
+	Iterations  int              `json:"iterations"`
+	Constraints []string         `json:"constraints"`
+	LockedSlots []lockedTimeSlot `json:"lockedSlots,omitempty"`
 }
 
 type SchedulingResult struct {
@@ -27,12 +29,20 @@ type SchedulingResult struct {
 	Scheduled    int      `json:"scheduled"`
 	Conflicts    int      `json:"conflicts"`
 	Utilization  float64  `json:"utilization"`
+	Score        float64  `json:"score"`
+	ScoreDetail  *ScoreBreakdown `json:"scoreDetail,omitempty"`
 	Logs         []string `json:"logs"`
 	Error        string   `json:"error,omitempty"`
 }
 
+// LockedTimeSlot represents a globally locked time period.
+type lockedTimeSlot struct {
+	DayOfWeek   int `json:"dayOfWeek"`
+	StartPeriod int `json:"startPeriod"`
+	Span        int `json:"span"`
+}
+
 func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingResult {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	result := &SchedulingResult{Logs: []string{}}
 	log := func(msg string) { result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg)) }
 
@@ -72,52 +82,116 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		result.Error = "加载教师失败: " + err.Error()
 		return result
 	}
+	var classGroups []models.ClassGroup
+	database.DB.Find(&classGroups)
+
 	if len(classrooms) == 0 || len(teachers) == 0 {
 		result.Error = "缺少教室或教师资源"
 		return result
 	}
 
-	// Execute in transaction
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		// Clear existing schedule for this semester
-		if err := tx.Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error; err != nil {
-			return fmt.Errorf("清空旧课表失败: %w", err)
-		}
+	// Load locked time slots from settings (DB fallback)
+	lockedSlots := config.LockedSlots
+	if len(lockedSlots) == 0 {
+		lockedSlots = s.loadLockedSlots()
+	}
+	if len(lockedSlots) > 0 {
+		log(fmt.Sprintf("INFO 加载了 %d 个全局锁定时间段", len(lockedSlots)))
+	}
 
-		validStarts := []int{0, 2, 4, 6, 8}
+	// Matching: find class groups for each course by department
+	courseClassGroups := make(map[uint][]models.ClassGroup)
+	for _, course := range courses {
+		targetDept := deptMap[course.Dept]
+		var matched []models.ClassGroup
+		for _, cg := range classGroups {
+			if cg.Dept == targetDept {
+				matched = append(matched, cg)
+			}
+		}
+		courseClassGroups[course.ID] = matched
+	}
+
+	// Run multiple iterations, keep the best result
+	numIterations := config.Iterations
+	if numIterations <= 0 {
+		numIterations = 10
+	}
+	if numIterations > 100 {
+		numIterations = 100
+	}
+	log(fmt.Sprintf("INFO 将进行 %d 轮迭代，取最优方案", numIterations))
+
+	validStarts := []int{0, 2, 4, 6, 8}
+	scorer := NewScoringService()
+
+		var bestEntries []models.ScheduleEntry
+		var bestScheduled int
+		var bestScore float64 = -1.0
+
+		for iter := 0; iter < numIterations; iter++ {
+		iterRng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(iter*1000)))
+		var iterEntries []models.ScheduleEntry
 		roomOccupied := make(map[string]bool)
 		teacherOccupied := make(map[string]bool)
+		classOccupied := make(map[string]bool)
 		teacherLoad := make(map[uint]int)
 		scheduled := 0
 
 		for _, course := range courses {
 			placed := false
-			days := rng.Perm(7)
+			days := iterRng.Perm(7)
 			for _, day := range days {
 				if placed {
 					break
 				}
+				// Check if this day+any period is locked
+				dayLocked := false
+				for _, ls := range lockedSlots {
+					if ls.DayOfWeek == day {
+						dayLocked = true
+						break
+					}
+				}
+
 				starts := make([]int, len(validStarts))
 				copy(starts, validStarts)
-				rng.Shuffle(len(starts), func(i, j int) { starts[i], starts[j] = starts[j], starts[i] })
+				iterRng.Shuffle(len(starts), func(i, j int) { starts[i], starts[j] = starts[j], starts[i] })
 
 				for _, start := range starts {
 					if placed {
 						break
 					}
 					span := 2
-					if start == 8 && rng.Intn(3) == 0 {
-						span = 3 // 9-10-11三连上
+					if start == 8 && iterRng.Intn(3) == 0 {
+						span = 3
 					}
 					if start+span > 11 {
 						continue
 					}
 
+					// Check locked time slot overlap
+					lockedConflict := false
+					if dayLocked {
+						for _, ls := range lockedSlots {
+							if ls.DayOfWeek == day && periodsOverlap(start, span, ls.StartPeriod, ls.Span) {
+								lockedConflict = true
+								break
+							}
+						}
+					}
+					if lockedConflict {
+						continue
+					}
+
+					// Find matching class groups for this course
+					cgs := courseClassGroups[course.ID]
+
 					teacherCandidates := findTeachers(teachers, course.Dept)
-					rng.Shuffle(len(teacherCandidates), func(i, j int) { teacherCandidates[i], teacherCandidates[j] = teacherCandidates[j], teacherCandidates[i] })
+					iterRng.Shuffle(len(teacherCandidates), func(i, j int) { teacherCandidates[i], teacherCandidates[j] = teacherCandidates[j], teacherCandidates[i] })
 
 					for _, teacher := range teacherCandidates {
-						if teacherLoad[teacher.ID] >= 16*2 { // max 16 periods worth of courses
+						if teacherLoad[teacher.ID] >= 32 { // max 32 periods
 							continue
 						}
 						teacherBusy := false
@@ -143,25 +217,48 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 								continue
 							}
 
+							// Pick a class group for this entry
+							var classGroupID *uint
+							if len(cgs) > 0 {
+								// Check which class group is free at this time
+								for _, cg := range cgs {
+									cgBusy := false
+									for p := start; p < start+span; p++ {
+										if classOccupied[fmt.Sprintf("%d-%d-%d", day, p, cg.ID)] {
+											cgBusy = true
+											break
+										}
+									}
+									if !cgBusy {
+										cgid := cg.ID
+										classGroupID = &cgid
+										break
+									}
+								}
+								// If all class groups busy, still place but without class group
+							}
+
 							entry := models.ScheduleEntry{
-								CourseID:    course.ID,
-								TeacherID:   teacher.ID,
-								ClassroomID: room.ID,
-								Semester:    config.Semester,
-								DayOfWeek:   day,
-								StartPeriod: start,
-								Span:        span,
-								Weeks:       "1-16",
+								CourseID:     course.ID,
+								TeacherID:    teacher.ID,
+								ClassroomID:  room.ID,
+								ClassGroupID: classGroupID,
+								Semester:     config.Semester,
+								DayOfWeek:    day,
+								StartPeriod:  start,
+								Span:         span,
+								Weeks:        "1-16",
 							}
-							if err := tx.Create(&entry).Error; err != nil {
-								continue
-							}
+							iterEntries = append(iterEntries, entry)
 
 							for p := start; p < start+span; p++ {
 								roomOccupied[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
 								teacherOccupied[fmt.Sprintf("%d-%d-%d", day, p, teacher.ID)] = true
+								if classGroupID != nil {
+									classOccupied[fmt.Sprintf("%d-%d-%d", day, p, *classGroupID)] = true
+								}
 							}
-							teacherLoad[teacher.ID] += span // 按节次累计
+							teacherLoad[teacher.ID] += span
 							scheduled++
 							placed = true
 							break
@@ -172,12 +269,35 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 					}
 				}
 			}
-			if scheduled%20 == 0 && scheduled > 0 {
-				log(fmt.Sprintf("INFO 已排 %d 门课程", scheduled))
-			}
 		}
 
-		result.Scheduled = scheduled
+		// Score this iteration
+		scoreBreakdown := scorer.ScoreSchedule(iterEntries, teachers, classrooms)
+		iterScore := scoreBreakdown.Total
+
+		if bestScore < 0 || iterScore > bestScore || (iterScore == bestScore && scheduled > bestScheduled) {
+				bestScore = iterScore
+				bestScheduled = scheduled
+				bestEntries = iterEntries
+			}
+
+		if (iter+1)%10 == 0 || iter == numIterations-1 {
+			log(fmt.Sprintf("INFO 迭代 %d/%d, 本轮评分 %.1f, 当前最优 %.1f",
+				iter+1, numIterations, iterScore, bestScore))
+		}
+	}
+
+	// Save best result to database
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error; err != nil {
+			return fmt.Errorf("清空旧课表失败: %w", err)
+		}
+		if len(bestEntries) > 0 {
+			if err := tx.Create(&bestEntries).Error; err != nil {
+				return fmt.Errorf("保存课表失败: %w", err)
+			}
+		}
+		result.Scheduled = bestScheduled
 		return nil
 	})
 
@@ -187,19 +307,86 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		return result
 	}
 
-	// Conflict detection AFTER transaction (sees committed data)
+	// Final conflict detection on committed data
 	conflicts := (&ConflictService{}).DetectConflicts(config.Semester)
 	result.Conflicts = len(conflicts)
 	if result.TotalCourses > 0 {
 		result.Utilization = float64(result.Scheduled) / float64(result.TotalCourses)
 	}
-	log(fmt.Sprintf("INFO 排课完成！已排 %d/%d 门，利用率 %.1f%%，冲突 %d 个",
-		result.Scheduled, result.TotalCourses, result.Utilization*100, len(conflicts)))
+	result.Score = bestScore
+
+	// Re-score on final committed data for detailed breakdown
+	var finalEntries []models.ScheduleEntry
+	database.DB.Where("semester = ?", config.Semester).Find(&finalEntries)
+	finalBreakdown := scorer.ScoreSchedule(finalEntries, teachers, classrooms)
+	result.ScoreDetail = &finalBreakdown
+
+	log(fmt.Sprintf("INFO 排课完成！已排 %d/%d 门，利用率 %.1f%%，评分 %.1f/100，冲突 %d 个",
+		result.Scheduled, result.TotalCourses, result.Utilization*100, bestScore, len(conflicts)))
 	if result.Scheduled < result.TotalCourses {
 		log(fmt.Sprintf("WARN 剩余 %d 门课程需手动调整", result.TotalCourses-result.Scheduled))
 	}
 
 	return result
+}
+
+// loadLockedSlots reads locked time slots from the settings table.
+func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
+	var setting models.Setting
+	if err := database.DB.Where("key = ?", "locked_time_slots").First(&setting).Error; err != nil {
+		return nil
+	}
+	var slots []lockedTimeSlot
+	if err := json.Unmarshal([]byte(setting.Value), &slots); err != nil {
+		return nil
+	}
+	return slots
+}
+
+// countConflictsQuick does a fast in-memory conflict count without DB queries.
+func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) int {
+	count := 0
+
+	// Room conflicts
+	roomSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+e.Span; p++ {
+			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
+			if roomSlots[key] {
+				count++
+			}
+			roomSlots[key] = true
+		}
+	}
+
+	// Teacher conflicts
+	teacherSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+e.Span; p++ {
+			key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
+			if teacherSlots[key] {
+				count++
+			}
+			teacherSlots[key] = true
+		}
+	}
+
+	// Class group conflicts
+	classSlots := make(map[string]bool)
+	for _, e := range entries {
+		if e.ClassGroupID == nil {
+			continue
+		}
+		for p := e.StartPeriod; p < e.StartPeriod+e.Span; p++ {
+			key := fmt.Sprintf("c-%d-%d-%d", *e.ClassGroupID, e.DayOfWeek, p)
+			if classSlots[key] {
+				count++
+			}
+			classSlots[key] = true
+		}
+	}
+
+	return count
 }
 
 // deptMap maps course dept codes to teacher dept names (Chinese)

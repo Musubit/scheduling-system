@@ -1,10 +1,66 @@
 <script setup lang="ts">
+import { ref, h } from 'vue'
 import { useScheduleStore } from '../stores/schedule'
 import WeekView from '../components/schedule/WeekView.vue'
 import TimelineView from '../components/schedule/TimelineView.vue'
 import MonthView from '../components/schedule/MonthView.vue'
+import { NButton, NDropdown } from 'naive-ui'
+import * as XLSX from 'xlsx'
+import { DAY_NAMES } from '../types'
 
 const scheduleStore = useScheduleStore()
+const exporting = ref(false)
+
+function exportSchedule(mode: 'teacher' | 'class' | 'dept') {
+  exporting.value = true
+  try {
+    const entries = scheduleStore.entries
+    if (!entries.length) return
+
+    const rows: any[] = []
+    const titleMap: Record<string, string> = {
+      teacher: '按教师导出',
+      class: '按班级导出',
+      dept: '按系所导出',
+    }
+
+    entries.forEach(e => {
+      let groupKey = ''
+      if (mode === 'teacher') groupKey = e.teacher?.name || '未知教师'
+      else if (mode === 'class') groupKey = e.classGroup?.name || e.course?.name || '未知'
+      else groupKey = e.course?.dept || '未知系所'
+
+      rows.push({
+        '分组': groupKey,
+        '课程名称': e.course?.name || '',
+        '课程编号': e.course?.code || '',
+        '教师': e.teacher?.name || '',
+        '教室': e.classroom?.name || '',
+        '星期': DAY_NAMES[e.dayOfWeek] || '',
+        '节次': `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
+        '教学周': e.weeks || '',
+        '班级': e.classGroup?.name || '',
+        '学分': e.course?.credit || '',
+      })
+    })
+
+    // Sort by group
+    rows.sort((a, b) => a['分组'].localeCompare(b['分组']))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '课表')
+    XLSX.writeFile(wb, `排课表_${titleMap[mode]}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } finally {
+    exporting.value = false
+  }
+}
+
+const exportOptions = [
+  { label: '按教师导出', key: 'teacher' as const },
+  { label: '按班级导出', key: 'class' as const },
+  { label: '按系所导出', key: 'dept' as const },
+]
 </script>
 
 <template>
@@ -33,6 +89,9 @@ const scheduleStore = useScheduleStore()
           </button>
         </div>
         <span class="stat-badge">已排 {{ scheduleStore.totalCourses || '...' }} 门课</span>
+        <n-dropdown trigger="click" :options="exportOptions" @select="exportSchedule">
+          <n-button size="small" :loading="exporting">导出课表</n-button>
+        </n-dropdown>
       </div>
     </div>
 

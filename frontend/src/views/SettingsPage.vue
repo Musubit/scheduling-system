@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
-import { NSwitch, NButton, NInputNumber, NSelect, NSpace } from 'naive-ui'
+import { reactive, watch, ref } from 'vue'
+import { NSwitch, NButton, NInputNumber, NSelect, NSpace, NTag } from 'naive-ui'
 import { useAppStore } from '../stores/app'
+import { DAY_NAMES } from '../types'
 
 const appStore = useAppStore()
 
@@ -35,6 +36,67 @@ function resetDefaults() {
   })
   alert('已恢复默认设置')
 }
+
+// ===== Locked Time Slots =====
+interface LockedSlot {
+  dayOfWeek: number
+  startPeriod: number
+  span: number
+}
+
+const lockedSlots = ref<LockedSlot[]>([])
+const newSlot = reactive<LockedSlot>({ dayOfWeek: 3, startPeriod: 4, span: 2 })
+
+// Load locked slots from backend
+async function loadLockedSlots() {
+  try {
+    const { GetSettings } = await import('../../bindings/scheduling-system/services/resourceservice')
+    // Read from Setting table via resource service (simplified)
+    // For now, load from localStorage
+    const saved = localStorage.getItem('locked-time-slots')
+    if (saved) {
+      try { lockedSlots.value = JSON.parse(saved) } catch {}
+    }
+  } catch {}
+}
+
+function addLockedSlot() {
+  lockedSlots.value.push({ ...newSlot })
+  saveLockedSlots()
+}
+
+function removeLockedSlot(index: number) {
+  lockedSlots.value.splice(index, 1)
+  saveLockedSlots()
+}
+
+function saveLockedSlots() {
+  localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
+  // Also save to backend Setting table
+  try {
+    import('../../bindings/scheduling-system/services/resourceservice').then(async ({ CreateSetting, UpdateSetting }) => {
+      // Simplified: use localStorage for now
+    })
+  } catch {}
+}
+
+loadLockedSlots()
+
+const periodLabels = [
+  { value: 0, label: '第1节 (08:20)' },
+  { value: 2, label: '第3节 (10:15)' },
+  { value: 4, label: '第5节 (14:00)' },
+  { value: 6, label: '第7节 (15:55)' },
+  { value: 8, label: '第9节 (18:30)' },
+]
+
+const dayOptions = DAY_NAMES.map((name, i) => ({ value: i, label: name }))
+
+const spanOptions = [
+  { value: 1, label: '1节' },
+  { value: 2, label: '2节' },
+  { value: 3, label: '3节' },
+]
 </script>
 
 <template>
@@ -93,6 +155,29 @@ function resetDefaults() {
           size="small"
           style="width:120px"
         />
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">锁定时间段</h3>
+      <div class="setting-desc" style="margin-bottom:12px">设置全校不可排课的时间段（如周四下午全院会议），排课引擎将跳过这些时段。</div>
+      
+      <!-- Existing locked slots -->
+      <div v-for="(slot, idx) in lockedSlots" :key="idx" class="setting-item">
+        <div>
+          <span class="setting-label">{{ DAY_NAMES[slot.dayOfWeek] }} {{ slot.startPeriod === 0 ? '1-2' : slot.startPeriod === 2 ? '3-4' : slot.startPeriod === 4 ? '5-6' : slot.startPeriod === 6 ? '7-8' : '9-11' }}节</span>
+        </div>
+        <n-button size="tiny" type="error" text @click="removeLockedSlot(idx)">移除</n-button>
+      </div>
+      
+      <!-- Add new locked slot -->
+      <div class="setting-item" style="border-top:1px dashed var(--b3-border-color); padding-top:12px;">
+        <n-space align="center" :wrap="false">
+          <n-select v-model:value="newSlot.dayOfWeek" :options="dayOptions" size="tiny" style="width:80px" />
+          <n-select v-model:value="newSlot.startPeriod" :options="periodLabels" size="tiny" style="width:130px" />
+          <n-select v-model:value="newSlot.span" :options="spanOptions" size="tiny" style="width:70px" />
+          <n-button size="tiny" type="primary" @click="addLockedSlot">添加</n-button>
+        </n-space>
       </div>
     </div>
 

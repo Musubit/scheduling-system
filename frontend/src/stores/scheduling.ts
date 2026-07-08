@@ -59,12 +59,20 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     logs.value = ['🔍 正在加载课程和教师数据...']
 
     try {
+      // Load locked slots from localStorage
+      let lockedSlots: { dayOfWeek: number; startPeriod: number; span: number }[] = []
+      try {
+        const saved = localStorage.getItem('locked-time-slots')
+        if (saved) { lockedSlots = JSON.parse(saved) }
+      } catch {}
+
       const goConfig: models.SchedulingConfig = {
         scope: config.value.scope,
         semester: config.value.semester,
         strategy: config.value.strategy,
         iterations: config.value.iterations,
         constraints: config.value.constraints,
+        lockedSlots: lockedSlots.length > 0 ? lockedSlots : undefined,
       }
       progress.value = 20
       logs.value.push('⚙️ 正在清空旧课表，准备排课...')
@@ -79,18 +87,25 @@ export const useSchedulingStore = defineStore('scheduling', () => {
           scheduled: goResult.scheduled || 0,
           conflicts: goResult.conflicts || 0,
           utilization: goResult.utilization || 0,
+          score: goResult.score,
+          scoreDetail: goResult.scoreDetail ? {
+            total: goResult.scoreDetail.total || 0,
+            teacherPref: goResult.scoreDetail.teacherPref || 0,
+            courseSpacing: goResult.scoreDetail.courseSpacing || 0,
+            teacherDays: goResult.scoreDetail.teacherDays || 0,
+            lowFloorPref: goResult.scoreDetail.lowFloorPref || 0,
+          } : undefined,
           logs: goResult.logs || [],
         }
       }
       progress.value = 100
       logs.value.push('✅ 排课完成！正在加载课表...')
-        // Refresh schedule views and navigate to schedule
-        const { useScheduleStore } = await import('./schedule')
-        const { useAppStore } = await import('./app')
-        const appStore = useAppStore()
-        await useScheduleStore().loadSchedule(appStore.semesterFilter)
-        appStore.navigateTo('schedule', '周视图课表')
-      }
+      // Refresh schedule views and navigate to schedule
+      const { useScheduleStore } = await import('./schedule')
+      const { useAppStore } = await import('./app')
+      const appStore = useAppStore()
+      await useScheduleStore().loadSchedule(appStore.semesterFilter)
+      appStore.navigateTo('schedule', '周视图课表')
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
       result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['后端调度服务不可用，请检查Go服务是否运行'] }
