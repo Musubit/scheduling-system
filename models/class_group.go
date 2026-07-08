@@ -10,4 +10,5 @@ type ClassGroup struct {
 	Dept     string `gorm:"size:50;not null;index" json:"dept"`
 	Grade    int    `json:"grade"`      // 入学年份, e.g. 2023
 	Students int    `json:"students"`   // 学生人数
+	Status   string `gorm:"size:20;default:active" json:"status"` // active, inactive
 }

@@ -10,6 +10,7 @@ export interface Course {
   credit: number
   type: string
   hours: number
+  status?: 'active' | 'inactive'
 }
 
 /** 教师 */
@@ -47,6 +48,7 @@ export interface ClassGroup {
   dept: string
   grade: number
   students: number
+  status?: 'active' | 'inactive'
 }
 
 /** 学期 */

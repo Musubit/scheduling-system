@@ -60,65 +60,66 @@ const mockClassrooms = [
 ]
 
 const mockCourses = [
-  { id: 1, code: 'CS301', name: '数据结构', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64 },
-  { id: 2, code: 'SC201', name: '高等数学', dept: '理学院', credit: 5.0, type: '公共必修', hours: 80 },
-  { id: 3, code: 'EN101', name: '大学英语', dept: '外国语学院', credit: 3.0, type: '公共必修', hours: 48 },
-  { id: 4, code: 'SC203', name: '大学物理', dept: '理学院', credit: 4.0, type: '公共必修', hours: 64 },
-  { id: 5, code: 'CS302', name: '操作系统', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64 },
-  { id: 6, code: 'MX101', name: '马克思主义基本原理', dept: '马克思主义学院', credit: 2.0, type: '公共必修', hours: 32 },
-  { id: 7, code: 'AD201', name: '设计素描', dept: '艺术设计学院', credit: 2.0, type: '专业必修', hours: 32 },
+  { id: 1, code: 'CS301', name: '数据结构', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64, status: 'active' },
+  { id: 2, code: 'SC201', name: '高等数学', dept: '理学院', credit: 5.0, type: '公共必修', hours: 80, status: 'active' },
+  { id: 3, code: 'EN101', name: '大学英语', dept: '外国语学院', credit: 3.0, type: '公共必修', hours: 48, status: 'active' },
+  { id: 4, code: 'SC203', name: '大学物理', dept: '理学院', credit: 4.0, type: '公共必修', hours: 64, status: 'active' },
+  { id: 5, code: 'CS302', name: '操作系统', dept: '计算机学院', credit: 4.0, type: '专业必修', hours: 64, status: 'active' },
+  { id: 6, code: 'MX101', name: '马克思主义基本原理', dept: '马克思主义学院', credit: 2.0, type: '公共必修', hours: 32, status: 'active' },
+  { id: 7, code: 'AD201', name: '设计素描', dept: '艺术设计学院', credit: 2.0, type: '专业必修', hours: 32, status: 'active' },
 ]
 
 const mockClasses = [
-  { id: 1, code: 'CS2301', name: '计算机2301', dept: '计算机学院', grade: 2023, students: 86 },
-  { id: 2, code: 'CS2302', name: '计算机2302', dept: '计算机学院', grade: 2023, students: 82 },
-  { id: 3, code: 'ME2301', name: '机械2301', dept: '机械工程学院', grade: 2023, students: 72 },
-  { id: 4, code: 'EE2301', name: '电气2301', dept: '电气与电子工程学院', grade: 2023, students: 68 },
-  { id: 5, code: 'CE2301', name: '土木2301', dept: '土木建筑与环境学院', grade: 2023, students: 55 },
-  { id: 6, code: 'EM2301', name: '经管2301', dept: '经济与管理学院', grade: 2023, students: 78 },
-  { id: 7, code: 'AD2301', name: '艺设2301', dept: '艺术设计学院', grade: 2023, students: 40 },
+  { id: 1, code: 'CS2301', name: '计算机2301', dept: '计算机学院', grade: 2023, students: 86, status: 'active' },
+  { id: 2, code: 'CS2302', name: '计算机2302', dept: '计算机学院', grade: 2023, students: 82, status: 'active' },
+  { id: 3, code: 'ME2301', name: '机械2301', dept: '机械工程学院', grade: 2023, students: 72, status: 'active' },
+  { id: 4, code: 'EE2301', name: '电气2301', dept: '电气与电子工程学院', grade: 2023, students: 68, status: 'active' },
+  { id: 5, code: 'CE2301', name: '土木2301', dept: '土木建筑与环境学院', grade: 2023, students: 55, status: 'active' },
+  { id: 6, code: 'EM2301', name: '经管2301', dept: '经济与管理学院', grade: 2023, students: 78, status: 'active' },
+  { id: 7, code: 'AD2301', name: '艺设2301', dept: '艺术设计学院', grade: 2023, students: 40, status: 'active' },
 ]
 
 // ===== 列定义 =====
-const teacherColumns = [
-  { title: '工号', key: 'code', width: 80 },
-  { title: '姓名', key: 'name', width: 100 },
-  { title: '院系', key: 'dept', width: 160 },
-  { title: '职称', key: 'title', width: 80 },
-  { title: '课时', key: 'weeklyHours', width: 70 },
-  { title: '状态', key: 'status', width: 80, render: (row: any) => h(NTag, { type: row.status === 'active' ? 'success' : 'default', size: 'small' }, { default: () => row.status === 'active' ? '在职' : '休假' }) },
-  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
-]
+	const teacherColumns = [
+	  { title: '工号', key: 'code', width: 80 },
+	  { title: '姓名', key: 'name', width: 100 },
+	  { title: '院系', key: 'dept', width: 140 },
+	  { title: '职称', key: 'title', width: 70 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'active', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	]
 
 	const classroomColumns = [
 	  { title: '编号', key: 'code', width: 80 },
 	  { title: '教室名', key: 'name', width: 100 },
-	  { title: '教学楼', key: 'building', width: 80 },
-	  { title: '楼层', key: 'floor', width: 60 },
-	  { title: '容量', key: 'capacity', width: 70 },
-	  { title: '类型', key: 'type', width: 100 },
-	  { title: '状态', key: 'status', width: 80, render: (row: any) => h(NTag, { type: row.status === 'available' ? 'success' : 'warning', size: 'small' }, { default: () => row.status === 'available' ? '可用' : '维护' }) },
+	  { title: '教学楼', key: 'building', width: 70 },
+	  { title: '楼层', key: 'floor', width: 50 },
+	  { title: '容量', key: 'capacity', width: 60 },
+	  { title: '类型', key: 'type', width: 80 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'available', onUpdateValue: () => toggleStatus(row) }) },
 	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
 
-const courseColumns = [
-  { title: '编号', key: 'code', width: 80 },
-  { title: '课程名', key: 'name', width: 140 },
-  { title: '院系', key: 'dept', width: 140, render: (row: any) => DEPT_NAME_MAP[row.dept] || row.dept },
-  { title: '学分', key: 'credit', width: 60 },
-  { title: '类型', key: 'type', width: 100 },
-  { title: '课时', key: 'hours', width: 60 },
-  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
-]
+	const courseColumns = [
+	  { title: '编号', key: 'code', width: 80 },
+	  { title: '课程名', key: 'name', width: 140 },
+	  { title: '院系', key: 'dept', width: 120, render: (row: any) => DEPT_NAME_MAP[row.dept] || row.dept },
+	  { title: '学分', key: 'credit', width: 50 },
+	  { title: '类型', key: 'type', width: 90 },
+	  { title: '课时', key: 'hours', width: 50 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	]
 
-const classColumns = [
-  { title: '编号', key: 'code', width: 100 },
-  { title: '班级名', key: 'name', width: 140 },
-  { title: '院系', key: 'dept', width: 160 },
-  { title: '年级', key: 'grade', width: 70 },
-  { title: '人数', key: 'students', width: 70 },
-  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
-]
+	const classColumns = [
+	  { title: '编号', key: 'code', width: 90 },
+	  { title: '班级名', key: 'name', width: 130 },
+	  { title: '院系', key: 'dept', width: 140 },
+	  { title: '年级', key: 'grade', width: 60 },
+	  { title: '人数', key: 'students', width: 60 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	]
 
 const deptOptions = [
   { label: '全部院系', value: '全部院系' },
@@ -151,6 +152,21 @@ function fuzzyFilter(pattern: string, option: { label: string; value: any }): bo
 const showModal = ref(false)
 const editingItem = ref<any>(null)
 const formData = ref<Record<string, any>>({})
+
+function toggleStatus(row: any) {
+  const tab = resourceStore.activeTab
+  let newStatus: string
+  if (tab === 'classroom') {
+    newStatus = row.status === 'available' ? 'maintenance' : 'available'
+  } else {
+    newStatus = row.status === 'active' ? 'inactive' : 'active'
+  }
+  row.status = newStatus
+  // Persist to backend
+  try {
+    callUpdate(tab, row.ID, { ...row, status: newStatus })
+  } catch { /* fallback: already updated locally */ }
+}
 
 function openCreate() { editingItem.value = null; formData.value = {}; showModal.value = true }
 function openEdit(row: any) { editingItem.value = row; formData.value = { ...row }; showModal.value = true }
