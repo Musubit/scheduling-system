@@ -43,6 +43,7 @@ const weightLabels: Record<string, string> = {
   course_dispersed: '课程分散度',
   teacher_days_limit: '教师到校天数',
   low_floor_preference: '优先低楼层',
+  pe_preferred_periods: '体育课时段',
   avoid_saturday: '避开周六',
   avoid_sunday: '避开周日',
 }
@@ -208,6 +209,11 @@ const weightLabels: Record<string, string> = {
               <span class="breakdown-label">周末避让</span>
               <n-progress :percentage="(store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
               <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(0) }}/{{ categoryMax }}</span>
+            </div>
+            <div class="breakdown-item" v-if="isConstraintEnabled('pe_preferred_periods')">
+              <span class="breakdown-label">体育课时段</span>
+              <n-progress :percentage="(store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(0) }}/{{ categoryMax }}</span>
             </div>
           </div>
         </div>

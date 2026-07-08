@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"scheduling-system/database"
 	"scheduling-system/models"
+	"strings"
 	"time"
 )
 
@@ -146,6 +147,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// Try OR-Tools first if available
 	var saResult *SAResult
+	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	if s.orchestrator != nil {
 		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, lockedSlots, config, log); ortoolsResult != nil {
 			saResult = ortoolsResult
@@ -172,7 +174,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		)
 
 		// Re-score after post-optimization
-		postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
+		postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs)
 		saResult.Score = postBreakdown.Total
 
 		log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
@@ -209,7 +211,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// Re-score on final data for detailed breakdown
 	scorer := NewScoringService()
-	finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
+	finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs)
 	result.ScoreDetail = &finalBreakdown
 
 	log(fmt.Sprintf("排课完成！已排 %d/%d 个教学任务，利用率 %.1f%%，评分 %.1f/100",
@@ -233,6 +235,17 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	return result
+}
+
+// buildSportsCourseIDs returns a set of course IDs that are "体育" courses.
+func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.TeachingTask) map[uint]bool {
+	ids := make(map[uint]bool)
+	for _, tt := range teachingTasks {
+		if strings.Contains(tt.Course.Name, "体育") {
+			ids[tt.CourseID] = true
+		}
+	}
+	return ids
 }
 
 // loadLockedSlots reads locked time slots from the settings table.

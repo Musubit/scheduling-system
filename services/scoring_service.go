@@ -15,17 +15,19 @@ func NewScoringService() *ScoringService {
 // ScoreBreakdown holds the detailed scoring result.
 type ScoreBreakdown struct {
 	Total         float64 `json:"total"`
-	TeacherPref   float64 `json:"teacherPref"`   // 教师偏好满足度 (0-25)
-	CourseSpacing float64 `json:"courseSpacing"` // 课程间隔均匀度 (0-25)
-	TeacherDays   float64 `json:"teacherDays"`   // 教师到校天数 (0-25)
-	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层 (0-25)
-	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让 (0-25)
+	TeacherPref   float64 `json:"teacherPref"`   // 教师偏好满足度
+	CourseSpacing float64 `json:"courseSpacing"` // 课程间隔均匀度
+	TeacherDays   float64 `json:"teacherDays"`   // 教师到校天数
+	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层
+	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让
+	PePeriodPref  float64 `json:"pePeriodPref"`  // 体育课时段偏好
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
 // enabledConstraints: list of constraint keys to evaluate. If empty, all are enabled.
+// sportsCourseIDs: set of course IDs that are sports courses (for pe_preferred_periods).
 // Returns a score from 0-100 with detailed breakdown.
-func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string) ScoreBreakdown {
+func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string, sportsCourseIDs map[uint]bool) ScoreBreakdown {
 	breakdown := ScoreBreakdown{}
 
 	if len(enabledConstraints) == 0 {
@@ -39,7 +41,6 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	}
 
 	// Count enabled categories and per-category max
-	// Weekend avoidance counts as one category if either saturday or sunday avoidance is on
 	enabledCount := 0
 	if enabled["teacher_preference"] {
 		enabledCount++
@@ -54,6 +55,9 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		enabledCount++
 	}
 	if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
+		enabledCount++
+	}
+	if enabled["pe_preferred_periods"] && sportsCourseIDs != nil {
 		enabledCount++
 	}
 	perCategoryMax := 100.0 / float64(enabledCount)
@@ -96,7 +100,12 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		breakdown.WeekendAvoid = s.scoreWeekendAvoid(entries, enabled, perCategoryMax)
 	}
 
-	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid)*100) / 100
+	// 6. Sports period preference
+	if enabled["pe_preferred_periods"] && sportsCourseIDs != nil {
+		breakdown.PePeriodPref = s.scorePePeriodPref(entries, sportsCourseIDs, perCategoryMax)
+	}
+
+	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid + breakdown.PePeriodPref)*100) / 100
 	return breakdown
 }
 
@@ -341,4 +350,30 @@ func (s *ScoringService) scoreWeekendAvoid(entries []models.ScheduleEntry, enabl
 		score = 0
 	}
 	return math.Round(score*100) / 100
+}
+
+// scorePePeriodPref evaluates whether sports courses are placed at preferred periods
+// (3-4节 = startPeriod 2, 7-8节 = startPeriod 6).
+func (s *ScoringService) scorePePeriodPref(entries []models.ScheduleEntry, sportsCourseIDs map[uint]bool, maxScore float64) float64 {
+	preferredStarts := map[int]bool{2: true, 6: true} // startPeriod 2 (3-4节), 6 (7-8节)
+
+	sportsCount := 0
+	preferredCount := 0
+
+	for _, e := range entries {
+		if !sportsCourseIDs[e.CourseID] {
+			continue
+		}
+		sportsCount++
+		if preferredStarts[int(e.StartPeriod)] {
+			preferredCount++
+		}
+	}
+
+	if sportsCount == 0 {
+		return maxScore
+	}
+
+	ratio := float64(preferredCount) / float64(sportsCount)
+	return math.Round(maxScore * ratio * 100) / 100
 }

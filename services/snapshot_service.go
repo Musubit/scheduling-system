@@ -26,7 +26,7 @@ func (s *SnapshotService) CreateSnapshot(
 	conflictCount int,
 ) (*models.ScheduleSnapshot, error) {
 	scorer := NewScoringService()
-	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints)
+	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints, nil)
 
 	snapshot := &models.ScheduleSnapshot{
 		Semester:   semester,
@@ -38,8 +38,9 @@ func (s *SnapshotService) CreateSnapshot(
 		TeacherPref:   breakdown.TeacherPref,
 		CourseSpacing: breakdown.CourseSpacing,
 		TeacherDays:   breakdown.TeacherDays,
-		LowFloorPref:  breakdown.LowFloorPref,
-		WeekendAvoid:  breakdown.WeekendAvoid,
+		LowFloorPref:   breakdown.LowFloorPref,
+		WeekendAvoid:   breakdown.WeekendAvoid,
+		PePeriodPref:   breakdown.PePeriodPref,
 
 		TotalEntries: len(entries),
 		SolveTimeMs:  solveTimeMs,

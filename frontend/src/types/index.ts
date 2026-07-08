@@ -212,6 +212,7 @@ export interface ScoreBreakdown {
   teacherDays: number
   lowFloorPref: number
   weekendAvoid: number
+  pePeriodPref?: number
 }
 
 /** 冲突 */

@@ -23,6 +23,7 @@ export const CONSTRAINT_PRESETS: ConstraintPreset[] = [
       low_floor_preference: 50,
       avoid_saturday: 30,
       avoid_sunday: 30,
+      pe_preferred_periods: 50,
     },
   },
   {
@@ -35,6 +36,7 @@ export const CONSTRAINT_PRESETS: ConstraintPreset[] = [
       low_floor_preference: 30,
       avoid_saturday: 20,
       avoid_sunday: 20,
+      pe_preferred_periods: 40,
     },
   },
   {
@@ -47,6 +49,7 @@ export const CONSTRAINT_PRESETS: ConstraintPreset[] = [
       low_floor_preference: 20,
       avoid_saturday: 60,
       avoid_sunday: 60,
+      pe_preferred_periods: 50,
     },
   },
   {
@@ -59,6 +62,7 @@ export const CONSTRAINT_PRESETS: ConstraintPreset[] = [
       low_floor_preference: 100,
       avoid_saturday: 20,
       avoid_sunday: 20,
+      pe_preferred_periods: 30,
     },
   },
 ]
@@ -68,6 +72,7 @@ const constraintOptions = [
   { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
   { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
   { key: 'low_floor_preference', label: '优先低楼层教室' },
+  { key: 'pe_preferred_periods', label: '体育课优先3-4节或7-8节' },
   { key: 'avoid_saturday', label: '尽量避开周六排课' },
   { key: 'avoid_sunday', label: '尽量避开周日排课' },
 ]
@@ -187,6 +192,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             teacherDays: goResult.scoreDetail.teacherDays || 0,
             lowFloorPref: goResult.scoreDetail.lowFloorPref || 0,
             weekendAvoid: (goResult.scoreDetail as any).weekendAvoid || 0,
+            pePeriodPref: (goResult.scoreDetail as any).pePeriodPref || 0,
           } : undefined,
           logs: goResult.logs || [],
         }

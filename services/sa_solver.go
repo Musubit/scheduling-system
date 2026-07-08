@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"scheduling-system/models"
+	"strings"
 	"time"
 )
 
@@ -55,13 +56,14 @@ type teachingTaskData struct {
 
 // schedulingContext holds all the data needed during solving.
 type schedulingContext struct {
-	teachingTasks []teachingTaskData
-	teachers      []models.Teacher
-	classrooms    []models.Classroom
-	classGroups   []models.ClassGroup
-	lockedSlots   []lockedTimeSlot
-	constraints   []string
-	semester      string
+	teachingTasks   []teachingTaskData
+	teachers        []models.Teacher
+	classrooms      []models.Classroom
+	classGroups     []models.ClassGroup
+	lockedSlots     []lockedTimeSlot
+	constraints     []string
+	semester        string
+	sportsCourseIDs map[uint]bool // course IDs for sports courses
 
 	// Mutable state
 	entries    []models.ScheduleEntry
@@ -112,15 +114,23 @@ func (s *SASolver) Solve(
 	}
 
 	// Build context
+	sportsCourseIDs := make(map[uint]bool)
+	for _, tt := range teachingTasks {
+		if strings.Contains(tt.Course.Name, "体育") {
+			sportsCourseIDs[tt.CourseID] = true
+		}
+	}
+
 	ctx := &schedulingContext{
-		teachingTasks: taskData,
-		teachers:      teachers,
-		classrooms:    classrooms,
-		classGroups:   classGroups,
-		lockedSlots:   lockedSlots,
-		constraints:   constraints,
-		semester:      semester,
-		rng:           rng,
+		teachingTasks:   taskData,
+		teachers:        teachers,
+		classrooms:      classrooms,
+		classGroups:     classGroups,
+		lockedSlots:     lockedSlots,
+		constraints:     constraints,
+		semester:        semester,
+		sportsCourseIDs: sportsCourseIDs,
+		rng:             rng,
 	}
 
 	// Phase 1: Generate initial solution with greedy construction
@@ -260,7 +270,16 @@ func (ctx *schedulingContext) buildInitial() {
 
 			starts := make([]int, len(validStarts))
 			copy(starts, validStarts)
-			ctx.rng.Shuffle(len(starts), func(i, j int) { starts[i], starts[j] = starts[j], starts[i] })
+			// For sports courses, prefer start=2 (3-4节) and start=6 (7-8节)
+			if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[td.Task.CourseID] {
+				prefer := []int{2, 6}
+				other := []int{0, 4, 8}
+				ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
+				ctx.rng.Shuffle(len(other), func(i, j int) { other[i], other[j] = other[j], other[i] })
+				starts = append(prefer, other...)
+			} else {
+				ctx.rng.Shuffle(len(starts), func(i, j int) { starts[i], starts[j] = starts[j], starts[i] })
+			}
 
 			for _, start := range starts {
 				if placed {
@@ -439,7 +458,19 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 			day = ctx.rng.Intn(5) // weekday only
 		}
 	}
-	start := validStarts[ctx.rng.Intn(len(validStarts))]
+	// Pick start period, with bias for sports courses
+	var start int
+	if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[entry.CourseID] {
+		// 70% chance to pick preferred periods (2 or 6), 30% any
+		if ctx.rng.Float64() < 0.7 {
+			prefer := []int{2, 6}
+			start = prefer[ctx.rng.Intn(len(prefer))]
+		} else {
+			start = validStarts[ctx.rng.Intn(len(validStarts))]
+		}
+	} else {
+		start = validStarts[ctx.rng.Intn(len(validStarts))]
+	}
 	span := entry.Span
 
 	// Check locked slots
@@ -661,7 +692,7 @@ func (ctx *schedulingContext) computeScore() float64 {
 	if len(ctx.entries) == 0 {
 		return 0
 	}
-	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.constraints)
+	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.constraints, ctx.sportsCourseIDs)
 	return breakdown.Total
 }
 

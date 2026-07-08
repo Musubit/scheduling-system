@@ -424,7 +424,7 @@ export class ScoreBreakdown {
         }
         if (!("teacherPref" in $$source)) {
             /**
-             * 教师偏好满足度 (0-25)
+             * 教师偏好满足度
              * @member
              * @type {number}
              */
@@ -432,7 +432,7 @@ export class ScoreBreakdown {
         }
         if (!("courseSpacing" in $$source)) {
             /**
-             * 课程间隔均匀度 (0-25)
+             * 课程间隔均匀度
              * @member
              * @type {number}
              */
@@ -440,7 +440,7 @@ export class ScoreBreakdown {
         }
         if (!("teacherDays" in $$source)) {
             /**
-             * 教师到校天数 (0-25)
+             * 教师到校天数
              * @member
              * @type {number}
              */
@@ -448,7 +448,7 @@ export class ScoreBreakdown {
         }
         if (!("lowFloorPref" in $$source)) {
             /**
-             * 优先低楼层 (0-25)
+             * 优先低楼层
              * @member
              * @type {number}
              */
@@ -456,11 +456,19 @@ export class ScoreBreakdown {
         }
         if (!("weekendAvoid" in $$source)) {
             /**
-             * 周末避让 (0-25)
+             * 周末避让
              * @member
              * @type {number}
              */
             this["weekendAvoid"] = 0;
+        }
+        if (!("pePeriodPref" in $$source)) {
+            /**
+             * 体育课时段偏好
+             * @member
+             * @type {number}
+             */
+            this["pePeriodPref"] = 0;
         }
 
         Object.assign(this, $$source);

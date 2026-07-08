@@ -664,6 +664,14 @@ export class ScheduleSnapshot {
              */
             this["weekendAvoid"] = 0;
         }
+        if (!("pePeriodPref" in $$source)) {
+            /**
+             * 体育课时段偏好
+             * @member
+             * @type {number}
+             */
+            this["pePeriodPref"] = 0;
+        }
         if (!("capacityWarn" in $$source)) {
             /**
              * 容量不足警告数
@@ -713,10 +721,10 @@ export class ScheduleSnapshot {
      * @returns {ScheduleSnapshot}
      */
     static createFrom($$source = {}) {
-        const $$createField22_0 = $$createType8;
+        const $$createField23_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("details" in $$parsedSource) {
-            $$parsedSource["details"] = $$createField22_0($$parsedSource["details"]);
+            $$parsedSource["details"] = $$createField23_0($$parsedSource["details"]);
         }
         return new ScheduleSnapshot(/** @type {Partial<ScheduleSnapshot>} */($$parsedSource));
     }
