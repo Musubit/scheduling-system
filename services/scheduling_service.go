@@ -9,12 +9,13 @@ import (
 )
 
 type SchedulingService struct {
-	db        database.DB
-	snapshots *SnapshotService
+	db           database.DB
+	snapshots    *SnapshotService
+	orchestrator *SolverOrchestrator
 }
 
-func NewSchedulingService(db database.DB, snapshots *SnapshotService) *SchedulingService {
-	return &SchedulingService{db: db, snapshots: snapshots}
+func NewSchedulingService(db database.DB, snapshots *SnapshotService, orchestrator *SolverOrchestrator) *SchedulingService {
+	return &SchedulingService{db: db, snapshots: snapshots, orchestrator: orchestrator}
 }
 
 type SchedulingConfig struct {
@@ -143,32 +144,42 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	log(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
 
-	// Run SA solver with multi-restart
-	solver := NewSASolver()
-	saResult := solver.SolveMultiRun(
-		teachingTasks, teachers, classrooms, classGroups,
-		lockedSlots, config.Constraints, config.Semester,
-		saConfig,
-		3, // 3 runs with different seeds
-		nil,
-		nil,
-	)
+	// Try OR-Tools first if available
+	var saResult *SAResult
+	if s.orchestrator != nil {
+		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, lockedSlots, config, log); ortoolsResult != nil {
+			saResult = ortoolsResult
+		}
+	}
 
-	// Greedy post-optimization on worst entries
-	saResult.Entries = solver.PostOptimize(
-		saResult.Entries, teachingTasks, teachers, classrooms,
-		lockedSlots, config.Constraints,
-		max(5, len(saResult.Entries)/10), // top 10% or at least 5 entries
-	)
+	// Fall back to SA solver if OR-Tools didn't produce a result
+	if saResult == nil {
+		solver := NewSASolver()
+		saResult = solver.SolveMultiRun(
+			teachingTasks, teachers, classrooms, classGroups,
+			lockedSlots, config.Constraints, config.Semester,
+			saConfig,
+			3, // 3 runs with different seeds
+			nil,
+			nil,
+		)
 
-	// Re-score after post-optimization
-	postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
-	saResult.Score = postBreakdown.Total
+		// Greedy post-optimization on worst entries
+		saResult.Entries = solver.PostOptimize(
+			saResult.Entries, teachingTasks, teachers, classrooms,
+			lockedSlots, config.Constraints,
+			max(5, len(saResult.Entries)/10),
+		)
 
-	log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
-		saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
+		// Re-score after post-optimization
+		postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints)
+		saResult.Score = postBreakdown.Total
 
-	// Save result to database
+		log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
+			saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
+		}
+
+		// Save result to database
 	err := s.db.Transaction(func(tx database.DB) error {
 		// Hard-delete old entries for the semester
 		if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
@@ -278,6 +289,109 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 	}
 
 	return count
+}
+
+// tryORTools attempts to solve the scheduling problem using the OR-Tools microservice.
+// Returns nil if OR-Tools is unavailable or fails, in which case the caller should use SA.
+func (s *SchedulingService) tryORTools(
+	teachingTasks []models.TeachingTask,
+	teachers []models.Teacher,
+	classrooms []models.Classroom,
+	lockedSlots []lockedTimeSlot,
+	config SchedulingConfig,
+	log func(string),
+) *SAResult {
+	if s.orchestrator == nil || !s.orchestrator.IsORToolsAvailable() {
+		log("OR-Tools不可用，使用SA求解")
+		return nil
+	}
+
+	client := s.orchestrator.GetORToolsClient()
+	if client == nil {
+		return nil
+	}
+
+	log("尝试使用OR-Tools CP-SAT精确求解...")
+
+	// Build OR-Tools input
+	input := ORToolsInput{
+		Constraints:      config.Constraints,
+		LockedSlots:      lockedSlots,
+		TimeLimitSeconds: config.TimeLimit,
+	}
+	if input.TimeLimitSeconds <= 0 {
+		input.TimeLimitSeconds = 60
+	}
+
+	// Map classrooms
+	for _, c := range classrooms {
+		input.Classrooms = append(input.Classrooms, ORToolsRoom{
+			ID: c.ID, Capacity: c.Capacity,
+		})
+	}
+
+	// Map teachers
+	for _, t := range teachers {
+		input.Teachers = append(input.Teachers, ORToolsTeacher{
+			ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
+		})
+	}
+
+	// Map teaching tasks
+	taskMap := make(map[uint]models.TeachingTask)
+	for _, tt := range teachingTasks {
+		classIDs := make([]uint, len(tt.Classes))
+		for j, c := range tt.Classes {
+			classIDs[j] = c.ClassGroupID
+		}
+		input.TeachingTasks = append(input.TeachingTasks, ORToolsTask{
+			ID: tt.ID, TeacherID: tt.TeacherID, ClassIDs: classIDs,
+		})
+		taskMap[tt.ID] = tt
+	}
+
+	// Call OR-Tools
+	output, err := client.Solve(input)
+	if err != nil {
+		log(fmt.Sprintf("OR-Tools求解失败: %v，降级到SA", err))
+		return nil
+	}
+
+	if output.Status == "error" || len(output.Entries) == 0 {
+		log(fmt.Sprintf("OR-Tools返回空解(status=%s)，降级到SA", output.Status))
+		return nil
+	}
+
+	// Convert OR-Tools output to ScheduleEntry
+	var entries []models.ScheduleEntry
+	for _, e := range output.Entries {
+		tt, ok := taskMap[e.TaskID]
+		if !ok {
+			continue
+		}
+		entry := models.ScheduleEntry{
+			CourseID:       tt.CourseID,
+			TeacherID:      e.TeacherID,
+			ClassroomID:    e.ClassroomID,
+			TeachingTaskID: &e.TaskID,
+			Semester:       config.Semester,
+			DayOfWeek:      models.DayOfWeek(e.DayOfWeek),
+			StartPeriod:    models.Period(e.StartPeriod),
+			Span:           e.Span,
+			Weeks:          "1-16",
+		}
+		entries = append(entries, entry)
+	}
+
+	log(fmt.Sprintf("OR-Tools求解完成(status=%s): %d个条目, %.1fms, 分=%.1f",
+		output.Status, len(entries), float64(output.ElapsedMs), output.Score))
+
+	return &SAResult{
+		Entries:   entries,
+		Score:     output.Score,
+		Scheduled: len(entries),
+		ElapsedMs: int64(output.ElapsedMs),
+	}
 }
 
 // deptMap maps course dept codes to teacher dept names (Chinese)
