@@ -148,19 +148,6 @@ func (s *SnapshotService) CreateSnapshot(
 	return snapshot, nil
 }
 
-// CreateManualSnapshot generates a snapshot on user request (after micro-adjustment).
-func (s *SnapshotService) CreateManualSnapshot(
-	semester, dept string,
-	entries []models.ScheduleEntry,
-	teachers []models.Teacher,
-	classrooms []models.Classroom,
-	constraints []string,
-	conflictCount int,
-) (*models.ScheduleSnapshot, error) {
-	return s.CreateSnapshot(semester, dept, "manual", "simulated_annealing",
-		entries, teachers, classrooms, constraints, 0, conflictCount)
-}
-
 // GetSnapshots returns all snapshots for a semester.
 func (s *SnapshotService) GetSnapshots(semester string) ([]models.ScheduleSnapshot, error) {
 	var snapshots []models.ScheduleSnapshot
@@ -180,6 +167,74 @@ func (s *SnapshotService) GetSnapshotWithDetails(id uint) (*models.ScheduleSnaps
 		return nil, err
 	}
 	return &snapshot, nil
+}
+
+// CreateManualSnapshot generates a snapshot from the current schedule in the database.
+func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.ScheduleSnapshot, error) {
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester = ?", semester).
+		Preload("Course").Preload("Teacher").Preload("Classroom").
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("load entries: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no schedule entries for semester %s", semester)
+	}
+
+	var teachers []models.Teacher
+	s.db.Find(&teachers)
+	var classrooms []models.Classroom
+	s.db.Find(&classrooms)
+
+	constraints := []string{"teacher_preference", "course_dispersed", "teacher_days_limit", "low_floor_preference"}
+
+	// Build sports course IDs
+	sportsCourseIDs := make(map[uint]bool)
+	for _, e := range entries {
+		if e.Course.Name != "" && len(e.Course.Name) >= 6 {
+			for i := 0; i <= len(e.Course.Name)-6; i++ {
+				if e.Course.Name[i:i+6] == "体育" {
+					sportsCourseIDs[e.CourseID] = true
+					break
+				}
+			}
+		}
+	}
+
+	scorer := NewScoringService()
+	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints, sportsCourseIDs)
+
+	conflicts := 0
+	roomSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
+			if roomSlots[key] { conflicts++ }
+			roomSlots[key] = true
+		}
+	}
+
+	snapshot := &models.ScheduleSnapshot{
+		Semester:      semester,
+		Dept:          "全校",
+		Trigger:       "manual",
+		HardPassed:    conflicts == 0,
+		TotalScore:    breakdown.Total,
+		TeacherPref:   breakdown.TeacherPref,
+		CourseSpacing: breakdown.CourseSpacing,
+		TeacherDays:   breakdown.TeacherDays,
+		LowFloorPref:  breakdown.LowFloorPref,
+		WeekendAvoid:  breakdown.WeekendAvoid,
+		PePeriodPref:  breakdown.PePeriodPref,
+		TotalEntries:  len(entries),
+		Solver:        "manual",
+	}
+
+	if err := s.db.Create(snapshot).Error(); err != nil {
+		return nil, fmt.Errorf("save snapshot: %w", err)
+	}
+
+	return snapshot, nil
 }
 
 // DeleteSnapshot removes a snapshot and its details.

@@ -90,6 +90,56 @@ async function deleteSemester(id: number) {
 onMounted(() => {
   loadSemesters()
 })
+
+// ===== Backup / Restore =====
+const restoreFileRef = ref<HTMLInputElement>()
+
+async function handleBackup() {
+  try {
+    const { GetDatabasePath, BackupDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const dbPath = await GetDatabasePath()
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const backupName = `scheduling-backup-${timestamp}.db`
+    // Use a simple file save approach - create a download link
+    const response = await fetch(`file:///${dbPath}`)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = backupName
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    // Fallback: try direct file copy via backend
+    try {
+      const { BackupDatabase, GetDatabasePath } = await import('../../bindings/scheduling-system/services/resourceservice')
+      const dbPath = await GetDatabasePath()
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const backupName = `scheduling-backup-${timestamp}.db`
+      await BackupDatabase(backupName)
+      alert(`备份已保存为: ${backupName}`)
+    } catch (e: any) {
+      alert('备份失败: ' + (e?.message || '未知错误'))
+    }
+  }
+}
+
+function triggerRestore() {
+  restoreFileRef.value?.click()
+}
+
+async function handleRestoreFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  if (!confirm('导入备份将覆盖当前所有数据，确定继续吗？')) return
+  try {
+    const { RestoreDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
+    await RestoreDatabase(file.name)
+    alert('数据已恢复，请重启应用以生效。')
+  } catch (e: any) {
+    alert('恢复失败: ' + (e?.message || '未知错误'))
+  }
+}
 </script>
 
 <template>
@@ -162,8 +212,8 @@ onMounted(() => {
           <div class="setting-desc">导出或导入数据库备份文件</div>
         </div>
         <n-space>
-          <n-button size="small">导出备份</n-button>
-          <n-button size="small">导入</n-button>
+          <n-button size="small" @click="handleBackup">导出备份</n-button>
+          <n-button size="small" @click="handleRestore">导入</n-button>
         </n-space>
       </div>
     </div>
@@ -188,6 +238,7 @@ onMounted(() => {
         </n-space>
       </template>
     </n-modal>
+    <input ref="restoreFileRef" type="file" accept=".db" style="display:none" @change="handleRestoreFile" />
   </div>
 </template>
 

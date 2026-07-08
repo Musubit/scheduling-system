@@ -82,12 +82,14 @@ function selectSnapshot(snapshot: any) {
 
 async function generateManualReport() {
   try {
+    loading.value = true
     const { CreateManualSnapshot } = await import('../../bindings/scheduling-system/services/snapshotservice')
-    // Will be implemented in Phase 6 when CheckMove is ready
-    // For now, just refresh the list
+    await CreateManualSnapshot(appStore.semesterFilter)
     await loadSnapshots()
-  } catch {
-    // Backend not available
+  } catch (e: any) {
+    console.warn('Failed to generate manual report:', e)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -95,7 +97,19 @@ function exportPDF() {
   window.print()
 }
 
-// ---- Computed ----
+// Compute perCategoryMax from the snapshot scores
+const perCategoryMax = computed(() => {
+  if (!selectedSnapshot.value) return 25
+  let count = 0
+  const s = selectedSnapshot.value
+  if (s.teacherPref > 0) count++
+  if (s.courseSpacing > 0) count++
+  if (s.teacherDays > 0) count++
+  if (s.lowFloorPref > 0) count++
+  if ((s.weekendAvoid || 0) > 0) count++
+  if ((s.pePeriodPref || 0) > 0) count++
+  return count > 0 ? 100 / count : 25
+})
 
 // Sort details by "拖后腿" (most penalties first)
 const rankedDetails = computed(() => {
@@ -186,8 +200,8 @@ onMounted(() => {
                 <span>教师偏好</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.teacherPref / 25) * 100"
-                  :color="scoreColor(selectedSnapshot.teacherPref * 4)"
+                  :percentage="(selectedSnapshot.teacherPref / perCategoryMax) * 100"
+                  :color="scoreColor(selectedSnapshot.teacherPref / perCategoryMax * 100)"
                   :height="16"
                 />
                 <span class="bar-value">{{ selectedSnapshot.teacherPref?.toFixed(1) }}</span>
@@ -196,8 +210,8 @@ onMounted(() => {
                 <span>课程间隔</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.courseSpacing / 25) * 100"
-                  :color="scoreColor(selectedSnapshot.courseSpacing * 4)"
+                  :percentage="(selectedSnapshot.courseSpacing / perCategoryMax) * 100"
+                  :color="scoreColor(selectedSnapshot.courseSpacing / perCategoryMax * 100)"
                   :height="16"
                 />
                 <span class="bar-value">{{ selectedSnapshot.courseSpacing?.toFixed(1) }}</span>
@@ -206,8 +220,8 @@ onMounted(() => {
                 <span>到校天数</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.teacherDays / 25) * 100"
-                  :color="scoreColor(selectedSnapshot.teacherDays * 4)"
+                  :percentage="(selectedSnapshot.teacherDays / perCategoryMax) * 100"
+                  :color="scoreColor(selectedSnapshot.teacherDays / perCategoryMax * 100)"
                   :height="16"
                 />
                 <span class="bar-value">{{ selectedSnapshot.teacherDays?.toFixed(1) }}</span>
@@ -216,8 +230,8 @@ onMounted(() => {
                 <span>低楼层</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.lowFloorPref / 25) * 100"
-                  :color="scoreColor(selectedSnapshot.lowFloorPref * 4)"
+                  :percentage="(selectedSnapshot.lowFloorPref / perCategoryMax) * 100"
+                  :color="scoreColor(selectedSnapshot.lowFloorPref / perCategoryMax * 100)"
                   :height="16"
                 />
                 <span class="bar-value">{{ selectedSnapshot.lowFloorPref?.toFixed(1) }}</span>
@@ -226,11 +240,21 @@ onMounted(() => {
                 <span>周末避让</span>
                 <n-progress
                   type="line"
-                  :percentage="((selectedSnapshot.weekendAvoid || 0) / 25) * 100"
-                  :color="scoreColor((selectedSnapshot.weekendAvoid || 0) * 4)"
+                  :percentage="((selectedSnapshot.weekendAvoid || 0) / perCategoryMax) * 100"
+                  :color="scoreColor((selectedSnapshot.weekendAvoid || 0) / perCategoryMax * 100)"
                   :height="16"
                 />
                 <span class="bar-value">{{ (selectedSnapshot.weekendAvoid || 0).toFixed(1) }}</span>
+              </div>
+              <div class="score-bar-item" v-if="(selectedSnapshot.pePeriodPref || 0) > 0">
+                <span>体育课时段</span>
+                <n-progress
+                  type="line"
+                  :percentage="((selectedSnapshot.pePeriodPref || 0) / perCategoryMax) * 100"
+                  :color="scoreColor((selectedSnapshot.pePeriodPref || 0) / perCategoryMax * 100)"
+                  :height="16"
+                />
+                <span class="bar-value">{{ (selectedSnapshot.pePeriodPref || 0).toFixed(1) }}</span>
               </div>
             </div>
           </n-card>

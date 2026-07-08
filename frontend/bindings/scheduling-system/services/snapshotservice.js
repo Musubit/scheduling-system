@@ -16,18 +16,12 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../models/models.js";
 
 /**
- * CreateManualSnapshot generates a snapshot on user request (after micro-adjustment).
+ * CreateManualSnapshot generates a snapshot from the current schedule in the database.
  * @param {string} semester
- * @param {string} dept
- * @param {models$0.ScheduleEntry[]} entries
- * @param {models$0.Teacher[]} teachers
- * @param {models$0.Classroom[]} classrooms
- * @param {string[]} constraints
- * @param {number} conflictCount
  * @returns {$CancellablePromise<models$0.ScheduleSnapshot | null>}
  */
-export function CreateManualSnapshot(semester, dept, entries, teachers, classrooms, constraints, conflictCount) {
-    return $Call.ByID(2433123319, semester, dept, entries, teachers, classrooms, constraints, conflictCount).then(/** @type {($result: any) => any} */(($result) => {
+export function CreateManualSnapshot(semester) {
+    return $Call.ByID(2433123319, semester).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }

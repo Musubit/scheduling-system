@@ -1,9 +1,26 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
-import type { SchedulingConfig, SchedulingResult } from '@/types'
+import { ref, computed } from 'vue'
+import type { SchedulingConfig, SchedulingResult, LockedTimeSlot } from '@/types'
 import { RunScheduling } from '../../bindings/scheduling-system/services/schedulingservice'
 import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
 import type { models } from '../../bindings/scheduling-system/services/models'
+
+// Default locked slots: Thursday periods 4-7 (第5-8节)
+const DEFAULT_LOCKED: LockedTimeSlot[] = [
+  { dayOfWeek: 3, startPeriod: 4, span: 4 },
+]
+
+function ensureLockedSlots() {
+  try {
+    const saved = localStorage.getItem('locked-time-slots')
+    if (!saved) {
+      localStorage.setItem('locked-time-slots', JSON.stringify(DEFAULT_LOCKED))
+      import('../../bindings/scheduling-system/services/resourceservice').then(({ SaveSetting }) => {
+        SaveSetting('locked_time_slots', JSON.stringify(DEFAULT_LOCKED))
+      }).catch(() => {})
+    }
+  } catch { /* localStorage unavailable */ }
+}
 
 // Constraint weight presets
 export interface ConstraintPreset {
@@ -206,12 +223,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       }
       progress.value = 100
       logs.value.push('✅ 排课完成！正在加载课表...')
-      // Refresh schedule views and navigate to schedule
+      // Ask user whether to navigate to schedule
       const { useScheduleStore } = await import('./schedule')
       const { useAppStore } = await import('./app')
       const appStore = useAppStore()
       await useScheduleStore().loadSchedule(appStore.semesterFilter)
-      appStore.navigateTo('schedule', '周视图课表')
+      // Show dialog via appStore
+      appStore.pendingScheduleNav = true
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
       result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['后端调度服务不可用，请检查Go服务是否运行'] }
@@ -223,6 +241,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   function stopScheduling() { isRunning.value = false }
 
   // Initialize
+  ensureLockedSlots()
   loadActiveSemester()
 
   return {

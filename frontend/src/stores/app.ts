@@ -102,6 +102,7 @@ export const useAppStore = defineStore('app', () => {
   const searchQuery = ref('')
   const deptFilter = ref('全部院系')
   const semesterFilter = ref('')  // loaded from active semester
+  const pendingScheduleNav = ref(false) // trigger confirmation dialog after scheduling
 
   // Init: load active semester
   async function initSemester() {
@@ -131,5 +132,6 @@ export const useAppStore = defineStore('app', () => {
     searchQuery,
     deptFilter,
     semesterFilter,
+    pendingScheduleNav,
   }
 })

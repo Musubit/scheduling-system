@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
-import { NButton, NSelect, NCheckbox, NProgress, NTag, NSteps, NStep, NCollapse, NCollapseItem, NSlider } from 'naive-ui'
+import { useAppStore } from '../stores/app'
+import { NButton, NSelect, NCheckbox, NProgress, NTag, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 
 const store = useSchedulingStore()
+const appStore = useAppStore()
+const dialog = useDialog()
 const showAdvanced = ref(false)
 
 // Step indicator
@@ -36,6 +39,31 @@ const categoryMax = computed(() => {
 })
 
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
+
+// Watch for pending navigation after scheduling completes
+const pendingScheduleNav = ref(false)
+onMounted(() => {
+  watch(() => appStore.pendingScheduleNav, (val) => {
+    if (val) {
+      dialog.info({
+        title: '排课完成',
+        content: '排课已完成，是否跳转到课表查看结果？',
+        positiveText: '查看课表',
+        negativeText: '留在本页',
+        onPositiveClick: () => {
+          appStore.pendingScheduleNav = false
+          appStore.navigateTo('schedule', '周视图课表')
+        },
+        onNegativeClick: () => {
+          appStore.pendingScheduleNav = false
+        },
+        onClose: () => {
+          appStore.pendingScheduleNav = false
+        },
+      })
+    }
+  })
+})
 
 // Constraint weight labels for sliders
 const weightLabels: Record<string, string> = {

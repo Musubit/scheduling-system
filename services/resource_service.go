@@ -1,6 +1,8 @@
 package services
 
 import (
+	"io"
+	"os"
 	"scheduling-system/database"
 	"scheduling-system/models"
 )
@@ -183,4 +185,50 @@ func (s *ResourceService) UpdateSemester(sem models.Semester) error {
 
 func (s *ResourceService) DeleteSemester(id uint) error {
 	return s.db.Delete(&models.Semester{}, id).Error()
+}
+
+// ===== Database Backup / Restore =====
+
+// GetDatabasePath returns the database file path.
+func (s *ResourceService) GetDatabasePath() string {
+	return "scheduling.db"
+}
+
+// BackupDatabase copies the database file to a backup location.
+// Returns the backup file path.
+func (s *ResourceService) BackupDatabase(backupPath string) error {
+	src, err := os.Open("scheduling.db")
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(backupPath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
+}
+
+// RestoreDatabase replaces the current database with a backup file.
+// WARNING: this will overwrite all current data. The application should
+// restart after restore to reload the database.
+func (s *ResourceService) RestoreDatabase(backupPath string) error {
+	src, err := os.Open(backupPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create("scheduling.db")
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
 }

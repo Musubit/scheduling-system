@@ -16,6 +16,16 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as models$0 from "../models/models.js";
 
 /**
+ * BackupDatabase copies the database file to a backup location.
+ * Returns the backup file path.
+ * @param {string} backupPath
+ * @returns {$CancellablePromise<void>}
+ */
+export function BackupDatabase(backupPath) {
+    return $Call.ByID(3922053154, backupPath);
+}
+
+/**
  * @param {models$0.ClassGroup} c
  * @returns {$CancellablePromise<void>}
  */
@@ -132,6 +142,14 @@ export function GetCourses() {
 }
 
 /**
+ * GetDatabasePath returns the database file path.
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetDatabasePath() {
+    return $Call.ByID(1311432297);
+}
+
+/**
  * @param {string} semester
  * @returns {$CancellablePromise<models$0.ScheduleEntry[]>}
  */
@@ -165,6 +183,17 @@ export function GetTeachers() {
     return $Call.ByID(1580423400).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType12($result);
     }));
+}
+
+/**
+ * RestoreDatabase replaces the current database with a backup file.
+ * WARNING: this will overwrite all current data. The application should
+ * restart after restore to reload the database.
+ * @param {string} backupPath
+ * @returns {$CancellablePromise<void>}
+ */
+export function RestoreDatabase(backupPath) {
+    return $Call.ByID(571916084, backupPath);
 }
 
 /**
