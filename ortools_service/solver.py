@@ -97,35 +97,23 @@ def solve_scheduling(data):
         model.Add(position[i] == day[i] * PERIODS_PER_DAY + start[i])
 
     # ===== Hard Constraint: Locked Slots =====
+    # For each task, forbid any (day, start) that overlaps a locked time slot.
     for i in range(n_tasks):
         for ls in locked_slots:
             ls_day = ls["dayOfWeek"]
             ls_start = ls["startPeriod"]
             ls_end = ls_start + ls["span"]
-            # If task is placed on the locked day AND start overlaps, it's invalid
-            is_locked_day = model.NewBoolVar(f"locked_day_{i}_{ls_day}_{ls_start}")
-            model.Add(day[i] == ls_day).OnlyEnforceIf(is_locked_day)
-            model.Add(day[i] != ls_day).OnlyEnforceIf(is_locked_day.Not())
-
-            # Overlap check: start < ls_end AND start+2 > ls_start
-            # Equivalent to: NOT (start+2 <= ls_start OR start >= ls_end)
-            after_ls = model.NewBoolVar(f"after_ls_{i}_{ls_day}_{ls_start}")
-            before_ls = model.NewBoolVar(f"before_ls_{i}_{ls_day}_{ls_start}")
-            model.Add(start[i] + 2 <= ls_start).OnlyEnforceIf(after_ls)
-            model.Add(start[i] + 2 > ls_start).OnlyEnforceIf(after_ls.Not())
-            model.Add(start[i] >= ls_end).OnlyEnforceIf(before_ls)
-            model.Add(start[i] < ls_end).OnlyEnforceIf(before_ls.Not())
-
-            # If locked day AND overlap, task cannot be placed
-            no_overlap = model.NewBoolVar(f"no_ov_{i}_{ls_day}_{ls_start}")
-            model.AddBoolOr([after_ls, before_ls]).OnlyEnforceIf(no_overlap)
-            model.AddBoolAnd([after_ls.Not(), before_ls.Not()]).OnlyEnforceIf(no_overlap.Not())
-
-            # is_locked_day AND (not no_overlap) => placed[i] = False
-            conflict = model.NewBoolVar(f"conflict_{i}_{ls_day}_{ls_start}")
-            model.AddBoolAnd([is_locked_day, no_overlap.Not()]).OnlyEnforceIf(conflict)
-            model.AddBoolOr([is_locked_day.Not(), no_overlap]).OnlyEnforceIf(conflict.Not())
-            model.AddImplication(conflict, placed[i].Not())
+            for s in VALID_STARTS:
+                # Check overlap: task spans 2 periods, locked slot spans ls["span"]
+                if s < ls_end and s + 2 > ls_start:
+                    on_day = model.NewBoolVar(f"lkd_{i}_{ls_day}_{ls_start}_{s}")
+                    model.Add(day[i] == ls_day).OnlyEnforceIf(on_day)
+                    model.Add(day[i] != ls_day).OnlyEnforceIf(on_day.Not())
+                    at_start = model.NewBoolVar(f"lks_{i}_{ls_day}_{ls_start}_{s}")
+                    model.Add(start[i] == s).OnlyEnforceIf(at_start)
+                    model.Add(start[i] != s).OnlyEnforceIf(at_start.Not())
+                    # Cannot be on locked day AND at an overlapping start
+                    model.AddBoolOr([on_day.Not(), at_start.Not()])
 
     # ===== Hard Constraint: Teacher No-Overlap =====
     teacher_task_ids = {}
