@@ -10,12 +10,7 @@ const resourceStore = useResourceStore()
 
 onMounted(() => { resourceStore.loadAll() })
 
-const tabOptions = [
-  { key: 'teacher' as const, label: '教师' },
-  { key: 'classroom' as const, label: '教室' },
-  { key: 'course' as const, label: '课程' },
-  { key: 'class' as const, label: '班级' },
-]
+const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级' }
 
 // ===== 模拟数据 =====
 const mockTeachers = [
@@ -272,21 +267,9 @@ function downloadTemplate() {
 
 <template>
   <div class="resource-page">
-    <div class="resource-tabs">
-      <n-button
-        v-for="tab in tabOptions"
-        :key="tab.key"
-        :type="resourceStore.activeTab === tab.key ? 'primary' : 'default'"
-        size="small"
-        @click="resourceStore.switchTab(tab.key)"
-      >
-        {{ tab.label }}
-      </n-button>
-    </div>
-
     <div class="resource-toolbar">
       <n-input
-        :placeholder="`搜索${tabOptions.find(t => t.key === resourceStore.activeTab)?.label || ''}...`"
+        :placeholder="`搜索${tabLabels[resourceStore.activeTab] || ''}...`"
         clearable
         size="small"
         style="width: 240px"
@@ -312,7 +295,7 @@ function downloadTemplate() {
     </div>
 
     <!-- Form Modal -->
-    <n-modal v-model:show="showModal" :title="(editingItem ? '编辑' : '新增') + (tabOptions.find(t => t.key === resourceStore.activeTab)?.label || '')">
+    <n-modal v-model:show="showModal" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')">
       <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
         <div v-for="f in formFields" :key="f.key" style="display: flex; align-items: center; gap: 8px;">
           <label style="width: 60px; font-size: 13px; color: var(--b3-theme-on-surface); flex-shrink: 0;">{{ f.label }}</label>
@@ -335,12 +318,6 @@ function downloadTemplate() {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.resource-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
 }
 
 .resource-toolbar {
