@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
-import { NButton, NInput, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
