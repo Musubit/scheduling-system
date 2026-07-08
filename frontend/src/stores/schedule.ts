@@ -24,10 +24,9 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   const entries = ref<ScheduleEntry[]>([])
   const totalCourses = computed(() => entries.value.length)
-  const conflictCount = ref(0)
 
   function getEntryAt(day: number, period: number): ScheduleEntry | undefined {
-    return entries.value.find(e => e.dayOfWeek === day && e.startPeriod === period)
+    return entries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
   }
 
   async function loadSchedule(semester: string) {
@@ -46,7 +45,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   return {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
-    entries, totalCourses, conflictCount, isLoading,
+    entries, totalCourses, isLoading,
     getEntryAt, loadSchedule,
   }
 })

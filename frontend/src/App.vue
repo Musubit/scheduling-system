@@ -26,6 +26,11 @@ onMounted(async () => {
   scheduleStore.loadSchedule(appStore.semesterFilter)
 })
 
+// Watch semester changes → reload schedule
+watch(() => appStore.semesterFilter, (newSemester) => {
+  scheduleStore.loadSchedule(newSemester)
+})
+
 // Drawer ref — shared via provide/inject so child components can open it
 const drawerRef = ref<InstanceType<typeof AppDrawer>>()
 provide('drawerRef', drawerRef)
