@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { PageId, ScheduleView } from '@/types'
+import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
 
 /**
  * 全局应用状态：主题、导航、侧栏
@@ -100,7 +101,18 @@ export const useAppStore = defineStore('app', () => {
   // ===== 搜索 =====
   const searchQuery = ref('')
   const deptFilter = ref('全部院系')
-  const semesterFilter = ref('2025-2026 第二学期')
+  const semesterFilter = ref('')  // loaded from active semester
+
+  // Init: load active semester
+  async function initSemester() {
+    try {
+      const sem = await GetActiveSemester()
+      if (sem && sem.name) {
+        semesterFilter.value = sem.name
+      }
+    } catch { /* no active semester */ }
+  }
+  initSemester()
 
   return {
     // theme

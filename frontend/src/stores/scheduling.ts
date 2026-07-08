@@ -86,8 +86,8 @@ const engineOptions = [
 export const useSchedulingStore = defineStore('scheduling', () => {
   const config = ref<SchedulingConfig>({
     scope: '全校所有院系',
-    semester: '2025-2026 第二学期',
-    strategy: 'teacher_first',
+    semester: '',  // populated from active semester
+    strategy: 'auto',
     iterations: 5000,
     timeLimit: 60,
     constraints: ['teacher_preference', 'course_dispersed', 'teacher_days_limit', 'low_floor_preference'],
@@ -108,6 +108,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       if (sem) {
         activeSemesterId.value = sem.ID
         activeSemesterName.value = sem.name
+        config.value.semester = sem.name
       }
     } catch { /* no active semester */ }
   }
@@ -160,10 +161,16 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       } catch {}
 
       // Build config for Go backend
-      const semesterName = activeSemesterName.value || config.value.semester
+      if (!activeSemesterName.value) {
+        logs.value.push('❌ 未设置当前学期，请在系统设置中激活一个学期')
+        result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['未设置当前学期'] }
+        progress.value = 100
+        isRunning.value = false
+        return
+      }
       const goConfig: any = {
         scope: config.value.scope,
-        semester: semesterName,
+        semester: activeSemesterName.value,
         strategy: 'auto',
         iterations: 5000,
         timeLimit: 60,

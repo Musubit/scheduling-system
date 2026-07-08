@@ -21,6 +21,7 @@ POST /solve
     "teachingTasks": [{"id": 1, "teacherId": 1, "courseId": 1, "classIds": [1, 2]}],
     "teachers": [{"id": 1, "preferNoEarly": true, "preferNoLate": false, "maxDaysPerWeek": 3, "preferLowFloor": true}],
     "classrooms": [{"id": 1, "floor": 1, "capacity": 80}],
+    "classGroups": [{"id": 1, "students": 86}, {"id": 2, "students": 82}],
     "lockedSlots": [{"dayOfWeek": 3, "startPeriod": 4, "span": 4}],
     "constraints": ["teacher_preference", "avoid_saturday"],
     "constraintWeights": {"teacher_preference": 50, "avoid_saturday": 30},
@@ -250,7 +251,60 @@ def solve_scheduling(data):
                 model.AddBoolOr([placed[i].Not(), at_preferred.Not()]).OnlyEnforceIf(active_pe.Not())
                 objective_terms.append(active_pe * w)
 
-    # Soft: Teacher days limit (simplified: count distinct days per teacher)
+    # Soft: Course spacing (maximize unique days covered by each course)
+    if "course_dispersed" in constraints:
+        w = weights.get("course_dispersed", 50)
+        course_task_ids = {}
+        for i, t in enumerate(tasks):
+            cid = t["courseId"]
+            course_task_ids.setdefault(cid, []).append(i)
+
+        for cid, task_indices in course_task_ids.items():
+            if len(task_indices) <= 1:
+                continue  # single-session courses are already "perfectly spread"
+            for d in range(DAYS):
+                any_on_day = model.NewBoolVar(f"course_{cid}_day_{d}")
+                day_indicators = []
+                for i in task_indices:
+                    is_on_day = model.NewBoolVar(f"c_{cid}_t{i}_d{d}")
+                    model.Add(day[i] == d).OnlyEnforceIf(is_on_day)
+                    model.Add(day[i] != d).OnlyEnforceIf(is_on_day.Not())
+                    active_on_day = model.NewBoolVar(f"c_{cid}_t{i}_act_d{d}")
+                    model.AddBoolAnd([placed[i], is_on_day]).OnlyEnforceIf(active_on_day)
+                    model.AddBoolOr([placed[i].Not(), is_on_day.Not()]).OnlyEnforceIf(active_on_day.Not())
+                    day_indicators.append(active_on_day)
+                # any_on_day ⇔ at least one task of this course is on this day
+                model.AddBoolOr(day_indicators).OnlyEnforceIf(any_on_day)
+                for ind in day_indicators:
+                    model.AddImplication(ind, any_on_day)
+                objective_terms.append(any_on_day * w)
+
+    # Soft: Low floor preference (penalize higher floors for teachers who prefer low)
+    if "low_floor_preference" in constraints:
+        w = weights.get("low_floor_preference", 50)
+        max_floor = max(r["floor"] for r in classrooms) if classrooms else 5
+        if max_floor > 1:
+            for i, t in enumerate(tasks):
+                teacher = teacher_map.get(t["teacherId"])
+                if not teacher or not teacher.get("preferLowFloor"):
+                    continue
+                for r_idx, room in enumerate(classrooms):
+                    floor = room["floor"]
+                    if floor <= 1:
+                        continue
+                    # normalize: floor 1 = 0 penalty, floor max = w penalty
+                    normalized_penalty = int(w * (floor - 1) / (max_floor - 1))
+                    if normalized_penalty <= 0:
+                        continue
+                    in_room = model.NewBoolVar(f"lf_{i}_r{r_idx}")
+                    model.Add(room_idx[i] == r_idx).OnlyEnforceIf(in_room)
+                    model.Add(room_idx[i] != r_idx).OnlyEnforceIf(in_room.Not())
+                    active_floor = model.NewBoolVar(f"lf_act_{i}_r{r_idx}")
+                    model.AddBoolAnd([placed[i], in_room]).OnlyEnforceIf(active_floor)
+                    model.AddBoolOr([placed[i].Not(), in_room.Not()]).OnlyEnforceIf(active_floor.Not())
+                    objective_terms.append(active_floor * (-normalized_penalty))
+
+    # Soft: Teacher days limit (exact: penalize days exceeding maxDaysPerWeek)
     if "teacher_days_limit" in constraints:
         w = weights.get("teacher_days_limit", 50)
         for tid, task_indices in teacher_task_ids.items():
@@ -258,7 +312,7 @@ def solve_scheduling(data):
             if not teacher:
                 continue
             max_days = teacher.get("maxDaysPerWeek", 3)
-            # Count distinct days: sum of "is any task on this day" booleans
+            # Count distinct days per teacher
             day_used = {}
             for d in range(DAYS):
                 any_on_day = model.NewBoolVar(f"tchr_{tid}_day_{d}")
@@ -271,24 +325,20 @@ def solve_scheduling(data):
                     model.AddBoolAnd([placed[i], is_on_day]).OnlyEnforceIf(active_on_day)
                     model.AddBoolOr([placed[i].Not(), is_on_day.Not()]).OnlyEnforceIf(active_on_day.Not())
                     day_indicators.append(active_on_day)
+                # any_on_day ⇔ at least one task is on this day
                 model.AddBoolOr(day_indicators).OnlyEnforceIf(any_on_day)
-                no_day = model.NewBoolVar(f"no_day_{tid}_{d}")
-                model.Add(any_on_day == 0).OnlyEnforceIf(no_day)
-                model.Add(sum(1 for _ in day_indicators) == 0).OnlyEnforceIf(no_day)
                 for ind in day_indicators:
                     model.AddImplication(ind, any_on_day)
                 day_used[d] = any_on_day
 
-            # actual_days = sum of day_used
-            # penalty if actual_days > max_days
-            # Simplified: add penalty proportional to each extra day
-            extra_day_penalty = model.NewIntVar(0, DAYS, f"extra_{tid}")
-            day_sum = sum(day_used.values())
-            # We can't easily model max(0, day_sum - max_days) with IntVar
-            # Use a linear constraint: extra_day_penalty >= day_sum - max_days
-            model.Add(extra_day_penalty >= 0)
-            model.Add(extra_day_penalty >= sum(day_used.values()) - max_days)
-            objective_terms.append(extra_day_penalty * (-w * 2))
+            # Exact penalty: extra = max(0, total_days - max_days)
+            total_days = sum(day_used.values())
+            diff = model.NewIntVar(-DAYS, DAYS, f"diff_{tid}")
+            model.Add(diff == total_days - max_days)
+            extra = model.NewIntVar(0, DAYS, f"extra_{tid}")
+            zero = model.NewConstant(0)
+            model.AddMaxEquality(extra, [zero, diff])
+            objective_terms.append(extra * (-w * 2))
 
     # ===== Objective =====
     model.Maximize(sum(objective_terms))
@@ -318,9 +368,16 @@ def solve_scheduling(data):
     elif status == cp_model.MODEL_INVALID:
         status_str = "error"
 
+    # Normalize score to 0-100 scale for consistency with Go scoring system
+    n_placed = sum(1 for i in range(n_tasks) if solver.Value(placed[i]))
+    raw_score = float(solver.ObjectiveValue())
+    max_base = n_placed * BASE_REWARD if n_placed > 0 else 1
+    normalized_score = max(0.0, min(100.0, raw_score / max_base * 100))
+
     return {
         "entries": result_entries,
-        "score": float(solver.ObjectiveValue()),
+        "score": round(normalized_score, 1),
+        "scoreRaw": raw_score,
         "status": status_str,
         "elapsedMs": int(solver.WallTime() * 1000),
     }
