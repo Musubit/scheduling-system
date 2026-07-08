@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, onMounted } from 'vue'
-import { NConfigProvider, darkTheme } from 'naive-ui'
+import { NConfigProvider, NDialogProvider, NMessageProvider, darkTheme } from 'naive-ui'
 import { useAppStore } from './stores/app'
 import { useScheduleStore } from './stores/schedule'
 import { useResourceStore } from './stores/resource'
@@ -81,6 +81,8 @@ watch(() => appStore.theme, (val) => {
 
 <template>
   <n-config-provider :theme="isDark ? darkTheme : null" :theme-overrides="themeOverrides">
+    <n-dialog-provider>
+    <n-message-provider>
     <div class="app-layout" :data-theme="appStore.theme">
       <AppSidebar />
       <main class="main-content">
@@ -91,6 +93,8 @@ watch(() => appStore.theme, (val) => {
       </main>
       <AppDrawer ref="drawerRef" />
     </div>
+    </n-message-provider>
+    </n-dialog-provider>
   </n-config-provider>
 </template>
 

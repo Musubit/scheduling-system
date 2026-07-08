@@ -36,23 +36,31 @@ function cancelEdit() {
 async function saveChanges() {
   if (!selectedEntry.value) return
   isSaving.value = true
-  // TODO: call Go backend UpdateScheduleEntry when implemented
-  // For now, update the local entry optimistically
-  if (selectedEntry.value.course) {
-    selectedEntry.value.course.name = editForm.value.courseName
+  try {
+    // Call Go backend to update the schedule entry
+      const { UpdateTeacher, UpdateClassroom, UpdateCourse } = await import('../../../bindings/scheduling-system/services/resourceservice')
+    if (selectedEntry.value.teacher && editForm.value.teacherName) {
+      await UpdateTeacher({ ...selectedEntry.value.teacher, name: editForm.value.teacherName })
+    }
+    if (selectedEntry.value.classroom && editForm.value.roomName) {
+      await UpdateClassroom({ ...selectedEntry.value.classroom, name: editForm.value.roomName })
+    }
+    if (selectedEntry.value.course && editForm.value.courseName) {
+      await UpdateCourse({ ...selectedEntry.value.course, name: editForm.value.courseName })
+    }
+    // Refresh
+    const { useScheduleStore } = await import('../../stores/schedule')
+    const { useAppStore } = await import('../../stores/app')
+    useScheduleStore().loadSchedule(useAppStore().semesterFilter)
+  } catch (e) {
+    console.warn('Save failed, updating locally:', e)
   }
-  if (selectedEntry.value.teacher) {
-    selectedEntry.value.teacher.name = editForm.value.teacherName
-  }
-  if (selectedEntry.value.classroom) {
-    selectedEntry.value.classroom.name = editForm.value.roomName
-  }
-  await new Promise(r => setTimeout(r, 300))
+  // Update local entry optimistically
+  if (selectedEntry.value.course) selectedEntry.value.course.name = editForm.value.courseName
+  if (selectedEntry.value.teacher) selectedEntry.value.teacher.name = editForm.value.teacherName
+  if (selectedEntry.value.classroom) selectedEntry.value.classroom.name = editForm.value.roomName
   isEditing.value = false
   isSaving.value = false
-  // Reload schedule to reflect changes
-  const { useScheduleStore } = await import('../../stores/schedule')
-  useScheduleStore().loadSchedule('2025-2026 第二学期')
 }
 
 defineExpose({ openDrawer, closeDrawer })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
-import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
+import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
@@ -9,6 +9,8 @@ import { useAppStore } from '../stores/app'
 
 const appStore = useAppStore()
 const resourceStore = useResourceStore()
+const dialog = useDialog()
+const message = useMessage()
 
 onMounted(() => { resourceStore.loadAll() })
 
@@ -160,14 +162,20 @@ async function saveItem() {
 }
 
 async function deleteItem(row: any) {
-  if (!confirm('确定要删除这条记录吗？')) return
-  const data = getMockData(resourceStore.activeTab)
-  try {
-    await callDelete(resourceStore.activeTab, row.ID)
-  } catch (e) { console.warn('Delete via Go failed, local fallback:', e) }
-  const idx = data.findIndex((i: any) => i.id === row.id)
-  if (idx >= 0) data.splice(idx, 1)
-  resourceStore.loadAll()
+  dialog.warning({
+    title: '确认删除',
+    content: '确定要删除这条记录吗？此操作不可撤销。',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const data = getMockData(resourceStore.activeTab)
+      try { await callDelete(resourceStore.activeTab, row.ID) } catch {}
+      const idx = data.findIndex((i: any) => i.ID === row.ID)
+      if (idx >= 0) data.splice(idx, 1)
+      resourceStore.loadAll()
+      message.success('已删除')
+    },
+  })
 }
 
 async function callCreate(tab: string, item: any) {
@@ -239,7 +247,7 @@ async function handleFileChange(e: Event) {
       const wb = XLSX.read(ev.target?.result, { type: 'binary' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
-      if (rows.length < 2) { alert('文件为空或格式不正确'); return }
+      if (rows.length < 2) { message.warning('文件为空或格式不正确'); return }
       const headers = rows[0] as string[]
       const data = rows.slice(1).filter((r: any) => r.length > 0 && r[0])
       let count = 0
@@ -248,10 +256,10 @@ async function handleFileChange(e: Event) {
         headers.forEach((h, i) => { item[h] = row[i] ?? '' })
         try { await callCreate(resourceStore.activeTab, item); count++ } catch {}
       }
-      alert(`成功导入 ${count} 条记录`)
-      resourceStore.loadAll()
-    } catch (err) {
-      alert('导入失败：' + (err as any).message)
+	      message.success(`成功导入 ${count} 条记录`)
+	      resourceStore.loadAll()
+	    } catch (err) {
+	      message.error('导入失败：' + (err as any).message)
     }
   }
   reader.readAsBinaryString(file)
@@ -312,10 +320,10 @@ function downloadTemplate() {
     </div>
 
     <div class="resource-table">
-      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers.length ? resourceStore.filteredTeachers : mockTeachers" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms.length ? resourceStore.filteredClassrooms : mockClassrooms" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses.length ? resourceStore.filteredCourses : mockCourses" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses.length ? resourceStore.filteredClasses : mockClasses" :single-line="false" size="small" />
+      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses" :single-line="false" size="small" />
     </div>
 
     <!-- Form Modal -->

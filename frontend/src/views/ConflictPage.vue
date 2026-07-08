@@ -91,7 +91,7 @@ const conflicts = ref<ConflictItem[]>(defaultConflicts)
 // Load from Go backend
 onMounted(async () => {
   try {
-    const data = await DetectConflicts('2025-2026 第二学期')
+    const data = await DetectConflicts(appStore.semesterFilter)
     if (data && data.length > 0) {
       conflicts.value = data.map((c, i) => ({
         id: c.id || i + 1,

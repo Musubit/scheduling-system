@@ -81,31 +81,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       }
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
-      // Fallback: simulate
-      logs.value.push('后端未连接，使用模拟...')
-      simulateProgress()
+      result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['后端调度服务不可用，请检查Go服务是否运行'] }
+      progress.value = 100
     }
-  }
-
-  // Fallback simulation
-  let timer: ReturnType<typeof setInterval> | null = null
-  function simulateProgress() {
-    timer = setInterval(() => {
-      if (!isRunning.value) return
-      progress.value += Math.random() * 4 + 1
-      if (progress.value >= 100) {
-        progress.value = 100
-        stopScheduling()
-        result.value = { totalCourses: 248, scheduled: 186, conflicts: 3, utilization: 0.942, logs: [] }
-        logs.value.push('排课完成！已排 186 门，教室利用率 94.2%')
-      }
-    }, 200)
-  }
-
-  function stopScheduling() {
     isRunning.value = false
-    if (timer) { clearInterval(timer); timer = null }
   }
+
+  function stopScheduling() { isRunning.value = false }
 
   return {
     config, constraintOptions, strategyOptions,
