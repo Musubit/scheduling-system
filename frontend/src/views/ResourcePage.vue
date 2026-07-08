@@ -125,6 +125,15 @@ const deptOptions = [
   ...DEPARTMENTS.map(d => ({ label: d.name, value: d.name })),
 ]
 
+const deptFormOptions = DEPARTMENTS.map(d => ({ label: d.name, value: d.name }))
+const titleOptions = [
+  { label: '助教', value: '助教' },
+  { label: '讲师', value: '讲师' },
+  { label: '副教授', value: '副教授' },
+  { label: '教授', value: '教授' },
+  { label: '（空）', value: '' },
+]
+
 // ===== Modal state =====
 const showModal = ref(false)
 const editingItem = ref<any>(null)
@@ -215,27 +224,40 @@ function getMockData(tab: string): any[] {
 }
 
 	const formFields = computed(() => {
-	  const fields: Record<string, { key: string; label: string; type?: string }[]> = {
+	  const fields: Record<string, { key: string; label: string; type?: string; options?: {label:string;value:any}[][]; filterable?: boolean; min?: number; max?: number }[]> = {
 	    teacher: [
 	      { key: 'code', label: '工号' },
 	      { key: 'name', label: '姓名' },
-	      { key: 'dept', label: '院系' },
-	      { key: 'title', label: '职称' },
+	      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
+	      { key: 'title', label: '职称', type: 'select', options: titleOptions },
 	      { key: 'preferNoEarly', label: '避免早课', type: 'switch' },
 	      { key: 'preferNoLate', label: '避免晚课', type: 'switch' },
-	      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number' },
+	      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number', min: 1, max: 7 },
 	      { key: 'preferLowFloor', label: '优先低楼层', type: 'switch' },
 	    ],
 	    classroom: [
 	      { key: 'code', label: '编号' },
 	      { key: 'name', label: '教室名' },
 	      { key: 'building', label: '教学楼' },
-	      { key: 'floor', label: '楼层', type: 'number' },
-	      { key: 'capacity', label: '容量', type: 'number' },
+	      { key: 'floor', label: '楼层', type: 'number', min: 1 },
+	      { key: 'capacity', label: '容量', type: 'number', min: 1 },
 	      { key: 'type', label: '类型' },
 	    ],
-	    course: [{ key: 'code', label: '编号' }, { key: 'name', label: '课程名' }, { key: 'dept', label: '院系' }, { key: 'credit', label: '学分', type: 'number' }, { key: 'type', label: '类型' }, { key: 'hours', label: '课时', type: 'number' }],
-	    class: [{ key: 'code', label: '编号' }, { key: 'name', label: '班级名' }, { key: 'dept', label: '院系' }, { key: 'grade', label: '年级', type: 'number' }, { key: 'students', label: '人数', type: 'number' }],
+	    course: [
+	      { key: 'code', label: '编号' },
+	      { key: 'name', label: '课程名' },
+	      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
+	      { key: 'credit', label: '学分', type: 'number', min: 0 },
+	      { key: 'type', label: '类型' },
+	      { key: 'hours', label: '课时', type: 'number', min: 1 },
+	    ],
+	    class: [
+	      { key: 'code', label: '编号' },
+	      { key: 'name', label: '班级名' },
+	      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
+	      { key: 'grade', label: '年级', type: 'number', min: 2000 },
+	      { key: 'students', label: '人数', type: 'number', min: 1 },
+	    ],
 	  }
 	  return fields[resourceStore.activeTab] || []
 	})
@@ -348,7 +370,8 @@ function downloadTemplate() {
       <n-form label-placement="left" label-width="110" :style="{ padding: '8px 0' }">
         <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
           <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
-          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable style="width:100%" />
+          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
+          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="f.options" :filterable="f.filterable" :clearable="true" :placeholder="'请选择' + f.label" />
           <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>

@@ -25,14 +25,14 @@ type SchedulingConfig struct {
 }
 
 type SchedulingResult struct {
-	TotalCourses int      `json:"totalCourses"`
-	Scheduled    int      `json:"scheduled"`
-	Conflicts    int      `json:"conflicts"`
-	Utilization  float64  `json:"utilization"`
-	Score        float64  `json:"score"`
+	TotalCourses int             `json:"totalCourses"`
+	Scheduled    int             `json:"scheduled"`
+	Conflicts    int             `json:"conflicts"`
+	Utilization  float64         `json:"utilization"`
+	Score        float64         `json:"score"`
 	ScoreDetail  *ScoreBreakdown `json:"scoreDetail,omitempty"`
-	Logs         []string `json:"logs"`
-	Error        string   `json:"error,omitempty"`
+	Logs         []string        `json:"logs"`
+	Error        string          `json:"error,omitempty"`
 }
 
 // LockedTimeSlot represents a globally locked time period.
@@ -44,7 +44,9 @@ type lockedTimeSlot struct {
 
 func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingResult {
 	result := &SchedulingResult{Logs: []string{}}
-	log := func(msg string) { result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg)) }
+	log := func(msg string) {
+		result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg))
+	}
 
 	// Load courses
 	var courses []models.Course
@@ -125,11 +127,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	validStarts := []int{0, 2, 4, 6, 8}
 	scorer := NewScoringService()
 
-		var bestEntries []models.ScheduleEntry
-		var bestScheduled int
-		var bestScore float64 = -1.0
+	var bestEntries []models.ScheduleEntry
+	var bestScheduled int
+	var bestScore = -1.0
 
-		for iter := 0; iter < numIterations; iter++ {
+	for iter := 0; iter < numIterations; iter++ {
 		iterRng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(iter*1000)))
 		var iterEntries []models.ScheduleEntry
 		roomOccupied := make(map[string]bool)
@@ -188,7 +190,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 					cgs := courseClassGroups[course.ID]
 
 					teacherCandidates := findTeachers(teachers, course.Dept)
-					iterRng.Shuffle(len(teacherCandidates), func(i, j int) { teacherCandidates[i], teacherCandidates[j] = teacherCandidates[j], teacherCandidates[i] })
+					iterRng.Shuffle(len(teacherCandidates), func(i, j int) {
+						teacherCandidates[i], teacherCandidates[j] = teacherCandidates[j], teacherCandidates[i]
+					})
 
 					for _, teacher := range teacherCandidates {
 						if teacherLoad[teacher.ID] >= 32 { // max 32 periods
@@ -276,10 +280,10 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		iterScore := scoreBreakdown.Total
 
 		if bestScore < 0 || iterScore > bestScore || (iterScore == bestScore && scheduled > bestScheduled) {
-				bestScore = iterScore
-				bestScheduled = scheduled
-				bestEntries = iterEntries
-			}
+			bestScore = iterScore
+			bestScheduled = scheduled
+			bestEntries = iterEntries
+		}
 
 		if (iter+1)%10 == 0 || iter == numIterations-1 {
 			log(fmt.Sprintf("INFO 迭代 %d/%d, 本轮评分 %.1f, 当前最优 %.1f",
