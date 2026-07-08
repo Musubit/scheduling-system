@@ -1,0 +1,135 @@
+/* ===== 思源笔记子午配色 CSS Variables ===== */
+:root {
+  /* Seed tokens — these are patched by nudges */
+  --seed-bg: #EBECF0;
+  --seed-fg: #222;
+  --seed-primary: #3575f0;
+  --seed-accent: #ff9200;
+  --seed-surface: #f6f6f6;
+  --seed-radius: 6px;
+
+  /* Derived theme tokens */
+  --b3-theme-primary: var(--seed-primary);
+  --b3-theme-primary-light: rgba(53, 117, 240, .54);
+  --b3-theme-primary-lighter: rgba(53, 117, 240, .38);
+  --b3-theme-primary-lightest: rgba(53, 117, 240, .12);
+  --b3-theme-secondary: var(--seed-accent);
+  --b3-theme-background: #fff;
+  --b3-theme-background-light: #dfe0e1;
+  --b3-theme-surface: var(--seed-surface);
+  --b3-theme-surface-light: rgba(243, 243, 243, .86);
+  --b3-theme-surface-lighter: #e0e0e0;
+  --b3-theme-error: #d23f31;
+  --b3-theme-success: #65b84d;
+  --b3-theme-on-primary: #fff;
+  --b3-theme-on-secondary: #fff;
+  --b3-theme-on-background: var(--seed-fg);
+  --b3-theme-on-surface: #5f6368;
+  --b3-theme-on-surface-light: rgba(95, 99, 104, .68);
+  --b3-theme-on-error: #fff;
+  --b3-font-family: BlinkMacSystemFont, Helvetica, "PingFang SC", "Luxi Sans", "DejaVu Sans", arial, "Microsoft Yahei", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+  --b3-font-size: 14px;
+  --b3-body-background: var(--seed-bg);
+  --b3-border-color: var(--b3-theme-surface-lighter);
+  --b3-border-radius: var(--seed-radius);
+  --b3-border-radius-s: 3px;
+  --b3-border-radius-b: 12px;
+  --b3-scroll-color: rgba(0, 0, 0, .2);
+  --b3-list-hover: rgba(0, 0, 0, .075);
+  --b3-menu-background: var(--b3-theme-background);
+  --b3-tooltips-background: #312f35;
+  --b3-tooltips-color: var(--b3-theme-background-light);
+  --b3-mask-background: rgba(220, 220, 220, .4);
+  --b3-transition: all .2s cubic-bezier(0, 0, .2, 1) 0ms;
+  --b3-highlight-background: #ffff00;
+  --b3-point-shadow: 0 0 1px 0 rgba(0, 0, 0, .1), 0 0 2px 0 rgba(0, 0, 0, .2);
+  --b3-dialog-shadow: 0 8px 24px rgba(0, 0, 0, .2);
+  --b3-card-error-color: #790600;
+  --b3-card-error-background: #f5d1cf;
+  --b3-card-warning-color: #8a4f00;
+  --b3-card-warning-background: #ffe8c8;
+  --b3-card-info-color: #005599;
+  --b3-card-info-background: #d6eaf9;
+  --b3-card-success-color: #006b04;
+  --b3-card-success-background: #d7eed8;
+  --b3-switch-background: #e1e3e1;
+  --b3-switch-checked-background: var(--b3-theme-primary);
+  --b3-table-even-background: rgba(0, 0, 0, .04);
+  --sidebar-width: 220px;
+  --toolbar-height: 48px;
+  --density-preset: default;
+
+  /* Course department colors */
+  --course-cs-bg: #e3f2fd;
+  --course-cs-border: #1976d2;
+  --course-math-bg: #f3e5f5;
+  --course-math-border: #7b1fa2;
+  --course-phys-bg: #e8f5e9;
+  --course-phys-border: #388e3c;
+  --course-eng-bg: #fff3e0;
+  --course-eng-border: #f57c00;
+  --course-art-bg: #fce4ec;
+  --course-art-border: #c2185b;
+  --course-eco-bg: #e0f2f1;
+  --course-eco-border: #00796b;
+  --course-law-bg: #fbe9e7;
+  --course-law-border: #d84315;
+  --course-edu-bg: #f1f8e9;
+  --course-edu-border: #689f38;
+}
+
+/* ===== Dark Theme ===== */
+[data-theme="dark"] {
+  /* Seed tokens (dark) */
+  --seed-bg: #161618;
+  --seed-fg: #e0e0e0;
+  --seed-primary: #5b9aff;
+  --seed-accent: #ffaa33;
+  --seed-surface: #262626;
+
+  /* Derived theme tokens */
+  --b3-theme-primary: var(--seed-primary);
+  --b3-theme-primary-light: rgba(91, 154, 255, .54);
+  --b3-theme-primary-lighter: rgba(91, 154, 255, .38);
+  --b3-theme-primary-lightest: rgba(91, 154, 255, .15);
+  --b3-theme-secondary: var(--seed-accent);
+  --b3-theme-background: #1e1e1e;
+  --b3-theme-background-light: #2c2c2c;
+  --b3-theme-surface: var(--seed-surface);
+  --b3-theme-surface-light: rgba(38, 38, 38, .86);
+  --b3-theme-surface-lighter: #3a3a3a;
+  --b3-theme-error: #e55649;
+  --b3-theme-success: #7acc5f;
+  --b3-theme-on-primary: #fff;
+  --b3-theme-on-background: var(--seed-fg);
+  --b3-theme-on-surface: #a0a4a8;
+  --b3-theme-on-surface-light: rgba(160, 164, 168, .68);
+  --b3-body-background: var(--seed-bg);
+  --b3-border-color: #3a3a3a;
+  --b3-scroll-color: rgba(255, 255, 255, .2);
+  --b3-list-hover: rgba(255, 255, 255, .075);
+  --b3-menu-background: #2c2c2c;
+  --b3-mask-background: rgba(0, 0, 0, .5);
+  --b3-card-error-color: #ff8a80;
+  --b3-card-error-background: rgba(210, 63, 49, .15);
+  --b3-card-warning-color: #ffcc80;
+  --b3-card-warning-background: rgba(255, 146, 0, .15);
+  --b3-card-info-color: #82b1ff;
+  --b3-card-info-background: rgba(0, 85, 153, .15);
+  --b3-card-success-color: #a5d6a7;
+  --b3-card-success-background: rgba(101, 184, 77, .15);
+  --b3-switch-background: #3a3a3a;
+  --b3-table-even-background: rgba(255, 255, 255, .03);
+  --b3-point-shadow: 0 0 1px 0 rgba(0, 0, 0, .3), 0 0 2px 0 rgba(0, 0, 0, .4);
+  --b3-dialog-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+
+  /* Course department colors (dark) */
+  --course-cs-bg: rgba(25, 118, 210, .18);
+  --course-math-bg: rgba(123, 31, 162, .18);
+  --course-phys-bg: rgba(56, 142, 60, .18);
+  --course-eng-bg: rgba(245, 124, 0, .18);
+  --course-art-bg: rgba(194, 24, 91, .18);
+  --course-eco-bg: rgba(0, 121, 107, .18);
+  --course-law-bg: rgba(216, 67, 21, .18);
+  --course-edu-bg: rgba(104, 159, 56, .18);
+}

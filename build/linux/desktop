@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=高校排课系统
+Comment=高校智能排课管理系统
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/scheduling-system %u
+Terminal=false
+Type=Application
+Icon=scheduling-system
+Categories=Utility;
+StartupWMClass=scheduling-system
+
+ 

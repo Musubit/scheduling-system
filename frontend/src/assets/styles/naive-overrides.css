@@ -1,0 +1,29 @@
+/* ===== Naive UI 主题覆写 ===== */
+/* 将子午配色映射到 Naive UI 组件 */
+
+/* 基础文字颜色 */
+.n-config-provider {
+  --n-text-color: var(--b3-theme-on-background);
+  --n-text-color-2: var(--b3-theme-on-surface);
+  --n-text-color-3: var(--b3-theme-on-surface-light);
+}
+
+/* 侧栏菜单微调 */
+.app-layout .n-menu {
+  --n-item-text-color: var(--b3-theme-on-surface);
+  --n-item-text-color-hover: var(--b3-theme-on-background);
+  --n-item-text-color-active: var(--b3-theme-primary);
+  --n-item-color-hover: var(--b3-list-hover);
+  --n-item-color-active: var(--b3-theme-primary-lightest);
+}
+
+/* 按钮微调 */
+.n-button--primary-type {
+  --n-color: var(--b3-theme-primary);
+  --n-color-hover: var(--b3-theme-primary-light);
+}
+
+/* 数据表格微调 */
+.n-data-table {
+  --n-td-color-striped: var(--b3-table-even-background);
+}

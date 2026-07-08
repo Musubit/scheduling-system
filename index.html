@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>高校排课系统</title>
+<style>
+/* ===== 思源笔记子午配色 CSS Variables ===== */
+:root {
+  /* Seed tokens — these are patched by nudges */
+  --seed-bg: #EBECF0;
+  --seed-fg: #222;
+  --seed-primary: #3575f0;
+  --seed-accent: #ff9200;
+  --seed-surface: #f6f6f6;
+  --seed-radius: 6px;
+  /* Derived theme tokens */
+  --b3-theme-primary: var(--seed-primary);
+  --b3-theme-primary-light: rgba(53, 117, 240, .54);
+  --b3-theme-primary-lighter: rgba(53, 117, 240, .38);
+  --b3-theme-primary-lightest: rgba(53, 117, 240, .12);
+  --b3-theme-secondary: var(--seed-accent);
+  --b3-theme-background: #fff;
+  --b3-theme-background-light: #dfe0e1;
+  --b3-theme-surface: var(--seed-surface);
+  --b3-theme-surface-light: rgba(243, 243, 243, .86);
+  --b3-theme-surface-lighter: #e0e0e0;
+  --b3-theme-error: #d23f31;
+  --b3-theme-success: #65b84d;
+  --b3-theme-on-primary: #fff;
+  --b3-theme-on-secondary: #fff;
+  --b3-theme-on-background: var(--seed-fg);
+  --b3-theme-on-surface: #5f6368;
+  --b3-theme-on-surface-light: rgba(95, 99, 104, .68);
+  --b3-theme-on-error: #fff;
+  --b3-font-family: BlinkMacSystemFont, Helvetica, "PingFang SC", "Luxi Sans", "DejaVu Sans", arial, "Microsoft Yahei", "Hiragino Sans GB", "Source Han Sans SC", sans-serif;
+  --b3-font-size: 14px;
+  --b3-body-background: var(--seed-bg);
+  --b3-border-color: var(--b3-theme-surface-lighter);
+  --b3-border-radius: var(--seed-radius);
+  --b3-border-radius-s: 3px;
+  --b3-border-radius-b: 12px;
+  --b3-scroll-color: rgba(0, 0, 0, .2);
+  --b3-list-hover: rgba(0, 0, 0, .075);
+  --b3-menu-background: var(--b3-theme-background);
+  --b3-tooltips-background: #312f35;
+  --b3-tooltips-color: var(--b3-theme-background-light);
+  --b3-mask-background: rgba(220, 220, 220, .4);
+  --b3-transition: all .2s cubic-bezier(0, 0, .2, 1) 0ms;
+  --b3-highlight-background: #ffff00;
+  --b3-point-shadow: 0 0 1px 0 rgba(0, 0, 0, .1), 0 0 2px 0 rgba(0, 0, 0, .2);
+  --b3-dialog-shadow: 0 8px 24px rgba(0, 0, 0, .2);
+  --b3-card-error-color: #790600;
+  --b3-card-error-background: #f5d1cf;
+  --b3-card-warning-color: #8a4f00;
+  --b3-card-warning-background: #ffe8c8;
+  --b3-card-info-color: #005599;
+  --b3-card-info-background: #d6eaf9;
+  --b3-card-success-color: #006b04;
+  --b3-card-success-background: #d7eed8;
+  --b3-switch-background: #e1e3e1;
+  --b3-switch-checked-background: var(--b3-theme-primary);
+  --b3-table-even-background: rgba(0, 0, 0, .04);
+  --sidebar-width: 220px;
+  --toolbar-height: 48px;
+  --density-preset: default;
+  /* Course department colors */
+  --course-cs-bg: #e3f2fd;
+  --course-cs-border: #1976d2;
+  --course-math-bg: #f3e5f5;
+  --course-math-border: #7b1fa2;
+  --course-phys-bg: #e8f5e9;
+  --course-phys-border: #388e3c;
+  --course-eng-bg: #fff3e0;
+  --course-eng-border: #f57c00;
+  --course-art-bg: #fce4ec;
+  --course-art-border: #c2185b;
+  --course-eco-bg: #e0f2f1;
+  --course-eco-border: #00796b;
+  --course-law-bg: #fbe9e7;
+  --course-law-border: #d84315;
+  --course-edu-bg: #f1f8e9;
+  --course-edu-border: #689f38;
+}
+
+/* ===== Dark Theme ===== */
+[data-theme="dark"] {
+  /* Seed tokens (dark) */
+  --seed-bg: #161618;
+  --seed-fg: #e0e0e0;
+  --seed-primary: #5b9aff;
+  --seed-accent: #ffaa33;
+  --seed-surface: #262626;
+  /* Derived theme tokens */
+  --b3-theme-primary: var(--seed-primary);
+  --b3-theme-primary-light: rgba(91, 154, 255, .54);
+  --b3-theme-primary-lighter: rgba(91, 154, 255, .38);
+  --b3-theme-primary-lightest: rgba(91, 154, 255, .15);
+  --b3-theme-secondary: var(--seed-accent);
+  --b3-theme-background: #1e1e1e;
+  --b3-theme-background-light: #2c2c2c;
+  --b3-theme-surface: var(--seed-surface);
+  --b3-theme-surface-light: rgba(38, 38, 38, .86);
+  --b3-theme-surface-lighter: #3a3a3a;
+  --b3-theme-error: #e55649;
+  --b3-theme-success: #7acc5f;
+  --b3-theme-on-primary: #fff;
+  --b3-theme-on-background: var(--seed-fg);
+  --b3-theme-on-surface: #a0a4a8;
+  --b3-theme-on-surface-light: rgba(160, 164, 168, .68);
+  --b3-body-background: var(--seed-bg);
+  --b3-border-color: #3a3a3a;
+  --b3-scroll-color: rgba(255, 255, 255, .2);
+  --b3-list-hover: rgba(255, 255, 255, .075);
+  --b3-menu-background: #2c2c2c;
+  --b3-mask-background: rgba(0, 0, 0, .5);
+  --b3-card-error-color: #ff8a80;
+  --b3-card-error-background: rgba(210, 63, 49, .15);
+  --b3-card-warning-color: #ffcc80;
+  --b3-card-warning-background: rgba(255, 146, 0, .15);
+  --b3-card-info-color: #82b1ff;
+  --b3-card-info-background: rgba(0, 85, 153, .15);
+  --b3-card-success-color: #a5d6a7;
+  --b3-card-success-background: rgba(101, 184, 77, .15);
+  --b3-switch-background: #3a3a3a;
+  --b3-table-even-background: rgba(255, 255, 255, .03);
+  --b3-point-shadow: 0 0 1px 0 rgba(0, 0, 0, .3), 0 0 2px 0 rgba(0, 0, 0, .4);
+  --b3-dialog-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+  /* Course department colors (dark) */
+  --course-cs-bg: rgba(25, 118, 210, .18);
+  --course-math-bg: rgba(123, 31, 162, .18);
+  --course-phys-bg: rgba(56, 142, 60, .18);
+  --course-eng-bg: rgba(245, 124, 0, .18);
+  --course-art-bg: rgba(194, 24, 91, .18);
+  --course-eco-bg: rgba(0, 121, 107, .18);
+  --course-law-bg: rgba(216, 67, 21, .18);
+  --course-edu-bg: rgba(104, 159, 56, .18);
+}
+
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  font-family: var(--b3-font-family);
+  font-size: var(--b3-font-size);
+  color: var(--b3-theme-on-background);
+  background: var(--b3-body-background);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font-family: inherit; font-size: inherit; border: none; background: none; cursor: pointer; color: inherit; }
+input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--b3-scroll-color); border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== Layout ===== */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--b3-theme-surface);
+  border-right: 1px solid var(--b3-border-color);
+  display: flex;
+  flex-direction: column;
+  transition: var(--b3-transition);
+  z-index: 10;
+}
+.sidebar-header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--b3-border-color);
+  gap: 10px;
+  flex-shrink: 0;
+}
+.sidebar-logo {
+  width: 28px; height: 28px;
+  background: var(--b3-theme-primary);
+  border-radius: var(--b3-border-radius-s);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--b3-theme-on-primary); font-weight: 700; font-size: 14px;
+  flex-shrink: 0;
+}
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+  white-space: nowrap;
+}
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.nav-group { margin-bottom: 4px; }
+.nav-group-label {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  transition: background .15s;
+  gap: 8px;
+  user-select: none;
+}
+.nav-group-label:hover { background: var(--b3-list-hover); }
+.nav-group-label .nav-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: .6; }
+.nav-group-label .nav-arrow { margin-left: auto; width: 16px; height: 16px; transition: transform .2s; opacity: .4; }
+.nav-group.open .nav-arrow { transform: rotate(90deg); }
+.nav-children { display: none; }
+.nav-group.open .nav-children { display: block; }
+.nav-child {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 6px 42px;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  transition: background .15s;
+  gap: 6px;
+}
+.nav-child:hover { background: var(--b3-list-hover); }
+.nav-child.active {
+  color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+  font-weight: 500;
+}
+.nav-child .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .5;
+  flex-shrink: 0;
+}
+.sidebar-footer {
+  border-top: 1px solid var(--b3-border-color);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.user-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--b3-theme-primary-lighter);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  color: var(--b3-theme-primary);
+  flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-background); }
+.user-role { font-size: 11px; color: var(--b3-theme-on-surface-light); }
+
+/* ===== Main Content ===== */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--b3-body-background);
+}
+
+/* ===== Top Toolbar ===== */
+.toolbar {
+  height: var(--toolbar-height);
+  min-height: var(--toolbar-height);
+  background: var(--b3-theme-background);
+  border-bottom: 1px solid var(--b3-border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 5;
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  flex-shrink: 0;
+}
+.breadcrumb-current { color: var(--b3-theme-on-background); font-weight: 500; }
+.toolbar-spacer { flex: 1; }
+.toolbar-search {
+  display: flex;
+  align-items: center;
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 0 10px;
+  height: 32px;
+  gap: 6px;
+  width: 200px;
+  transition: border-color .2s;
+}
+.toolbar-search:focus-within { border-color: var(--b3-theme-primary); }
+.toolbar-search input { border: none; background: none; outline: none; width: 100%; font-size: 13px; }
+.toolbar-search input::placeholder { color: var(--b3-theme-on-surface-light); }
+.toolbar-search svg { opacity: .4; flex-shrink: 0; }
+.view-switcher {
+  display: flex;
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  overflow: hidden;
+}
+.view-btn {
+  padding: 0 12px;
+  height: 30px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
+  transition: all .15s;
+  display: flex; align-items: center; gap: 4px;
+  border-right: 1px solid var(--b3-border-color);
+}
+.view-btn:last-child { border-right: none; }
+.view-btn:hover { background: var(--b3-list-hover); }
+.view-btn.active { background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); }
+.filter-select {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+  font-size: 13px;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='rgba(95,99,104,.68)' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.filter-select:focus { border-color: var(--b3-theme-primary); outline: none; }
+.theme-toggle {
+  width: 32px; height: 32px;
+  border-radius: var(--b3-border-radius);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { background: var(--b3-list-hover); }
+
+/* ===== Page Container ===== */
+.page-container { flex: 1; overflow: auto; padding: 16px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ===== Schedule Grid ===== */
+.schedule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.schedule-title { font-size: 16px; font-weight: 600; color: var(--b3-theme-on-background); }
+.schedule-meta { font-size: 12px; color: var(--b3-theme-on-surface); display: flex; align-items: center; gap: 12px; }
+.schedule-meta .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.badge-success { background: var(--b3-card-success-background); color: var(--b3-card-success-color); }
+.badge-warning { background: var(--b3-card-warning-background); color: var(--b3-card-warning-color); }
+.badge-error { background: var(--b3-card-error-background); color: var(--b3-card-error-color); }
+.badge-info { background: var(--b3-card-info-background); color: var(--b3-card-info-color); }
+
+.schedule-grid-wrapper {
+  background: var(--b3-theme-background);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  overflow: auto;
+}
+.schedule-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); min-width: 900px; }
+.grid-header {
+  padding: 10px 4px; text-align: center; font-size: 13px; font-weight: 500;
+  color: var(--b3-theme-on-surface); border-bottom: 1px solid var(--b3-border-color);
+  border-right: 1px solid var(--b3-border-color); background: var(--b3-theme-surface);
+  position: sticky; top: 0; z-index: 2;
+}
+.grid-header:last-child { border-right: none; }
+.grid-header .day-name { display: block; }
+.grid-header .day-date { display: block; font-size: 11px; color: var(--b3-theme-on-surface-light); margin-top: 2px; }
+.grid-header.today { color: var(--b3-theme-primary); }
+.grid-header.today .day-date { color: var(--b3-theme-primary-light); }
+.grid-corner {
+  padding: 10px 4px; text-align: center; font-size: 11px;
+  color: var(--b3-theme-on-surface-light); border-bottom: 1px solid var(--b3-border-color);
+  border-right: 1px solid var(--b3-border-color); background: var(--b3-theme-surface);
+  position: sticky; top: 0; left: 0; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+}
+.time-label {
+  padding: 4px 8px; font-size: 11px; color: var(--b3-theme-on-surface-light);
+  border-right: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color);
+  background: var(--b3-theme-surface); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  min-height: 64px; position: sticky; left: 0; z-index: 1;
+}
+.time-label .period-num { font-weight: 500; font-size: 12px; color: var(--b3-theme-on-surface); }
+.time-label .period-time { font-size: 10px; margin-top: 2px; }
+.grid-cell {
+  border-right: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color);
+  min-height: 64px; padding: 2px; position: relative; transition: background .15s;
+}
+.grid-cell:nth-child(8n) { border-right: none; }
+.grid-cell:hover { background: var(--b3-theme-primary-lightest); }
+
+/* ===== Course Card ===== */
+.course-card {
+  border-radius: var(--b3-border-radius-s); padding: 4px 6px; font-size: 11px;
+  cursor: pointer; transition: all .15s; height: 100%; display: flex;
+  flex-direction: column; justify-content: center; position: relative;
+  border-left: 3px solid; overflow: hidden;
+}
+.course-card:hover { transform: translateY(-1px); box-shadow: var(--b3-point-shadow); }
+.course-card.conflict { outline: 2px solid var(--b3-theme-error); outline-offset: -1px; }
+.course-card.conflict::after {
+  content: ''; position: absolute; top: 2px; right: 2px;
+  width: 14px; height: 14px; background: var(--b3-theme-error); border-radius: 50%;
+}
+.course-card .course-name { font-weight: 500; line-height: 1.3; color: var(--b3-theme-on-background); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.course-card .course-detail { font-size: 10px; color: var(--b3-theme-on-surface); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.course-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
+.course-math { background: var(--course-math-bg); border-left-color: var(--course-math-border); }
+.course-phys { background: var(--course-phys-bg); border-left-color: var(--course-phys-border); }
+.course-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
+.course-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
+.course-eco { background: var(--course-eco-bg); border-left-color: var(--course-eco-border); }
+.course-law { background: var(--course-law-bg); border-left-color: var(--course-law-border); }
+.course-edu { background: var(--course-edu-bg); border-left-color: var(--course-edu-border); }
+
+/* ===== Timeline View ===== */
+.timeline-container { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); padding: 16px; }
+.timeline-header-row { display: grid; grid-template-columns: 80px 1fr; border-bottom: 1px solid var(--b3-border-color); padding-bottom: 8px; margin-bottom: 8px; }
+.timeline-day-label { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-surface); }
+.timeline-hours { display: flex; position: relative; }
+.timeline-hour { flex: 1; text-align: center; font-size: 10px; color: var(--b3-theme-on-surface-light); border-left: 1px solid var(--b3-border-color); padding-top: 4px; }
+.timeline-row { display: grid; grid-template-columns: 80px 1fr; min-height: 48px; border-bottom: 1px solid var(--b3-border-color); }
+.timeline-row:last-child { border-bottom: none; }
+.timeline-day-name { font-size: 12px; color: var(--b3-theme-on-surface); display: flex; align-items: center; padding-right: 8px; }
+.timeline-track { position: relative; min-height: 40px; }
+.timeline-event {
+  position: absolute; top: 4px; height: 32px; border-radius: var(--b3-border-radius-s);
+  padding: 4px 8px; font-size: 11px; display: flex; align-items: center;
+  cursor: pointer; transition: opacity .15s; border-left: 3px solid; overflow: hidden;
+}
+.timeline-event:hover { opacity: .85; }
+
+/* ===== Month View ===== */
+.month-grid { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
+.month-header-row { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--b3-border-color); }
+.month-header-cell { padding: 8px; text-align: center; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); background: var(--b3-theme-surface); }
+.month-body { display: grid; grid-template-columns: repeat(7, 1fr); }
+.month-cell { min-height: 100px; border-right: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); padding: 4px; }
+.month-cell:nth-child(7n) { border-right: none; }
+.month-cell .date-num { font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); padding: 2px 4px; }
+.month-cell.today .date-num { background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.month-cell.other-month { opacity: .4; }
+.month-event-item { font-size: 10px; padding: 1px 4px; margin-top: 2px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+
+/* ===== Resource Management ===== */
+.resource-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--b3-border-color); margin-bottom: 16px; }
+.resource-tab { padding: 10px 20px; font-size: 13px; color: var(--b3-theme-on-surface); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+.resource-tab:hover { color: var(--b3-theme-on-background); }
+.resource-tab.active { color: var(--b3-theme-primary); border-bottom-color: var(--b3-theme-primary); font-weight: 500; }
+.resource-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 0 14px; height: 32px; border-radius: var(--b3-border-radius); font-size: 13px; transition: all .15s; }
+.btn-primary { background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); }
+.btn-primary:hover { opacity: .9; }
+.btn-default { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); color: var(--b3-theme-on-background); }
+.btn-default:hover { background: var(--b3-theme-surface); }
+.btn-text { color: var(--b3-theme-primary); padding: 0 8px; }
+.btn-text:hover { background: var(--b3-theme-primary-lightest); }
+.data-table-wrapper { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); background: var(--b3-theme-surface); border-bottom: 1px solid var(--b3-border-color); white-space: nowrap; }
+.data-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--b3-border-color); color: var(--b3-theme-on-background); }
+.data-table tr:nth-child(even) td { background: var(--b3-table-even-background); }
+.data-table tr:hover td { background: var(--b3-theme-primary-lightest); }
+.data-table .actions { display: flex; gap: 4px; }
+.table-pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-top: 1px solid var(--b3-border-color); font-size: 12px; color: var(--b3-theme-on-surface); }
+.pagination-btns { display: flex; gap: 4px; }
+.page-btn { width: 28px; height: 28px; border-radius: var(--b3-border-radius-s); display: flex; align-items: center; justify-content: center; font-size: 12px; border: 1px solid var(--b3-border-color); background: var(--b3-theme-background); color: var(--b3-theme-on-surface); transition: all .15s; }
+.page-btn:hover { border-color: var(--b3-theme-primary); color: var(--b3-theme-primary); }
+.page-btn.active { background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); border-color: var(--b3-theme-primary); }
+.status-tag { display: inline-flex; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+.status-active { background: var(--b3-card-success-background); color: var(--b3-card-success-color); }
+.status-inactive { background: var(--b3-theme-surface); color: var(--b3-theme-on-surface); }
+
+/* ===== Scheduling Engine ===== */
+.scheduling-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.config-panel, .result-panel { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); padding: 20px; }
+.panel-title { font-size: 15px; font-weight: 600; color: var(--b3-theme-on-background); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); margin-bottom: 6px; }
+.form-input { width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); background: var(--b3-theme-background); font-size: 13px; transition: border-color .2s; }
+.form-input:focus { border-color: var(--b3-theme-primary); outline: none; }
+.form-select { width: 100%; height: 32px; padding: 0 28px 0 10px; border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); background: var(--b3-theme-background); font-size: 13px; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg fill='rgba(95,99,104,.68)' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>"); background-repeat: no-repeat; background-position: right 2px center; cursor: pointer; }
+.form-select:focus { border-color: var(--b3-theme-primary); outline: none; }
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+.checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.checkbox-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--b3-theme-primary); }
+.progress-section { margin-top: 20px; }
+.progress-bar-wrapper { height: 8px; background: var(--b3-theme-surface); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.progress-bar { height: 100%; background: var(--b3-theme-primary); border-radius: 4px; transition: width .5s ease; }
+.progress-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.stat-card { padding: 12px; background: var(--b3-theme-surface); border-radius: var(--b3-border-radius); text-align: center; }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--b3-theme-on-background); }
+.stat-label { font-size: 11px; color: var(--b3-theme-on-surface); margin-top: 2px; }
+.stat-card.primary .stat-value { color: var(--b3-theme-primary); }
+.stat-card.success .stat-value { color: var(--b3-theme-success); }
+.stat-card.error .stat-value { color: var(--b3-theme-error); }
+
+/* ===== Conflict Detection ===== */
+.conflict-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+.conflict-list { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
+.conflict-list-header { padding: 12px 14px; border-bottom: 1px solid var(--b3-border-color); font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+.conflict-item { padding: 10px 14px; border-bottom: 1px solid var(--b3-border-color); cursor: pointer; transition: background .15s; }
+.conflict-item:last-child { border-bottom: none; }
+.conflict-item:hover { background: var(--b3-list-hover); }
+.conflict-item.active { background: var(--b3-theme-primary-lightest); }
+.conflict-item .conflict-type { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-background); display: flex; align-items: center; gap: 6px; }
+.conflict-item .conflict-type .conflict-icon { width: 16px; height: 16px; background: var(--b3-theme-error); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--b3-theme-on-primary); }
+.conflict-item .conflict-desc { font-size: 12px; color: var(--b3-theme-on-surface); margin-top: 4px; }
+.conflict-item .conflict-time { font-size: 11px; color: var(--b3-theme-on-surface-light); margin-top: 2px; }
+.conflict-detail { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); padding: 20px; }
+.conflict-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.conflict-detail-title { font-size: 15px; font-weight: 600; color: var(--b3-theme-on-background); }
+.conflict-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.conflict-info-item { padding: 10px; background: var(--b3-theme-surface); border-radius: var(--b3-border-radius); }
+.conflict-info-label { font-size: 11px; color: var(--b3-theme-on-surface); margin-bottom: 4px; }
+.conflict-info-value { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-background); }
+.conflict-resolve-section { border-top: 1px solid var(--b3-border-color); padding-top: 16px; }
+.conflict-resolve-title { font-size: 13px; font-weight: 500; margin-bottom: 10px; }
+.resolve-options { display: flex; flex-direction: column; gap: 8px; }
+.resolve-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); cursor: pointer; transition: all .15s; }
+.resolve-option:hover { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
+.resolve-option .resolve-radio { width: 16px; height: 16px; border: 2px solid var(--b3-border-color); border-radius: 50%; flex-shrink: 0; transition: border-color .15s; margin-top: 2px; }
+.resolve-option:hover .resolve-radio { border-color: var(--b3-theme-primary); }
+.resolve-option .resolve-text { font-size: 13px; }
+.resolve-option .resolve-desc { font-size: 11px; color: var(--b3-theme-on-surface); margin-top: 2px; }
+
+/* ===== Drawer ===== */
+.drawer-overlay { display: none; position: fixed; inset: 0; background: var(--b3-mask-background); z-index: 100; }
+.drawer-overlay.open { display: block; }
+.drawer { position: fixed; top: 0; right: 0; width: 380px; height: 100vh; background: var(--b3-theme-background); border-left: 1px solid var(--b3-border-color); z-index: 101; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s cubic-bezier(0, 0, .2, 1); box-shadow: var(--b3-dialog-shadow); }
+.drawer.open { transform: translateX(0); }
+.drawer-header { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--b3-border-color); flex-shrink: 0; }
+.drawer-title { font-size: 15px; font-weight: 600; }
+.drawer-close { width: 28px; height: 28px; border-radius: var(--b3-border-radius-s); display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.drawer-close:hover { background: var(--b3-list-hover); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 20px; }
+.drawer-section { margin-bottom: 20px; }
+.drawer-section-title { font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); margin-bottom: 10px; }
+.detail-row { display: flex; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--b3-border-color); }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { width: 80px; font-size: 12px; color: var(--b3-theme-on-surface); flex-shrink: 0; }
+.detail-value { font-size: 13px; color: var(--b3-theme-on-background); flex: 1; }
+.drawer-footer { padding: 12px 20px; border-top: 1px solid var(--b3-border-color); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+
+/* ===== Tooltip ===== */
+.tooltip { display: none; position: fixed; background: var(--b3-tooltips-background); color: var(--b3-tooltips-color); padding: 6px 10px; border-radius: var(--b3-border-radius-s); font-size: 12px; z-index: 200; max-width: 240px; box-shadow: var(--b3-point-shadow); pointer-events: none; }
+.tooltip.visible { display: block; }
+
+/* ===== Settings ===== */
+.settings-layout { max-width: 640px; }
+.settings-section { background: var(--b3-theme-background); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); margin-bottom: 16px; }
+.settings-section-title { padding: 14px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--b3-border-color); }
+.settings-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--b3-border-color); }
+.settings-item:last-child { border-bottom: none; }
+.settings-item-label { font-size: 13px; }
+.settings-item-desc { font-size: 11px; color: var(--b3-theme-on-surface); margin-top: 2px; }
+.switch { width: 36px; height: 20px; background: var(--b3-switch-background); border-radius: 10px; position: relative; cursor: pointer; transition: background .2s; }
+.switch.on { background: var(--b3-switch-checked-background); }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--b3-theme-on-primary); border-radius: 50%; transition: transform .2s; }
+.switch.on::after { transform: translateX(16px); }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar" data-component="左侧导航栏" data-od-id="sidebar" role="complementary">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <span class="sidebar-title">排课系统</span>
+    </div>
+    <nav class="sidebar-nav" data-component="导航菜单" data-od-id="nav" role="navigation">
+      <div class="nav-group open">
+        <div class="nav-group-label" onclick="toggleNav(this)">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          课表中心
+          <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="nav-children">
+          <div class="nav-child active" onclick="switchPage('schedule', this)"><span class="dot"></span>周视图课表</div>
+          <div class="nav-child" onclick="switchPage('schedule-timeline', this)"><span class="dot"></span>时间线视图</div>
+          <div class="nav-child" onclick="switchPage('schedule-month', this)"><span class="dot"></span>月视图</div>
+        </div>
+      </div>
+      <div class="nav-group open">
+        <div class="nav-group-label" onclick="toggleNav(this)">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          资源管理
+          <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="nav-children">
+          <div class="nav-child" onclick="switchPage('resource', this)"><span class="dot"></span>教师管理</div>
+          <div class="nav-child" onclick="switchPage('resource', this)"><span class="dot"></span>教室管理</div>
+          <div class="nav-child" onclick="switchPage('resource', this)"><span class="dot"></span>课程管理</div>
+          <div class="nav-child" onclick="switchPage('resource', this)"><span class="dot"></span>班级管理</div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label" onclick="toggleNav(this)">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          排课引擎
+          <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="nav-children">
+          <div class="nav-child" onclick="switchPage('scheduling', this)"><span class="dot"></span>自动排课</div>
+          <div class="nav-child" onclick="switchPage('conflict', this)"><span class="dot"></span>冲突检测</div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label" onclick="toggleNav(this)">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          系统设置
+          <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="nav-children">
+          <div class="nav-child" onclick="switchPage('settings', this)"><span class="dot"></span>基本设置</div>
+          <div class="nav-child" onclick="switchPage('settings', this)"><span class="dot"></span>学期管理</div>
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-footer" data-component="用户信息栏">
+      <div class="user-avatar">李</div>
+      <div class="user-info">
+        <div class="user-name">李明华</div>
+        <div class="user-role">教务处 · 管理员</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main-content" data-component="主内容区" data-od-id="main-content">
+    <header class="toolbar" data-component="顶部工具栏" data-od-id="toolbar">
+      <div class="breadcrumb">
+        <span>课表中心</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="breadcrumb-current" id="breadcrumbCurrent">周视图课表</span>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="搜索课程、教师、教室..." />
+      </div>
+      <select class="filter-select" title="院系筛选">
+        <option>全部院系</option><option>计算机科学学院</option><option>数学与统计学院</option><option>物理学院</option><option>外国语学院</option><option>艺术学院</option><option>经济管理学院</option><option>法学院</option><option>教育学院</option>
+      </select>
+      <select class="filter-select" title="学期选择">
+        <option>2025-2026 第二学期</option><option>2025-2026 第一学期</option><option>2024-2025 第二学期</option>
+      </select>
+      <div class="view-switcher" id="viewSwitcher">
+        <button class="view-btn active" onclick="switchView('week', this)" title="周视图">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/></svg>
+          周
+        </button>
+        <button class="view-btn" onclick="switchView('timeline', this)" title="时间线">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+          时间线
+        </button>
+        <button class="view-btn" onclick="switchView('month', this)" title="月视图">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/><line x1="9" y1="4" x2="9" y2="22"/><line x1="15" y1="4" x2="15" y2="22"/></svg>
+          月
+        </button>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+        <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </header>
+
+    <div class="page-container" data-component="页面容器">
+      <!-- Week View -->
+      <div class="page active" id="page-schedule" data-component="课表中心-周视图" data-od-id="schedule-week">
+        <div class="schedule-header">
+          <div class="schedule-title">2025-2026 第二学期 · 第 8 周</div>
+          <div class="schedule-meta">
+            <span class="badge badge-success">已排 186 门课</span>
+            <span class="badge badge-warning">3 个冲突</span>
+            <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <span style="font-size:12px;min-width:100px;text-align:center">3月24日 - 3月30日</span>
+            <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+        <div class="schedule-grid-wrapper" data-component="课表网格">
+          <div class="schedule-grid" id="scheduleGrid">
+            <div class="grid-corner">节次</div>
+            <div class="grid-header today"><span class="day-name">周一</span><span class="day-date">3/24</span></div>
+            <div class="grid-header"><span class="day-name">周二</span><span class="day-date">3/25</span></div>
+            <div class="grid-header"><span class="day-name">周三</span><span class="day-date">3/26</span></div>
+            <div class="grid-header"><span class="day-name">周四</span><span class="day-date">3/27</span></div>
+            <div class="grid-header"><span class="day-name">周五</span><span class="day-date">3/28</span></div>
+            <div class="grid-header"><span class="day-name">周六</span><span class="day-date">3/29</span></div>
+            <div class="grid-header"><span class="day-name">周日</span><span class="day-date">3/30</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline View -->
+      <div class="page" id="page-schedule-timeline" data-component="课表中心-时间线" data-od-id="schedule-timeline">
+        <div class="schedule-header">
+          <div class="schedule-title">时间线视图 · 第 8 周</div>
+          <div class="schedule-meta"><span class="badge badge-success">已排 186 门课</span></div>
+        </div>
+        <div class="timeline-container" id="timelineContainer" data-component="时间线视图容器"></div>
+      </div>
+
+      <!-- Month View -->
+      <div class="page" id="page-schedule-month" data-component="课表中心-月视图" data-od-id="schedule-month">
+        <div class="schedule-header">
+          <div class="schedule-title">2026 年 3 月</div>
+          <div class="schedule-meta">
+            <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <span style="font-size:13px;font-weight:500">2026年3月</span>
+            <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+        <div class="month-grid" id="monthGrid" data-component="月历网格"></div>
+      </div>
+
+      <!-- Resource Management -->
+      <div class="page" id="page-resource" data-component="资源管理" data-od-id="resource">
+        <div class="resource-tabs">
+          <div class="resource-tab active" onclick="switchResourceTab(this)">教师</div>
+          <div class="resource-tab" onclick="switchResourceTab(this)">教室</div>
+          <div class="resource-tab" onclick="switchResourceTab(this)">课程</div>
+          <div class="resource-tab" onclick="switchResourceTab(this)">班级</div>
+        </div>
+        <div class="resource-toolbar">
+          <div class="toolbar-search" style="width:240px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="搜索教师姓名、工号..." />
+          </div>
+          <select class="filter-select"><option>全部院系</option><option>计算机科学学院</option><option>数学与统计学院</option></select>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增</button>
+          <button class="btn btn-default">导入</button>
+          <button class="btn btn-default">导出</button>
+        </div>
+        <div class="data-table-wrapper" data-component="资源数据表格">
+          <table class="data-table">
+            <thead><tr><th style="width:40px"><input type="checkbox" /></th><th>工号</th><th>姓名</th><th>院系</th><th>职称</th><th>本周课时</th><th>状态</th><th style="width:120px">操作</th></tr></thead>
+            <tbody id="teacherTableBody"></tbody>
+          </table>
+          <div class="table-pagination">
+            <span>共 128 条记录，第 1/13 页</span>
+            <div class="pagination-btns">
+              <button class="page-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+              <button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button>
+              <button class="page-btn">...</button><button class="page-btn">13</button>
+              <button class="page-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scheduling Engine -->
+      <div class="page" id="page-scheduling" data-component="排课引擎" data-od-id="scheduling">
+        <div class="schedule-header">
+          <div class="schedule-title">自动排课引擎</div>
+          <div class="schedule-meta"><span class="badge badge-info">上次排课: 2026-03-20 14:32</span></div>
+        </div>
+        <div class="scheduling-layout">
+          <div class="config-panel" data-component="排课参数配置面板">
+            <div class="panel-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--b3-theme-primary)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>排课参数配置</div>
+            <div class="form-group"><label class="form-label">排课范围</label><select class="form-select"><option>全校所有院系</option><option>计算机科学学院</option><option>数学与统计学院</option><option>物理学院</option></select></div>
+            <div class="form-group"><label class="form-label">排课学期</label><select class="form-select"><option>2025-2026 第二学期</option></select></div>
+            <div class="form-group"><label class="form-label">优先级策略</label><select class="form-select"><option>教师时间优先</option><option>教室利用率优先</option><option>学生课表均衡优先</option></select></div>
+            <div class="form-group"><label class="form-label">约束条件</label><div class="checkbox-group"><label class="checkbox-item"><input type="checkbox" checked />教师不连续排课</label><label class="checkbox-item"><input type="checkbox" checked />同一课程分散安排</label><label class="checkbox-item"><input type="checkbox" checked />大班优先大教室</label><label class="checkbox-item"><input type="checkbox" />体育课避开第一节</label><label class="checkbox-item"><input type="checkbox" checked />合班课时间协调</label><label class="checkbox-item"><input type="checkbox" />教师偏好时段</label></div></div>
+            <div class="form-group"><label class="form-label">算法迭代次数</label><input class="form-input" type="number" value="5000" /></div>
+            <button class="btn btn-primary" style="width:100%;height:38px;font-size:14px;margin-top:8px" onclick="startScheduling()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>开始自动排课</button>
+          </div>
+          <div class="result-panel" data-component="排课结果面板">
+            <div class="panel-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--b3-theme-primary)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>排课进度与结果</div>
+            <div class="progress-section">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:500">排课进度</span><span style="font-size:12px;color:var(--b3-theme-primary)" id="progressText">已完成 78%</span></div>
+              <div class="progress-bar-wrapper"><div class="progress-bar" id="progressBar" style="width:78%"></div></div>
+              <div class="progress-stats">
+                <div class="stat-card primary"><div class="stat-value">186</div><div class="stat-label">已排课程</div></div>
+                <div class="stat-card success"><div class="stat-value">94.2%</div><div class="stat-label">教室利用率</div></div>
+                <div class="stat-card error"><div class="stat-value">3</div><div class="stat-label">待处理冲突</div></div>
+              </div>
+            </div>
+            <div style="margin-top:20px">
+              <div class="panel-title" style="font-size:13px">排课日志</div>
+              <div style="background:var(--b3-theme-surface);border-radius:var(--b3-border-radius);padding:12px;font-size:12px;font-family:monospace;max-height:200px;overflow-y:auto;line-height:1.8;color:var(--b3-theme-on-surface)">
+                <div>[14:32:01] <span style="color:var(--b3-theme-success)">INFO</span> 排课引擎启动，共 248 门课程待排</div>
+                <div>[14:32:02] <span style="color:var(--b3-theme-success)">INFO</span> 加载约束条件：6 条规则已启用</div>
+                <div>[14:32:05] <span style="color:var(--b3-theme-success)">INFO</span> 第 1 轮迭代完成，已排 42 门</div>
+                <div>[14:32:08] <span style="color:var(--b3-theme-secondary)">WARN</span> 发现教师时间冲突：王建国-高等数学/周一第1-2节</div>
+                <div>[14:32:12] <span style="color:var(--b3-theme-success)">INFO</span> 第 100 轮迭代完成，已排 156 门</div>
+                <div>[14:32:18] <span style="color:var(--b3-theme-error)">ERR</span> 教室容量不足：计算机组成原理(120人) → A301(80座)</div>
+                <div>[14:32:25] <span style="color:var(--b3-theme-success)">INFO</span> 第 500 轮迭代完成，已排 186 门</div>
+                <div>[14:32:26] <span style="color:var(--b3-theme-secondary)">WARN</span> 暂停：剩余 62 门需手动调整</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conflict Detection -->
+      <div class="page" id="page-conflict" data-component="冲突检测" data-od-id="conflict">
+        <div class="schedule-header">
+          <div class="schedule-title">冲突检测面板</div>
+          <div class="schedule-meta">
+            <span class="badge badge-error">3 个冲突待处理</span>
+            <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>重新检测</button>
+          </div>
+        </div>
+        <div class="conflict-layout">
+          <div class="conflict-list" data-component="冲突列表">
+            <div class="conflict-list-header"><span>冲突列表</span><span style="font-size:11px;color:var(--b3-theme-on-surface)">3 项</span></div>
+            <div class="conflict-item active" onclick="selectConflict(this)">
+              <div class="conflict-type"><span class="conflict-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>教师时间冲突</div>
+              <div class="conflict-desc">王建国教授在周一第1-2节同时段有两门课程</div>
+              <div class="conflict-time">高等数学(A301) vs 线性代数(B205)</div>
+            </div>
+            <div class="conflict-item" onclick="selectConflict(this)">
+              <div class="conflict-type"><span class="conflict-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>教室容量冲突</div>
+              <div class="conflict-desc">计算机组成原理选课120人，分配教室A301仅80座</div>
+              <div class="conflict-time">周三第3-4节 · A301</div>
+            </div>
+            <div class="conflict-item" onclick="selectConflict(this)">
+              <div class="conflict-type"><span class="conflict-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>教室占用冲突</div>
+              <div class="conflict-desc">C502教室在周四第5-6节被两门课程同时占用</div>
+              <div class="conflict-time">数据结构 vs 操作系统 · C502</div>
+            </div>
+          </div>
+          <div class="conflict-detail" data-component="冲突详情">
+            <div class="conflict-detail-header">
+              <div class="conflict-detail-title">教师时间冲突详情</div>
+              <button class="btn btn-text" onclick="locateInSchedule()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>定位到课表</button>
+            </div>
+            <div class="conflict-info-grid">
+              <div class="conflict-info-item"><div class="conflict-info-label">冲突教师</div><div class="conflict-info-value">王建国 教授</div></div>
+              <div class="conflict-info-item"><div class="conflict-info-label">所属院系</div><div class="conflict-info-value">数学与统计学院</div></div>
+              <div class="conflict-info-item"><div class="conflict-info-label">冲突课程 A</div><div class="conflict-info-value">高等数学 · 周一 1-2节 · A301</div></div>
+              <div class="conflict-info-item"><div class="conflict-info-label">冲突课程 B</div><div class="conflict-info-value">线性代数 · 周一 1-2节 · B205</div></div>
+              <div class="conflict-info-item"><div class="conflict-info-label">选课人数</div><div class="conflict-info-value">A: 180人 / B: 95人</div></div>
+              <div class="conflict-info-item"><div class="conflict-info-label">冲突类型</div><div class="conflict-info-value" style="color:var(--b3-theme-error)">同一教师同一时段</div></div>
+            </div>
+            <div class="conflict-resolve-section">
+              <div class="conflict-resolve-title">解决方案</div>
+              <div class="resolve-options">
+                <div class="resolve-option"><div class="resolve-radio"></div><div><div class="resolve-text">将「线性代数」调至其他时段</div><div class="resolve-desc">推荐：周三 3-4节 · B205（教室空闲）</div></div></div>
+                <div class="resolve-option"><div class="resolve-radio"></div><div><div class="resolve-text">更换「线性代数」授课教师</div><div class="resolve-desc">可选教师：张秀英(副教授)、陈志强(讲师)</div></div></div>
+                <div class="resolve-option"><div class="resolve-radio"></div><div><div class="resolve-text">合并为合班授课</div><div class="resolve-desc">需确认两课程教学大纲兼容性，需大教室(≥280座)</div></div></div>
+              </div>
+              <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-default">暂不处理</button>
+                <button class="btn btn-primary">确认解决</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="page" id="page-settings" data-component="系统设置" data-od-id="settings">
+        <div class="schedule-header"><div class="schedule-title">系统设置</div></div>
+        <div class="settings-layout" data-component="设置面板">
+          <div class="settings-section" data-component="基本设置区">
+            <div class="settings-section-title">基本设置</div>
+            <div class="settings-item"><div><div class="settings-item-label">深色模式</div><div class="settings-item-desc">切换系统界面为深色主题</div></div><div class="switch" id="settingsThemeSwitch" onclick="toggleTheme();this.classList.toggle('on')"></div></div>
+            <div class="settings-item"><div><div class="settings-item-label">自动保存</div><div class="settings-item-desc">排课修改后自动保存到本地数据库</div></div><div class="switch on"></div></div>
+            <div class="settings-item"><div><div class="settings-item-label">冲突实时检测</div><div class="settings-item-desc">拖拽调课时实时检测并高亮冲突</div></div><div class="switch on"></div></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-title">排课参数</div>
+            <div class="settings-item"><div><div class="settings-item-label">默认算法迭代次数</div><div class="settings-item-desc">自动排课时的遗传算法迭代轮数</div></div><input class="form-input" style="width:100px" type="number" value="5000" /></div>
+            <div class="settings-item"><div><div class="settings-item-label">每日最大课时</div><div class="settings-item-desc">单个班级每天最多安排的课时数</div></div><input class="form-input" style="width:100px" type="number" value="8" /></div>
+            <div class="settings-item"><div><div class="settings-item-label">教室缓冲时间</div><div class="settings-item-desc">两节课之间教室的间隔分钟数</div></div><select class="form-select" style="width:100px"><option>0</option><option selected>10</option><option>15</option><option>20</option></select></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-title">数据管理</div>
+            <div class="settings-item"><div><div class="settings-item-label">数据库位置</div><div class="settings-item-desc">SQLite 数据库文件存储路径</div></div><span style="font-size:12px;color:var(--b3-theme-on-surface)">~/scheduling/data.db</span></div>
+            <div class="settings-item"><div><div class="settings-item-label">备份与恢复</div><div class="settings-item-desc">导出或导入数据库备份文件</div></div><div style="display:flex;gap:8px"><button class="btn btn-default">导出备份</button><button class="btn btn-default">导入</button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer" data-component="课程详情抽屉" data-od-id="drawer">
+  <div class="drawer-header">
+    <span class="drawer-title" id="drawerTitle">课程详情</span>
+    <button class="drawer-close" onclick="closeDrawer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-section">
+      <div class="drawer-section-title">基本信息</div>
+      <div class="detail-row"><div class="detail-label">课程名称</div><div class="detail-value" id="detailName">数据结构</div></div>
+      <div class="detail-row"><div class="detail-label">课程编号</div><div class="detail-value" id="detailCode">CS301</div></div>
+      <div class="detail-row"><div class="detail-label">学分</div><div class="detail-value" id="detailCredit">4.0</div></div>
+      <div class="detail-row"><div class="detail-label">课程类型</div><div class="detail-value" id="detailType">专业必修</div></div>
+    </div>
+    <div class="drawer-section">
+      <div class="drawer-section-title">上课安排</div>
+      <div class="detail-row"><div class="detail-label">授课教师</div><div class="detail-value" id="detailTeacher">张明远 教授</div></div>
+      <div class="detail-row"><div class="detail-label">上课时间</div><div class="detail-value" id="detailTime">周一 第3-4节</div></div>
+      <div class="detail-row"><div class="detail-label">上课教室</div><div class="detail-value" id="detailRoom">C502</div></div>
+      <div class="detail-row"><div class="detail-label">上课周次</div><div class="detail-value" id="detailWeeks">1-16周</div></div>
+    </div>
+    <div class="drawer-section">
+      <div class="drawer-section-title">选课信息</div>
+      <div class="detail-row"><div class="detail-label">选课班级</div><div class="detail-value" id="detailClasses">计算机2301、计算机2302</div></div>
+      <div class="detail-row"><div class="detail-label">选课人数</div><div class="detail-value" id="detailStudents">86人</div></div>
+      <div class="detail-row"><div class="detail-label">教室容量</div><div class="detail-value" id="detailCapacity">120座</div></div>
+    </div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn btn-default" onclick="closeDrawer()">取消</button>
+    <button class="btn btn-default"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>调课</button>
+    <button class="btn btn-primary">保存修改</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// Data
+var periods = [
+  {num:1,time:'08:00\n08:45'},{num:2,time:'08:55\n09:40'},
+  {num:3,time:'10:00\n10:45'},{num:4,time:'10:55\n11:40'},
+  {num:5,time:'14:00\n14:45'},{num:6,time:'14:55\n15:40'},
+  {num:7,time:'16:00\n16:45'},{num:8,time:'16:55\n17:40'},
+  {num:9,time:'19:00\n19:45'},{num:10,time:'19:55\n20:40'}
+];
+
+var courses = [
+  {day:0,period:0,span:2,name:'高等数学',teacher:'王建国',room:'A301',dept:'math',classes:'数学2301'},
+  {day:0,period:2,span:2,name:'数据结构',teacher:'张明远',room:'C502',dept:'cs',classes:'计算机2301'},
+  {day:0,period:4,span:2,name:'大学英语',teacher:'刘芳',room:'B108',dept:'eng',classes:'多专业合班'},
+  {day:0,period:8,span:2,name:'体育(篮球)',teacher:'陈刚',room:'体育馆',dept:'edu',classes:'体育选修'},
+  {day:1,period:0,span:2,name:'线性代数',teacher:'王建国',room:'B205',dept:'math',classes:'计算机2301'},
+  {day:1,period:2,span:2,name:'计算机组成原理',teacher:'李伟',room:'A301',dept:'cs',classes:'计算机2301',conflict:true,conflictReason:'教室容量不足：120人选课，A301仅80座'},
+  {day:1,period:5,span:2,name:'概率论与数理统计',teacher:'赵秀英',room:'B301',dept:'math',classes:'经济2301'},
+  {day:1,period:8,span:2,name:'西方经济学',teacher:'孙志强',room:'D102',dept:'eco',classes:'经济2301'},
+  {day:2,period:0,span:2,name:'操作系统',teacher:'周海',room:'C502',dept:'cs',classes:'计算机2302'},
+  {day:2,period:2,span:2,name:'大学物理',teacher:'钱学森',room:'A201',dept:'phys',classes:'物理2301'},
+  {day:2,period:4,span:2,name:'马克思主义基本原理',teacher:'吴芳',room:'D401',dept:'law',classes:'多专业合班'},
+  {day:2,period:6,span:2,name:'艺术鉴赏',teacher:'郑美',room:'E101',dept:'art',classes:'全校选修'},
+  {day:3,period:0,span:2,name:'算法设计与分析',teacher:'张明远',room:'C301',dept:'cs',classes:'计算机2301'},
+  {day:3,period:2,span:2,name:'离散数学',teacher:'赵秀英',room:'B205',dept:'math',classes:'计算机2301'},
+  {day:3,period:4,span:2,name:'数据结构',teacher:'张明远',room:'C502',dept:'cs',classes:'计算机2302',conflict:true,conflictReason:'C502教室同时段与操作系统冲突'},
+  {day:3,period:6,span:2,name:'财务管理',teacher:'孙志强',room:'D102',dept:'eco',classes:'经济2302'},
+  {day:4,period:0,span:2,name:'编译原理',teacher:'李伟',room:'C301',dept:'cs',classes:'计算机2301'},
+  {day:4,period:2,span:2,name:'英语听说',teacher:'刘芳',room:'B108',dept:'eng',classes:'计算机2301'},
+  {day:4,period:4,span:2,name:'软件工程',teacher:'周海',room:'C502',dept:'cs',classes:'计算机2302'},
+  {day:4,period:6,span:1,name:'形势与政策',teacher:'吴芳',room:'D401',dept:'law',classes:'多专业合班'},
+  {day:5,period:2,span:2,name:'数学建模',teacher:'钱学森',room:'A201',dept:'math',classes:'数学2302'},
+  {day:5,period:4,span:2,name:'油画基础',teacher:'郑美',room:'E101',dept:'art',classes:'全校选修'},
+  {day:6,period:8,span:2,name:'程序设计实践',teacher:'李伟',room:'C301',dept:'cs',classes:'计算机2301'}
+];
+
+var teachers = [
+  {id:'T001',name:'王建国',dept:'数学与统计学院',title:'教授',hours:12,status:'active'},
+  {id:'T002',name:'张明远',dept:'计算机科学学院',title:'教授',hours:10,status:'active'},
+  {id:'T003',name:'李伟',dept:'计算机科学学院',title:'副教授',hours:14,status:'active'},
+  {id:'T004',name:'刘芳',dept:'外国语学院',title:'讲师',hours:16,status:'active'},
+  {id:'T005',name:'赵秀英',dept:'数学与统计学院',title:'副教授',hours:8,status:'active'},
+  {id:'T006',name:'孙志强',dept:'经济管理学院',title:'教授',hours:10,status:'active'},
+  {id:'T007',name:'周海',dept:'计算机科学学院',title:'副教授',hours:12,status:'active'},
+  {id:'T008',name:'钱学森',dept:'物理学院',title:'教授',hours:6,status:'active'},
+  {id:'T009',name:'吴芳',dept:'法学院',title:'讲师',hours:8,status:'inactive'},
+  {id:'T010',name:'郑美',dept:'艺术学院',title:'副教授',hours:6,status:'active'},
+  {id:'T011',name:'陈刚',dept:'教育学院',title:'讲师',hours:4,status:'active'}
+];
+
+function buildScheduleGrid() {
+  var grid = document.getElementById('scheduleGrid');
+  for (var p = 0; p < periods.length; p++) {
+    var label = document.createElement('div');
+    label.className = 'time-label';
+    label.innerHTML = '<span class="period-num">' + periods[p].num + '</span><span class="period-time">' + periods[p].time.replace('\n','<br>') + '</span>';
+    grid.appendChild(label);
+    for (var d = 0; d < 7; d++) {
+      var cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      cell.dataset.day = d; cell.dataset.period = p;
+      var course = null;
+      for (var i = 0; i < courses.length; i++) {
+        if (courses[i].day === d && courses[i].period === p) { course = courses[i]; break; }
+      }
+      if (course) {
+        var card = document.createElement('div');
+        card.className = 'course-card course-' + course.dept + (course.conflict ? ' conflict' : '');
+        card.innerHTML = '<div class="course-name">' + course.name + '</div><div class="course-detail">' + course.room + ' · ' + course.teacher + '</div>';
+        card.onclick = function(e, c) { return function(ev) { ev.stopPropagation(); openDrawer(c); }; }(course);
+        if (course.conflict) {
+          card.onmouseenter = function(e, c) { return function(ev) { showTooltip(ev, '冲突: ' + c.conflictReason); }; }(course);
+          card.onmouseleave = hideTooltip;
+        }
+        cell.appendChild(card);
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function buildTeacherTable() {
+  var tbody = document.getElementById('teacherTableBody');
+  var html = '';
+  for (var i = 0; i < teachers.length; i++) {
+    var t = teachers[i];
+    var sc = t.status === 'active' ? 'status-active' : 'status-inactive';
+    var st = t.status === 'active' ? '在职' : '休假';
+    html += '<tr><td><input type="checkbox" /></td><td>' + t.id + '</td><td style="font-weight:500">' + t.name + '</td><td>' + t.dept + '</td><td>' + t.title + '</td><td>' + t.hours + ' 课时</td><td><span class="status-tag ' + sc + '">' + st + '</span></td><td class="actions"><button class="btn btn-text" style="padding:0 6px;height:24px;font-size:12px">编辑</button><button class="btn btn-text" style="padding:0 6px;height:24px;font-size:12px;color:var(--b3-theme-error)">删除</button></td></tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+function buildTimelineView() {
+  var container = document.getElementById('timelineContainer');
+  var days = ['周一','周二','周三','周四','周五','周六','周日'];
+  var hours = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+  var html = '<div class="timeline-header-row"><div class="timeline-day-label"></div><div class="timeline-hours">';
+  for (var h = 0; h < hours.length; h++) html += '<div class="timeline-hour">' + hours[h] + '</div>';
+  html += '</div></div>';
+  var rootStyles = getComputedStyle(document.documentElement);
+  var bgStyles = {
+    cs:'background:'+rootStyles.getPropertyValue('--course-cs-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-cs-border').trim(),
+    math:'background:'+rootStyles.getPropertyValue('--course-math-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-math-border').trim(),
+    phys:'background:'+rootStyles.getPropertyValue('--course-phys-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-phys-border').trim(),
+    eng:'background:'+rootStyles.getPropertyValue('--course-eng-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-eng-border').trim(),
+    art:'background:'+rootStyles.getPropertyValue('--course-art-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-art-border').trim(),
+    eco:'background:'+rootStyles.getPropertyValue('--course-eco-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-eco-border').trim(),
+    law:'background:'+rootStyles.getPropertyValue('--course-law-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-law-border').trim(),
+    edu:'background:'+rootStyles.getPropertyValue('--course-edu-bg').trim()+';border-left-color:'+rootStyles.getPropertyValue('--course-edu-border').trim()
+  };
+  for (var di = 0; di < days.length; di++) {
+    html += '<div class="timeline-row"><div class="timeline-day-name">' + days[di] + '</div><div class="timeline-track">';
+    for (var ci = 0; ci < courses.length; ci++) {
+      var c = courses[ci];
+      if (c.day !== di) continue;
+      var startHour = c.period < 4 ? 8 + c.period : c.period < 8 ? 14 + (c.period - 4) : 19 + (c.period - 8);
+      var left = ((startHour - 8) / 14 * 100);
+      var width = (c.span / 14 * 100);
+      html += '<div class="timeline-event" style="left:' + left + '%;width:' + width + '%;' + bgStyles[c.dept] + '"><span style="font-weight:500">' + c.name + '</span><span style="margin-left:6px;opacity:.7">' + c.room + '</span></div>';
+    }
+    html += '</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+function buildMonthView() {
+  var grid = document.getElementById('monthGrid');
+  var dayNames = ['一','二','三','四','五','六','日'];
+  var html = '<div class="month-header-row">';
+  for (var i = 0; i < dayNames.length; i++) html += '<div class="month-header-cell">周' + dayNames[i] + '</div>';
+  html += '</div><div class="month-body">';
+  var startDay = 6;
+  for (var i = 0; i < startDay; i++) { var d = 28 - startDay + 1 + i; html += '<div class="month-cell other-month"><div class="date-num">' + d + '</div></div>'; }
+  var rs = getComputedStyle(document.documentElement);
+  var cc = {cs:rs.getPropertyValue('--course-cs-border').trim(),math:rs.getPropertyValue('--course-math-border').trim(),phys:rs.getPropertyValue('--course-phys-border').trim(),eng:rs.getPropertyValue('--course-eng-border').trim(),art:rs.getPropertyValue('--course-art-border').trim(),eco:rs.getPropertyValue('--course-eco-border').trim(),law:rs.getPropertyValue('--course-law-border').trim(),edu:rs.getPropertyValue('--course-edu-border').trim()};
+  for (var d = 1; d <= 31; d++) {
+    var dow = (startDay + d - 1) % 7;
+    var isToday = d === 24;
+    var isWeekend = dow >= 5;
+    html += '<div class="month-cell' + (isToday ? ' today' : '') + '"><div class="date-num">' + d + '</div>';
+    if (!isWeekend && d >= 24 && d <= 28) {
+      var count = 0;
+      for (var ci = 0; ci < courses.length && count < 3; ci++) {
+        if (courses[ci].day === dow) {
+          html += '<div class="month-event-item" style="background:' + cc[courses[ci].dept] + '22;color:' + cc[courses[ci].dept] + '">' + courses[ci].name + '</div>';
+          count++;
+        }
+      }
+    }
+    html += '</div>';
+  }
+  var lastDow = (startDay + 31 - 1) % 7;
+  for (var i = 1; i <= 6 - lastDow; i++) html += '<div class="month-cell other-month"><div class="date-num">' + i + '</div></div>';
+  html += '</div>';
+  grid.innerHTML = html;
+}
+
+function toggleNav(el) { el.parentElement.classList.toggle('open'); }
+
+function switchPage(pageId, navEl) {
+  var all = document.querySelectorAll('.nav-child');
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('active');
+  if (navEl) navEl.classList.add('active');
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
+  var map = {schedule:'page-schedule','schedule-timeline':'page-schedule-timeline','schedule-month':'page-schedule-month',resource:'page-resource',scheduling:'page-scheduling',conflict:'page-conflict',settings:'page-settings'};
+  var t = document.getElementById(map[pageId]);
+  if (t) t.classList.add('active');
+  var names = {schedule:'周视图课表','schedule-timeline':'时间线视图','schedule-month':'月视图',resource:'资源管理',scheduling:'自动排课',conflict:'冲突检测',settings:'基本设置'};
+  document.getElementById('breadcrumbCurrent').textContent = names[pageId] || '';
+}
+
+function switchView(view, btn) {
+  var btns = document.querySelectorAll('.view-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  btn.classList.add('active');
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
+  if (view === 'week') document.getElementById('page-schedule').classList.add('active');
+  else if (view === 'timeline') document.getElementById('page-schedule-timeline').classList.add('active');
+  else if (view === 'month') document.getElementById('page-schedule-month').classList.add('active');
+}
+
+function switchResourceTab(el) {
+  var tabs = document.querySelectorAll('.resource-tab');
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+  el.classList.add('active');
+}
+
+function toggleTheme() {
+  var html = document.documentElement;
+  var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  var icon = document.getElementById('themeIcon');
+  if (next === 'dark') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+
+function openDrawer(course) {
+  if (!course) return;
+  document.getElementById('drawerTitle').textContent = course.name;
+  document.getElementById('detailName').textContent = course.name;
+  document.getElementById('detailTeacher').textContent = course.teacher;
+  var dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
+  var periodNames = ['1-2节 (08:00-09:40)','3-4节 (10:00-11:40)','5-6节 (14:00-15:40)','7-8节 (16:00-17:40)','9-10节 (19:00-20:40)'];
+  document.getElementById('detailTime').textContent = dayNames[course.day] + ' 第' + periodNames[Math.floor(course.period / 2)];
+  document.getElementById('detailRoom').textContent = course.room;
+  document.getElementById('detailClasses').textContent = course.classes;
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function showTooltip(e, text) {
+  var tip = document.getElementById('tooltip');
+  tip.innerHTML = text;
+  tip.classList.add('visible');
+  tip.style.left = e.clientX + 12 + 'px';
+  tip.style.top = e.clientY - 8 + 'px';
+}
+function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
+
+function selectConflict(el) {
+  var items = document.querySelectorAll('.conflict-item');
+  for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+  el.classList.add('active');
+}
+
+function locateInSchedule() {
+  var navChildren = document.querySelectorAll('.nav-child');
+  if (navChildren[0]) switchPage('schedule', navChildren[0]);
+  var viewBtns = document.querySelectorAll('.view-btn');
+  if (viewBtns[0]) switchView('week', viewBtns[0]);
+}
+
+function startScheduling() {
+  var bar = document.getElementById('progressBar');
+  var text = document.getElementById('progressText');
+  var progress = 78;
+  var interval = setInterval(function() {
+    progress += Math.random() * 3;
+    if (progress >= 100) { progress = 100; clearInterval(interval); text.textContent = '排课完成 100%'; }
+    else { text.textContent = '已完成 ' + Math.floor(progress) + '%'; }
+    bar.style.width = progress + '%';
+  }, 300);
+}
+
+// Init
+buildScheduleGrid();
+buildTeacherTable();
+buildTimelineView();
+buildMonthView();
+</script>
+</body>
+</html>

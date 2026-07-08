@@ -1,0 +1,32 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ZCode
+.zcode/
+
+# Go build
+bin/
+*.exe
+*.syso
+*.dll
+*.so
+*.dylib
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Wails build cache
+.task/
+
+# OS
+.DS_Store
+Thumbs.db
