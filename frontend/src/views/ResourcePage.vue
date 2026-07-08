@@ -134,6 +134,19 @@ const titleOptions = [
   { label: '（空）', value: '' },
 ]
 
+/** 中文模糊匹配：pattern 的每个字符必须按顺序出现在 label 中（不必连续）。 */
+function fuzzyFilter(pattern: string, option: { label: string; value: any }): boolean {
+  if (!pattern) return true
+  const p = pattern.toLowerCase()
+  const l = option.label.toLowerCase()
+  // 子序列匹配：搜"职师"能匹配"职业技术师范学院"
+  let pi = 0
+  for (let li = 0; li < l.length && pi < p.length; li++) {
+    if (l[li] === p[pi]) pi++
+  }
+  return pi === p.length
+}
+
 // ===== Modal state =====
 const showModal = ref(false)
 const editingItem = ref<any>(null)
@@ -371,7 +384,7 @@ function downloadTemplate() {
         <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
           <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
           <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
-          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="f.options" :filterable="f.filterable" :clearable="true" :placeholder="'请选择' + f.label" />
+          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="f.options" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
           <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>
