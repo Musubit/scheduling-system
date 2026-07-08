@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { PageId, ScheduleView } from '@/types'
-import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
+import { GetActiveSemester, GetSemesters } from '../../bindings/scheduling-system/services/resourceservice'
 
 /**
  * 全局应用状态：主题、导航、侧栏
@@ -102,18 +102,33 @@ export const useAppStore = defineStore('app', () => {
   const searchQuery = ref('')
   const deptFilter = ref('全部院系')
   const semesterFilter = ref('')  // loaded from active semester
+  const semesters = ref<Array<{ ID: number; name: string }>>([])  // all semesters from DB
   const pendingScheduleNav = ref(false) // trigger confirmation dialog after scheduling
 
-  // Init: load active semester
+  const semesterOptions = computed(() =>
+    semesters.value.map(s => ({ label: s.name, value: s.name }))
+  )
+
+  // Init: load active semester and all semesters
   async function initSemester() {
+    await loadSemesters()
     try {
       const sem = await GetActiveSemester()
       if (sem && sem.name) {
         semesterFilter.value = sem.name
+      } else if (semesters.value.length > 0) {
+        semesterFilter.value = semesters.value[0].name
       }
     } catch { /* no active semester */ }
   }
   initSemester()
+
+  async function loadSemesters() {
+    try {
+      const result = await GetSemesters()
+      semesters.value = result || []
+    } catch { /* backend unavailable */ }
+  }
 
   return {
     // theme
@@ -132,6 +147,9 @@ export const useAppStore = defineStore('app', () => {
     searchQuery,
     deptFilter,
     semesterFilter,
+    semesters,
+    semesterOptions,
     pendingScheduleNav,
+    loadSemesters,
   }
 })

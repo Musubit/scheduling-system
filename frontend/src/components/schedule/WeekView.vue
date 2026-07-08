@@ -386,7 +386,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 /* +N badge */
 .overflow-badge {
   position: absolute; top: 2px; right: 2px; z-index: 2;
-  background: var(--b3-theme-warning); color: #fff;
+  background: var(--b3-theme-error, #d03050); color: #fff;
   font-size: 10px; font-weight: 700; padding: 1px 5px;
   border-radius: 8px; cursor: pointer; line-height: 1.4;
 }
