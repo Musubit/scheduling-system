@@ -78,6 +78,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
           logs: goResult.logs || [],
         }
         logs.value = goResult.logs || ['排课完成']
+        // Auto-refresh schedule views
+        const { useScheduleStore } = await import('./schedule')
+        const { useAppStore } = await import('./app')
+        useScheduleStore().loadSchedule(useAppStore().semesterFilter)
       }
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
