@@ -247,3 +247,11 @@ defineExpose({ openDrawer, closeDrawer, setAllEntries })
   margin-top: 12px;
 }
 </style>
+
+<style>
+/* Let clicks pass through the drawer mask so the schedule grid remains interactive */
+.n-drawer-mask {
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+</style>
