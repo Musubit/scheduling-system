@@ -19,7 +19,6 @@ const appStore = useAppStore()
       v-if="appStore.currentPage === 'schedule'"
       v-model:value="appStore.semesterFilter"
       :options="appStore.semesterOptions"
-      filterable
       size="small"
       style="width: 170px"
     />

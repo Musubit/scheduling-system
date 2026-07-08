@@ -173,7 +173,7 @@ async function handleRestore() {
       </div>
       
       <div class="setting-item" style="border-top:1px dashed var(--b3-border-color); padding-top:12px;">
-        <n-button size="small" type="primary" @click="openNewSemester">+ 新增学期</n-button>
+        <n-button size="small" type="error" @click="openNewSemester">+ 新增学期</n-button>
       </div>
     </div>
 
