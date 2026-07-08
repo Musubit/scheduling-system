@@ -92,49 +92,34 @@ onMounted(() => {
 })
 
 // ===== Backup / Restore =====
-const restoreFileRef = ref<HTMLInputElement>()
-
 async function handleBackup() {
   try {
-    const { GetDatabasePath, BackupDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
-    const dbPath = await GetDatabasePath()
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const backupName = `scheduling-backup-${timestamp}.db`
-    // Use a simple file save approach - create a download link
-    const response = await fetch(`file:///${dbPath}`)
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = backupName
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch {
-    // Fallback: try direct file copy via backend
-    try {
-      const { BackupDatabase, GetDatabasePath } = await import('../../bindings/scheduling-system/services/resourceservice')
-      const dbPath = await GetDatabasePath()
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const backupName = `scheduling-backup-${timestamp}.db`
-      await BackupDatabase(backupName)
-      alert(`备份已保存为: ${backupName}`)
-    } catch (e: any) {
-      alert('备份失败: ' + (e?.message || '未知错误'))
-    }
+    const { Dialogs } = await import('@wailsio/runtime')
+    const filePath = await (Dialogs as any).SaveFile({
+      title: '选择备份保存位置',
+      defaultFilename: `scheduling-backup-${new Date().toISOString().slice(0, 10)}.db`,
+      filters: [{ display: '数据库文件', pattern: '*.db' }],
+    })
+    if (!filePath) return
+    const { BackupDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
+    await BackupDatabase(filePath)
+    alert('备份已保存到: ' + filePath)
+  } catch (e: any) {
+    alert('备份失败: ' + (e?.message || '未知错误'))
   }
 }
 
-function triggerRestore() {
-  restoreFileRef.value?.click()
-}
-
-async function handleRestoreFile(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  if (!confirm('导入备份将覆盖当前所有数据，确定继续吗？')) return
+async function handleRestore() {
   try {
+    const { Dialogs } = await import('@wailsio/runtime')
+    const filePath = await (Dialogs as any).OpenFile({
+      title: '选择数据库备份文件',
+      filters: [{ display: '数据库文件', pattern: '*.db' }],
+    })
+    if (!filePath) return
+    if (!confirm('导入备份将覆盖当前所有数据，确定继续吗？\n\n文件: ' + filePath)) return
     const { RestoreDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
-    await RestoreDatabase(file.name)
+    await RestoreDatabase(filePath)
     alert('数据已恢复，请重启应用以生效。')
   } catch (e: any) {
     alert('恢复失败: ' + (e?.message || '未知错误'))
@@ -238,7 +223,6 @@ async function handleRestoreFile(e: Event) {
         </n-space>
       </template>
     </n-modal>
-    <input ref="restoreFileRef" type="file" accept=".db" style="display:none" @change="handleRestoreFile" />
   </div>
 </template>
 
