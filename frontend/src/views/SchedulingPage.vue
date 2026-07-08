@@ -49,6 +49,7 @@ const semesterOptions = [
               :key="opt.key"
               :checked="store.config.constraints.includes(opt.key)"
               size="small"
+              @update:checked="store.toggleConstraint(opt.key)"
             >
               {{ opt.label }}
             </n-checkbox>
@@ -68,6 +69,14 @@ const semesterOptions = [
           style="margin-top: 12px"
         >
           {{ store.isRunning ? '排课中...' : '开始自动排课' }}
+        </n-button>
+        <n-button
+          v-if="store.isRunning"
+          block
+          @click="store.stopScheduling()"
+          style="margin-top: 8px"
+        >
+          停止排课
         </n-button>
       </div>
 

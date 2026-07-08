@@ -54,16 +54,59 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     isRunning.value = false
   }
 
+  // ===== 约束切换 =====
+  function toggleConstraint(key: string) {
+    const idx = config.value.constraints.indexOf(key)
+    if (idx >= 0) {
+      config.value.constraints.splice(idx, 1)
+    } else {
+      config.value.constraints.push(key)
+    }
+  }
+
   // ===== 执行排课 =====
+  let timer: ReturnType<typeof setInterval> | null = null
+
   async function startScheduling() {
     if (isRunning.value) return
     isRunning.value = true
     progress.value = 0
-    logs.value = []
+    result.value = null
+    logs.value = [`[14:32:01] INFO  排课引擎启动，共 248 门课程待排`, `[14:32:02] INFO  加载约束条件：${config.value.constraints.length} 条规则已启用`]
 
-    // TODO: 阶段3接入 Wails binding 调用 Go 排课算法
-    // 当前为模拟进度
-    logs.value.push('[排课] 排课引擎启动...')
+    // 模拟排课进度
+    timer = setInterval(() => {
+      if (!isRunning.value) return
+      progress.value += Math.random() * 4 + 1
+      if (progress.value >= 100) {
+        progress.value = 100
+        stopScheduling()
+        result.value = {
+          totalCourses: 248,
+          scheduled: 186,
+          conflicts: 3,
+          utilization: 0.942,
+          logs: [],
+        }
+        logs.value.push('[14:35:26] INFO  排课完成！已排 186 门，教室利用率 94.2%')
+        logs.value.push('[14:35:26] WARN  剩余 62 门课程需手动调整')
+      } else if (Math.random() < 0.3) {
+        const msgs = [
+          `[14:32:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}] INFO  第 ${Math.floor(progress.value / 5)} 轮迭代完成`,
+          `[14:33:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}] WARN  发现教师时间冲突`,
+          `[14:34:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}] ERR  教室容量不足`,
+        ]
+        logs.value.push(msgs[Math.floor(Math.random() * msgs.length)])
+      }
+    }, 200)
+  }
+
+  function stopScheduling() {
+    isRunning.value = false
+    if (timer) {
+      clearInterval(timer)
+      timer = null
+    }
   }
 
   return {
@@ -76,6 +119,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     logs,
     progressText,
     resetProgress,
+    toggleConstraint,
     startScheduling,
+    stopScheduling,
   }
 })

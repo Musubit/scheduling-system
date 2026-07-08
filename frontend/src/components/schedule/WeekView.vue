@@ -1,7 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import { PERIODS, DAY_NAMES } from '../../types'
-import type { DeptCode } from '../../types'
+import type { DeptCode, ScheduleEntry } from '../../types'
+
+// 注入抽屉引用
+const drawerRef = inject<any>('drawerRef')
+
+// 打开课程详情抽屉
+function openCourseDetail(course: MockCourse) {
+  if (!drawerRef?.value) return
+  const entry: Partial<ScheduleEntry> = {
+    course: { id: 0, code: '', name: course.name, dept: course.dept, credit: 0, type: '', hours: 0 },
+    teacher: { id: 0, code: '', name: course.teacher, dept: '', title: '', status: 'active' },
+    classroom: { id: 0, code: '', name: course.room, building: '', capacity: 0, type: '', status: '' },
+    dayOfWeek: course.day,
+    startPeriod: course.period,
+    span: course.span,
+  }
+  drawerRef.value.openDrawer(entry)
+}
 
 // 模拟数据（阶段3替换为真实API数据）
 interface MockCourse {
@@ -82,6 +99,7 @@ const today = 1 // Tuesday
                 { 'course-conflict': getCourseAt(di, pi)!.conflict }
               ]"
               :style="{ gridRow: 'span ' + getCourseAt(di, pi)!.span }"
+              @click="openCourseDetail(getCourseAt(di, pi)!)"
             >
               <div class="course-name">{{ getCourseAt(di, pi)!.name }}</div>
               <div class="course-detail">{{ getCourseAt(di, pi)!.room }} · {{ getCourseAt(di, pi)!.teacher }}</div>

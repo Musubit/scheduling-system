@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { useScheduleStore } from '../../stores/schedule'
 import { useResourceStore } from '../../stores/resource'
@@ -23,6 +23,7 @@ interface NavGroup {
   children: NavChild[]
 }
 
+// 导航数据（和 store 保持同步）
 const navGroups: NavGroup[] = [
   {
     label: '课表中心',
@@ -60,34 +61,18 @@ const navGroups: NavGroup[] = [
   },
 ]
 
-// 展开的组
-const expandedGroups = ref(['课表中心', '资源管理'])
-
-function toggleGroup(label: string) {
-  const idx = expandedGroups.value.indexOf(label)
-  if (idx >= 0) {
-    expandedGroups.value.splice(idx, 1)
-  } else {
-    expandedGroups.value.push(label)
-  }
-}
-
+// 使用 store 的展开状态
 function isGroupOpen(label: string): boolean {
-  return expandedGroups.value.includes(label)
+  return appStore.expandedGroups.includes(label)
 }
 
-// 当前活跃的菜单项
-const activeChild = ref('周视图课表')
+// 活跃的子菜单项
+const activeChild = computed(() => appStore.breadcrumbPath[1] || '')
 
 function handleNavClick(child: NavChild) {
-  activeChild.value = child.label
   appStore.navigateTo(child.page, child.label)
-  if (child.scheduleView) {
-    scheduleStore.switchView(child.scheduleView)
-  }
-  if (child.resourceTab) {
-    resourceStore.switchTab(child.resourceTab)
-  }
+  if (child.scheduleView) scheduleStore.switchView(child.scheduleView)
+  if (child.resourceTab) resourceStore.switchTab(child.resourceTab)
 }
 </script>
 
@@ -119,7 +104,7 @@ function handleNavClick(child: NavChild) {
         class="nav-group"
         :class="{ open: isGroupOpen(group.label) }"
       >
-        <div class="nav-group-label" @click="toggleGroup(group.label)">
+        <div class="nav-group-label" @click="appStore.toggleNavGroup(group.label)">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path :d="group.icon" />
           </svg>

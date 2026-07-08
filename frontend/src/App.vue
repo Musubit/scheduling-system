@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, provide, watch } from 'vue'
 import { NConfigProvider, darkTheme } from 'naive-ui'
 import { useAppStore } from './stores/app'
 import AppSidebar from './components/layout/AppSidebar.vue'
@@ -15,6 +15,10 @@ import SettingsPage from './views/SettingsPage.vue'
 import type { PageId } from './types'
 
 const appStore = useAppStore()
+
+// Drawer ref — shared via provide/inject so child components can open it
+const drawerRef = ref<InstanceType<typeof AppDrawer>>()
+provide('drawerRef', drawerRef)
 
 // Naive UI 主题适配
 const isDark = computed(() => appStore.theme === 'dark')
@@ -70,7 +74,7 @@ watch(() => appStore.theme, (val) => {
           <component :is="currentPageComponent" />
         </div>
       </main>
-      <AppDrawer />
+      <AppDrawer ref="drawerRef" />
     </div>
   </n-config-provider>
 </template>

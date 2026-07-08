@@ -22,6 +22,16 @@ const scheduleStore = useScheduleStore()
         </template>
       </div>
       <div class="schedule-meta">
+        <div class="nav-btns">
+          <button class="nav-arrow-btn" title="上一周/月" @click="scheduleStore.currentView === 'month' ? scheduleStore.prevMonth() : scheduleStore.prevWeek()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="nav-label" v-if="scheduleStore.currentView !== 'month'">第 {{ scheduleStore.currentWeek }} 周</span>
+          <span class="nav-label" v-else>{{ scheduleStore.currentYear }}年{{ scheduleStore.currentMonth }}月</span>
+          <button class="nav-arrow-btn" title="下一周/月" @click="scheduleStore.currentView === 'month' ? scheduleStore.nextMonth() : scheduleStore.nextWeek()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
         <span class="stat-badge">已排 {{ scheduleStore.totalCourses || '...' }} 门课</span>
       </div>
     </div>
@@ -58,6 +68,44 @@ const scheduleStore = useScheduleStore()
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.nav-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-arrow-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--b3-border-radius-s);
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  background: var(--b3-theme-surface);
+}
+
+.nav-arrow-btn:hover:not(:disabled) {
+  background: var(--b3-list-hover);
+  color: var(--b3-theme-primary);
+}
+
+.nav-arrow-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.nav-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--b3-theme-on-background);
+  min-width: 60px;
+  text-align: center;
 }
 
 .stat-badge {
