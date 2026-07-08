@@ -70,6 +70,7 @@ async function saveSemester() {
       await CreateSemester(data)
     }
     await loadSemesters()
+    await appStore.loadSemesters()  // refresh toolbar dropdown
     showSemesterModal.value = false
   } catch (e) {
     console.warn('Failed to save semester:', e)
@@ -82,6 +83,7 @@ async function deleteSemester(id: number) {
     const { DeleteSemester } = await import('../../bindings/scheduling-system/services/resourceservice')
     await DeleteSemester(id)
     await loadSemesters()
+    await appStore.loadSemesters()  // refresh toolbar dropdown
   } catch (e) {
     console.warn('Failed to delete semester:', e)
   }
