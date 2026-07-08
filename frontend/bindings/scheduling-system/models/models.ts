@@ -87,7 +87,7 @@ export interface ScheduleEntry {
     "dayOfWeek": number;
 
     /**
-     * 0-9
+     * 0-10 (对应第1-11节)
      */
     "startPeriod": number;
 

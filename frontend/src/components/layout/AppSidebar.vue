@@ -94,7 +94,21 @@ function handleNavClick(child: NavChild) {
 <template>
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo">排</div>
+      <svg class="sidebar-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- 外框圆角矩形 -->
+        <rect x="2" y="3" width="28" height="26" rx="5" stroke="currentColor" stroke-width="2.2" />
+        <!-- 顶部横线（表头） -->
+        <line x1="2" y1="11" x2="30" y2="11" stroke="currentColor" stroke-width="2" />
+        <!-- 纵向分隔线 -->
+        <line x1="10" y1="11" x2="10" y2="29" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+        <line x1="18" y1="11" x2="18" y2="29" stroke="currentColor" stroke-width="1.2" opacity="0.5" />
+        <!-- 中间横线 -->
+        <line x1="10" y1="18" x2="30" y2="18" stroke="currentColor" stroke-width="1" opacity="0.35" />
+        <line x1="10" y1="24" x2="30" y2="24" stroke="currentColor" stroke-width="1" opacity="0.35" />
+        <!-- 左下角小方块（代表已排课） -->
+        <rect x="4" y="14" width="4" height="3" rx="1" fill="currentColor" opacity="0.6" />
+        <rect x="4" y="20" width="4" height="3" rx="1" fill="currentColor" opacity="0.3" />
+      </svg>
       <span class="sidebar-title">高校排课系统</span>
     </div>
 
@@ -162,11 +176,9 @@ function handleNavClick(child: NavChild) {
 }
 
 .sidebar-logo {
-  width: 28px; height: 28px;
-  background: var(--b3-theme-primary);
-  border-radius: var(--b3-border-radius-s);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--b3-theme-on-primary); font-weight: 700; font-size: 14px;
+  width: 28px;
+  height: 28px;
+  color: var(--b3-theme-primary);
   flex-shrink: 0;
 }
 
