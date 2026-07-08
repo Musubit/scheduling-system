@@ -151,6 +151,7 @@ export interface SchedulingConfig {
   semester: string
   strategy: string
   iterations: number
+  timeLimit?: number
   constraints: string[]
   lockedSlots?: LockedTimeSlot[]
 }

@@ -89,8 +89,13 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
         </div>
 
         <div class="form-group">
-          <label class="form-label">算法迭代次数</label>
-          <n-input-number v-model:value="store.config.iterations" :min="100" :max="50000" size="small" style="width:100%" />
+          <label class="form-label">求解时间</label>
+          <n-select
+            v-model:value="store.timePreset"
+            :options="store.timePresets"
+            size="small"
+          />
+          <span class="form-hint">时间越长，排课质量越高，但等待更久</span>
         </div>
 
         <n-button
@@ -276,6 +281,13 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
   font-weight: 500;
   color: var(--b3-theme-on-surface);
   margin-bottom: 6px;
+}
+
+.form-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  margin-top: 4px;
 }
 
 .checkbox-group {

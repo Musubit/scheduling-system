@@ -10,7 +10,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     semester: '2025-2026 第二学期',
     strategy: 'teacher_first',
     iterations: 5000,
-    constraints: ['no_consecutive_teacher', 'course_dispersed', 'large_class_large_room', 'coordinated_classes'],
+    timeLimit: 60,
+    constraints: ['teacher_preference', 'course_dispersed', 'teacher_days_limit', 'low_floor_preference'],
   })
 
   const constraintOptions = [
@@ -21,6 +22,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     { key: 'avoid_saturday', label: '尽量避开周六排课' },
     { key: 'avoid_sunday', label: '尽量避开周日排课' },
   ]
+
+  // Time presets for non-technical users
+  const timePresets = [
+    { value: 15, label: '⚡ 快速（15秒）' },
+    { value: 60, label: '⭐ 标准（60秒）——推荐' },
+    { value: 120, label: '🔍 深度（2分钟）' },
+    { value: 300, label: '🏆 极致（5分钟）' },
+  ]
+  const timePreset = ref(60)
 
   const strategyOptions = [
     { value: 'teacher_first', label: '教师时间优先' },
@@ -71,6 +81,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         semester: config.value.semester,
         strategy: config.value.strategy,
         iterations: config.value.iterations,
+        timeLimit: timePreset.value,  // use selected time preset
         constraints: config.value.constraints,
         lockedSlots: lockedSlots.length > 0 ? lockedSlots : undefined,
       }
@@ -118,6 +129,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
   return {
     config, constraintOptions, strategyOptions,
+    timePresets, timePreset,
     isRunning, progress, result, logs, progressText,
     toggleConstraint, resetProgress, startScheduling, stopScheduling,
   }
