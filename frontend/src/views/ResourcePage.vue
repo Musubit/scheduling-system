@@ -3,6 +3,7 @@ import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
+import * as RS from '../../bindings/scheduling-system/services/resourceservice'
 
 const resourceStore = useResourceStore()
 
@@ -114,22 +115,70 @@ function closeModal() { showModal.value = false; editingItem.value = null }
 async function saveItem() {
   const tab = resourceStore.activeTab
   const data = getMockData(tab)
-  if (editingItem.value) {
-    const idx = data.findIndex((i: any) => i.id === editingItem.value.id)
-    if (idx >= 0) Object.assign(data[idx], formData.value)
-  } else {
-    data.push({ ...formData.value, id: Date.now() })
+  try {
+    if (editingItem.value) {
+      // Update via Go backend, fallback to local
+      await callUpdate(tab, editingItem.value.id, formData.value)
+      const idx = data.findIndex((i: any) => i.id === editingItem.value.id)
+      if (idx >= 0) Object.assign(data[idx], formData.value)
+    } else {
+      // Create via Go backend
+      await callCreate(tab, formData.value)
+      data.push({ ...formData.value, id: Date.now() })
+    }
+    resourceStore.loadAll()
+  } catch (e) {
+    console.warn('Go backend CRUD failed, using local:', e)
+    // Fallback to local
+    if (editingItem.value) {
+      const idx = data.findIndex((i: any) => i.id === editingItem.value.id)
+      if (idx >= 0) Object.assign(data[idx], formData.value)
+    } else {
+      data.push({ ...formData.value, id: Date.now() })
+    }
   }
-  resourceStore.loadAll()
   closeModal()
 }
 
 async function deleteItem(row: any) {
   if (!confirm('确定要删除这条记录吗？')) return
   const data = getMockData(resourceStore.activeTab)
+  try {
+    await callDelete(resourceStore.activeTab, row.id)
+  } catch (e) { console.warn('Delete via Go failed, local fallback:', e) }
   const idx = data.findIndex((i: any) => i.id === row.id)
   if (idx >= 0) data.splice(idx, 1)
   resourceStore.loadAll()
+}
+
+async function callCreate(tab: string, item: any) {
+  const m = toModel(tab, item)
+  switch (tab) {
+    case 'teacher': await RS.CreateTeacher(m); break
+    case 'classroom': await RS.CreateClassroom(m); break
+    case 'course': await RS.CreateCourse(m); break
+    case 'class': await RS.CreateClassGroup(m); break
+  }
+}
+async function callUpdate(tab: string, id: number, item: any) {
+  const m = toModel(tab, item)
+  switch (tab) {
+    case 'teacher': await RS.UpdateTeacher(m); break
+    case 'classroom': await RS.UpdateClassroom(m); break
+    case 'course': await RS.UpdateCourse(m); break
+    case 'class': await RS.UpdateClassGroup(m); break
+  }
+}
+async function callDelete(tab: string, id: number) {
+  switch (tab) {
+    case 'teacher': await RS.DeleteTeacher(id); break
+    case 'classroom': await RS.DeleteClassroom(id); break
+    case 'course': await RS.DeleteCourse(id); break
+    case 'class': await RS.DeleteClassGroup(id); break
+  }
+}
+function toModel(_tab: string, item: any): any {
+  return { ...item, id: item.id || 0 }
 }
 
 function getMockData(tab: string): any[] {
