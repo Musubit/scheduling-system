@@ -174,7 +174,7 @@ const isConstraintEnabled = (key: string) => store.config.constraints.includes(k
               <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('low_floor_preference')">
-              <span class="breakdown-label">老教师低楼层</span>
+              <span class="breakdown-label">优先低楼层</span>
               <n-progress :percentage="store.result.scoreDetail.lowFloorPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
               <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/{{ categoryMax }}</span>
             </div>

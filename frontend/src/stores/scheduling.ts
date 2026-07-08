@@ -17,7 +17,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     { key: 'teacher_preference', label: '教师偏好时段（避免早课/晚课）' },
     { key: 'course_dispersed', label: '同一课程分散安排（不集中在同一天）' },
     { key: 'teacher_days_limit', label: '教师到校天数限制（每周≤3天）' },
-    { key: 'low_floor_preference', label: '老教师优先低楼层教室' },
+    { key: 'low_floor_preference', label: '优先低楼层教室' },
   ]
 
   const strategyOptions = [

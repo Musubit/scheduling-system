@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"scheduling-system/database"
 	"scheduling-system/models"
+	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -209,7 +210,17 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 							continue
 						}
 
-						for _, room := range classrooms {
+						// Sort rooms by floor for teachers who prefer low floors
+						rooms := classrooms
+						if teacher.PreferLowFloor {
+							rooms = make([]models.Classroom, len(classrooms))
+							copy(rooms, classrooms)
+							sort.Slice(rooms, func(i, j int) bool {
+								return rooms[i].Floor < rooms[j].Floor
+							})
+						}
+
+						for _, room := range rooms {
 							roomBusy := false
 							for p := start; p < start+span; p++ {
 								if roomOccupied[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] {

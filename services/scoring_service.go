@@ -18,7 +18,7 @@ type ScoreBreakdown struct {
 	TeacherPref   float64 `json:"teacherPref"`   // 教师偏好满足度 (0-25)
 	CourseSpacing float64 `json:"courseSpacing"` // 课程间隔均匀度 (0-25)
 	TeacherDays   float64 `json:"teacherDays"`   // 教师到校天数 (0-25)
-	LowFloorPref  float64 `json:"lowFloorPref"`  // 老教师低楼层 (0-25)
+	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层 (0-25)
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
