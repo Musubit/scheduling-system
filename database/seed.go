@@ -94,37 +94,38 @@ func SeedData() {
 	}
 	DB.Create(&groups)
 
-	// ===== Schedule Entries =====
+	// ===== Schedule Entries (连上规则：startPeriod 必须是 0/2/4/6/8) =====
 	entries := []models.ScheduleEntry{
-		// Monday
-		{CourseID: 8, TeacherID: 1, ClassroomID: 1, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 0, Span: 2, Weeks: "1-16"},
-		{CourseID: 1, TeacherID: 2, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 14, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 4, Span: 2, Weeks: "1-16"},
-		{CourseID: 22, TeacherID: 11, ClassroomID: 11, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 8, Span: 2, Weeks: "1-16"},
+		// Monday: 1-2=0, 3-4=2, 5-6=4, 7-8=6, 9-10=8
+		{CourseID: 8, TeacherID: 1, ClassroomID: 1, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 高等数学 王建国 A301
+		{CourseID: 1, TeacherID: 2, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 数据结构 张明远 C502
+		{CourseID: 14, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 大学英语 刘芳 B108
+		{CourseID: 22, TeacherID: 11, ClassroomID: 11, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 8, Span: 2, Weeks: "1-16"}, // 体育 陈刚 体育馆
 		// Tuesday
-		{CourseID: 9, TeacherID: 1, ClassroomID: 3, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 0, Span: 2, Weeks: "1-16"},
-		{CourseID: 3, TeacherID: 3, ClassroomID: 1, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 10, TeacherID: 5, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 5, Span: 2, Weeks: "1-16"},
-		{CourseID: 18, TeacherID: 6, ClassroomID: 8, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 8, Span: 2, Weeks: "1-16"},
+		{CourseID: 9, TeacherID: 1, ClassroomID: 3, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 线性代数 王建国 B205
+		{CourseID: 3, TeacherID: 3, ClassroomID: 1, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 计组 李伟 A301
+		{CourseID: 10, TeacherID: 5, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 概率论 赵秀英 C301
+		{CourseID: 18, TeacherID: 6, ClassroomID: 8, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 西方经济学 孙志强 D102
 		// Wednesday
-		{CourseID: 2, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 0, Span: 2, Weeks: "1-16"},
-		{CourseID: 13, TeacherID: 8, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 20, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 4, Span: 2, Weeks: "1-16"},
-		{CourseID: 16, TeacherID: 10, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 6, Span: 2, Weeks: "1-16"},
+		{CourseID: 2, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 操作系统 周海 C502
+		{CourseID: 13, TeacherID: 8, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 大学物理 钱学森 A201
+		{CourseID: 20, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 马原 吴芳 D401
+		{CourseID: 16, TeacherID: 10, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 艺术鉴赏 郑美 E101
 		// Thursday
-		{CourseID: 4, TeacherID: 2, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 0, Span: 2, Weeks: "1-16"},
-		{CourseID: 11, TeacherID: 5, ClassroomID: 3, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 19, TeacherID: 6, ClassroomID: 8, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 6, Span: 2, Weeks: "1-16"},
+		{CourseID: 4, TeacherID: 2, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 算法设计 张明远 C301
+		{CourseID: 11, TeacherID: 5, ClassroomID: 3, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 离散数学 赵秀英 B205
+		{CourseID: 1, TeacherID: 2, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 数据结构实验 张明远 C502
+		{CourseID: 19, TeacherID: 6, ClassroomID: 8, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 财务管理 孙志强 D102
 		// Friday
-		{CourseID: 5, TeacherID: 3, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 0, Span: 2, Weeks: "1-16"},
-		{CourseID: 15, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 6, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 4, Span: 2, Weeks: "1-16"},
-		{CourseID: 21, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 6, Span: 1, Weeks: "1-16"},
+		{CourseID: 5, TeacherID: 3, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 编译原理 李伟 C301
+		{CourseID: 15, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 英语听说 刘芳 B108
+		{CourseID: 6, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 软件工程 周海 C502
+		{CourseID: 21, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 6, Span: 1, Weeks: "1-16"}, // 形势与政策 吴芳 D401 (单节)
 		// Saturday
-		{CourseID: 12, TeacherID: 8, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"},
-		{CourseID: 17, TeacherID: 10, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"},
-		// Sunday
-		{CourseID: 7, TeacherID: 3, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 6, StartPeriod: 8, Span: 2, Weeks: "1-16"},
+		{CourseID: 12, TeacherID: 8, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 数学建模 钱学森 A201
+		{CourseID: 17, TeacherID: 10, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 油画基础 郑美 E101
+		// Sunday evening
+		{CourseID: 7, TeacherID: 3, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 6, StartPeriod: 8, Span: 2, Weeks: "1-16"},  // 程序设计实践 李伟 C301
 	}
 	DB.Create(&entries)
 }
