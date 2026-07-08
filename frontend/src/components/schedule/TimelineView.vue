@@ -116,23 +116,4 @@ function eventStyle(e: ScheduleEntry, lane: number, totalLanes: number) {
 .tl-event { position: absolute; border-radius: 3px; border-left: 3px solid; padding: 2px 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; overflow: hidden; white-space: nowrap; min-width: 0; }
 .tl-event-name { font-weight: 600; color: var(--b3-theme-on-background); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 0; }
 .tl-event-room { opacity: 0.6; color: var(--b3-theme-on-surface); font-size: 10px; flex-shrink: 0; }
-.tl-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
-.tl-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
-.tl-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
-.tl-bio { background: var(--course-bio-bg); border-left-color: var(--course-bio-border); }
-.tl-civil { background: var(--course-civil-bg); border-left-color: var(--course-civil-border); }
-.tl-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
-.tl-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
-.tl-design { background: var(--course-design-bg); border-left-color: var(--course-design-border); }
-.tl-econ { background: var(--course-econ-bg); border-left-color: var(--course-econ-border); }
-.tl-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
-.tl-sci { background: var(--course-sci-bg); border-left-color: var(--course-sci-border); }
-.tl-marx { background: var(--course-marx-bg); border-left-color: var(--course-marx-border); }
-.tl-voc { background: var(--course-voc-bg); border-left-color: var(--course-voc-border); }
-.tl-intl { background: var(--course-intl-bg); border-left-color: var(--course-intl-border); }
-.tl-pe { background: var(--course-pe-bg); border-left-color: var(--course-pe-border); }
-.tl-cont { background: var(--course-cont-bg); border-left-color: var(--course-cont-border); }
-.tl-innov { background: var(--course-innov-bg); border-left-color: var(--course-innov-border); }
-.tl-engtech { background: var(--course-engtech-bg); border-left-color: var(--course-engtech-border); }
-.tl-detroit { background: var(--course-detroit-bg); border-left-color: var(--course-detroit-border); }
 </style>

@@ -423,23 +423,4 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 .course-name { font-weight: 600; color: var(--b3-theme-on-background); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .course-detail { font-size: 10px; color: var(--b3-theme-on-surface-light); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.course-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
-.course-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
-.course-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
-.course-bio { background: var(--course-bio-bg); border-left-color: var(--course-bio-border); }
-.course-civil { background: var(--course-civil-bg); border-left-color: var(--course-civil-border); }
-.course-cs { background: var(--course-cs-bg); border-left-color: var(--course-cs-border); }
-.course-art { background: var(--course-art-bg); border-left-color: var(--course-art-border); }
-.course-design { background: var(--course-design-bg); border-left-color: var(--course-design-border); }
-.course-econ { background: var(--course-econ-bg); border-left-color: var(--course-econ-border); }
-.course-eng { background: var(--course-eng-bg); border-left-color: var(--course-eng-border); }
-.course-sci { background: var(--course-sci-bg); border-left-color: var(--course-sci-border); }
-.course-marx { background: var(--course-marx-bg); border-left-color: var(--course-marx-border); }
-.course-voc { background: var(--course-voc-bg); border-left-color: var(--course-voc-border); }
-.course-intl { background: var(--course-intl-bg); border-left-color: var(--course-intl-border); }
-.course-pe { background: var(--course-pe-bg); border-left-color: var(--course-pe-border); }
-.course-cont { background: var(--course-cont-bg); border-left-color: var(--course-cont-border); }
-.course-innov { background: var(--course-innov-bg); border-left-color: var(--course-innov-border); }
-.course-engtech { background: var(--course-engtech-bg); border-left-color: var(--course-engtech-border); }
-.course-detroit { background: var(--course-detroit-bg); border-left-color: var(--course-detroit-border); }
 </style>
