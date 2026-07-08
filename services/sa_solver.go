@@ -5,18 +5,15 @@ import (
 	"math"
 	"math/rand"
 	"scheduling-system/models"
-	"strings"
 	"time"
 )
 
 // SASolver implements Simulated Annealing for course scheduling.
 // Pure Go, zero external dependencies beyond the standard library.
-type SASolver struct {
-	scorer *ScoringService
-}
+type SASolver struct{}
 
 func NewSASolver() *SASolver {
-	return &SASolver{scorer: NewScoringService()}
+	return &SASolver{}
 }
 
 // SAConfig holds parameters for the simulated annealing run.
@@ -116,7 +113,7 @@ func (s *SASolver) Solve(
 	// Build context
 	sportsCourseIDs := make(map[uint]bool)
 	for _, tt := range teachingTasks {
-		if strings.Contains(tt.Course.Name, "体育") {
+		if models.IsSportsCourse(tt.Course.Name) {
 			sportsCourseIDs[tt.CourseID] = true
 		}
 	}
@@ -851,9 +848,9 @@ func (s *SASolver) PostOptimize(
 		limit = len(entries)
 	}
 
-	// Shuffle entries to avoid bias
+	// Shuffle scored to avoid bias (shuffle the order we process entries, not entries themselves)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rng.Shuffle(len(entries), func(i, j int) { entries[i], entries[j] = entries[j], entries[i] })
+	rng.Shuffle(len(scored), func(i, j int) { scored[i], scored[j] = scored[j], scored[i] })
 
 	// Build current occupancy from all OTHER entries (excluding the one being optimized)
 	buildOcc := func(excludeIdx int) (roomOcc, teacherOcc, classOcc map[string]bool) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"scheduling-system/database"
 	"scheduling-system/models"
-	"strings"
 	"time"
 )
 
@@ -241,7 +240,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.TeachingTask) map[uint]bool {
 	ids := make(map[uint]bool)
 	for _, tt := range teachingTasks {
-		if strings.Contains(tt.Course.Name, "体育") {
+		if models.IsSportsCourse(tt.Course.Name) {
 			ids[tt.CourseID] = true
 		}
 	}
@@ -249,9 +248,10 @@ func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.Teaching
 }
 
 // loadLockedSlots reads locked time slots from the settings table.
-func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
+// Package-level function so MoveService can also use it without coupling to SchedulingService.
+func loadLockedSlotsDB(db database.DB) []lockedTimeSlot {
 	var setting models.Setting
-	if err := s.db.Where("key = ?", "locked_time_slots").First(&setting).Error(); err != nil {
+	if err := db.Where("key = ?", "locked_time_slots").First(&setting).Error(); err != nil {
 		return nil
 	}
 	var slots []lockedTimeSlot
@@ -259,6 +259,10 @@ func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
 		return nil
 	}
 	return slots
+}
+
+func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
+	return loadLockedSlotsDB(s.db)
 }
 
 // countConflictsQuick does a fast in-memory conflict count without DB queries.

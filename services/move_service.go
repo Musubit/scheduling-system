@@ -68,10 +68,8 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 	var others []models.ScheduleEntry
 	s.db.Where("semester = ? AND id != ?", entry.Semester, entry.ID).Find(&others)
 
-	// Load locked slots
-	var lockedSlots []lockedTimeSlot
-	slots := (&SchedulingService{db: s.db}).loadLockedSlots()
-	lockedSlots = slots
+	// Load locked slots via shared package-level function
+	lockedSlots := loadLockedSlotsDB(s.db)
 
 	// 1. Check locked time slots
 	for _, ls := range lockedSlots {

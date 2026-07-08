@@ -188,18 +188,13 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 
 	constraints := []string{"teacher_preference", "course_dispersed", "teacher_days_limit", "low_floor_preference"}
 
-	// Build sports course IDs
-	sportsCourseIDs := make(map[uint]bool)
-	for _, e := range entries {
-		if e.Course.Name != "" && len(e.Course.Name) >= 6 {
-			for i := 0; i <= len(e.Course.Name)-6; i++ {
-				if e.Course.Name[i:i+6] == "体育" {
-					sportsCourseIDs[e.CourseID] = true
-					break
-				}
+		// Build sports course IDs
+		sportsCourseIDs := make(map[uint]bool)
+		for _, e := range entries {
+			if models.IsSportsCourse(e.Course.Name) {
+				sportsCourseIDs[e.CourseID] = true
 			}
 		}
-	}
 
 	scorer := NewScoringService()
 	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints, sportsCourseIDs)

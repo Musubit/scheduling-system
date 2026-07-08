@@ -1,6 +1,10 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"strings"
+
+	"gorm.io/gorm"
+)
 
 // Course represents a course in the curriculum.
 type Course struct {
@@ -12,4 +16,10 @@ type Course struct {
 	Type   string  `gorm:"size:20" json:"type"` // 专业必修, 全校选修, etc.
 	Hours  int     `json:"hours"`
 	Status string  `gorm:"size:20;default:active" json:"status"` // active, inactive
+}
+
+// IsSportsCourse returns true if the course name indicates a PE/sports course.
+// Single source of truth — used by scoring, SA solver, and snapshot service.
+func IsSportsCourse(name string) bool {
+	return strings.Contains(name, "体育")
 }
