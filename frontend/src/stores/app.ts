@@ -106,13 +106,8 @@ export const useAppStore = defineStore('app', () => {
   const deptFilter = ref('全部院系')
   const semesterFilter = ref('')  // loaded from active semester
   const semesters = ref<Array<{ ID: number; name: string }>>([])  // all semesters from DB
+  const semesterOptions = ref<Array<{ label: string; value: string }>>([])  // stable ref for n-select
   const pendingScheduleNav = ref(false) // trigger confirmation dialog after scheduling
-
-  const semesterOptions = computed(() => {
-    const opts = semesters.value.map(s => ({ label: s.name, value: s.name }))
-    console.log('[appStore] semesterOptions computed:', opts.length, 'items, filter:', semesterFilter.value)
-    return opts
-  })
 
   // Init: load active semester and all semesters
   async function initSemester() {
@@ -131,8 +126,9 @@ export const useAppStore = defineStore('app', () => {
   async function loadSemesters() {
     try {
       const result = await GetSemesters()
-      console.log('[appStore] loadSemesters result:', JSON.stringify(result?.map((s: any) => s.name)))
+      console.log('[appStore] loadSemesters:', result?.map((s: any) => s.name))
       semesters.value = result || []
+      semesterOptions.value = (result || []).map((s: any) => ({ label: s.name, value: s.name }))
     } catch (e) {
       console.warn('[appStore] loadSemesters FAILED:', e)
     }
