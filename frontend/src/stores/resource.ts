@@ -1,10 +1,9 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Teacher, Classroom, Course, ClassGroup, TeachingTask } from '@/types'
 import { DEPT_NAME_MAP, DEPT_CODE_MAP } from '@/types'
 import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups, GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
 import { ListTeachingTasks } from '../../bindings/scheduling-system/services/teachingtaskservice'
-import type { models } from '../../bindings/scheduling-system/services/models'
 import { useAppStore } from './app'
 
 /**

@@ -23,6 +23,10 @@ const resourceStore = useResourceStore()
 // Load data from Go backend on startup
 onMounted(async () => {
   await appStore.loadSemesters()  // must load before schedule — initSemester may have raced
+  // Ensure semesterFilter is set (initSemester may have failed silently)
+  if (!appStore.semesterFilter && appStore.semesterOptions.length > 0) {
+    appStore.semesterFilter = appStore.semesterOptions[0].value
+  }
   resourceStore.loadAll()
   scheduleStore.loadSchedule(appStore.semesterFilter)
 })

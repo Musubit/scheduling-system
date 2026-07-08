@@ -108,9 +108,11 @@ export const useAppStore = defineStore('app', () => {
   const semesters = ref<Array<{ ID: number; name: string }>>([])  // all semesters from DB
   const pendingScheduleNav = ref(false) // trigger confirmation dialog after scheduling
 
-  const semesterOptions = computed(() =>
-    semesters.value.map(s => ({ label: s.name, value: s.name }))
-  )
+  const semesterOptions = computed(() => {
+    const opts = semesters.value.map(s => ({ label: s.name, value: s.name }))
+    console.log('[appStore] semesterOptions computed:', opts.length, 'items, filter:', semesterFilter.value)
+    return opts
+  })
 
   // Init: load active semester and all semesters
   async function initSemester() {

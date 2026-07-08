@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import type { SchedulingConfig, SchedulingResult, LockedTimeSlot } from '@/types'
 import { RunScheduling } from '../../bindings/scheduling-system/services/schedulingservice'
 import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
-import type { models } from '../../bindings/scheduling-system/services/models'
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
 const DEFAULT_LOCKED: LockedTimeSlot[] = [
