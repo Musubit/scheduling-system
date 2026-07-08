@@ -3,14 +3,14 @@ package database
 import "scheduling-system/models"
 
 // SeedData initializes the database with sample data.
-func SeedData() {
-	if DB == nil {
+func SeedData(db DB) {
+	if db == nil {
 		return
 	}
 
 	// Only seed if no data exists
 	var count int64
-	DB.Model(&models.Teacher{}).Count(&count)
+	db.Model(&models.Teacher{}).Count(&count)
 	if count > 0 {
 		return
 	}
@@ -21,25 +21,25 @@ func SeedData() {
 		{Name: "2025-2026 第一学期", IsActive: false},
 		{Name: "2024-2025 第二学期", IsActive: false},
 	}
-	DB.Create(&semesters)
+	db.Create(&semesters)
 
 	// ===== Teachers =====
 	teachers := []models.Teacher{
-		{Code: "T001", Name: "张建国", Dept: "机械工程学院", Title: "教授", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
-		{Code: "T002", Name: "李明远", Dept: "电气与电子工程学院", Title: "教授", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
-		{Code: "T003", Name: "王伟", Dept: "材料与化学工程学院", Title: "副教授", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T004", Name: "刘芳", Dept: "外国语学院", Title: "讲师", Status: "active", PreferNoEarly: true, MaxDaysPerWeek: 3},
-		{Code: "T005", Name: "赵秀英", Dept: "理学院", Title: "副教授", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T006", Name: "孙志强", Dept: "经济与管理学院", Title: "教授", Status: "active", PreferLowFloor: true, MaxDaysPerWeek: 3},
-		{Code: "T007", Name: "周海", Dept: "计算机学院", Title: "副教授", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T008", Name: "钱学林", Dept: "生物工程与食品学院", Title: "教授", Status: "active", PreferNoLate: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
-		{Code: "T009", Name: "吴芳", Dept: "马克思主义学院", Title: "讲师", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T010", Name: "郑美", Dept: "艺术设计学院", Title: "副教授", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T011", Name: "陈刚", Dept: "体育学院", Title: "讲师", Status: "active", MaxDaysPerWeek: 3},
-		{Code: "T012", Name: "杨华", Dept: "土木建筑与环境学院", Title: "教授", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
-		{Code: "T013", Name: "黄蕾", Dept: "工业设计学院", Title: "副教授", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T001", Name: "张建国", Dept: "机械工程学院", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
+		{Code: "T002", Name: "李明远", Dept: "电气与电子工程学院", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
+		{Code: "T003", Name: "王伟", Dept: "材料与化学工程学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T004", Name: "刘芳", Dept: "外国语学院", Status: "active", PreferNoEarly: true, MaxDaysPerWeek: 3},
+		{Code: "T005", Name: "赵秀英", Dept: "理学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T006", Name: "孙志强", Dept: "经济与管理学院", Status: "active", PreferLowFloor: true, MaxDaysPerWeek: 3},
+		{Code: "T007", Name: "周海", Dept: "计算机学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T008", Name: "钱学林", Dept: "生物工程与食品学院", Status: "active", PreferNoLate: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
+		{Code: "T009", Name: "吴芳", Dept: "马克思主义学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T010", Name: "郑美", Dept: "艺术设计学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T011", Name: "陈刚", Dept: "体育学院", Status: "active", MaxDaysPerWeek: 3},
+		{Code: "T012", Name: "杨华", Dept: "土木建筑与环境学院", Status: "active", PreferNoEarly: true, PreferLowFloor: true, MaxDaysPerWeek: 3},
+		{Code: "T013", Name: "黄蕾", Dept: "工业设计学院", Status: "active", MaxDaysPerWeek: 3},
 	}
-	DB.Create(&teachers)
+	db.Create(&teachers)
 
 	// ===== Classrooms =====
 	classrooms := []models.Classroom{
@@ -55,7 +55,7 @@ func SeedData() {
 		{Code: "E101", Name: "E101", Building: "E栋", Floor: 1, Capacity: 50, Type: "实验室", Status: "available"},
 		{Code: "GYM01", Name: "体育馆", Building: "体育馆", Floor: 1, Capacity: 300, Type: "体育馆", Status: "available"},
 	}
-	DB.Create(&classrooms)
+	db.Create(&classrooms)
 
 	// ===== Courses =====
 	courses := []models.Course{
@@ -83,7 +83,7 @@ func SeedData() {
 		{Code: "MX102", Name: "形势与政策", Dept: "marx", Credit: 1.0, Type: "公共必修", Hours: 16, Status: "active"},
 		{Code: "PE101", Name: "体育(篮球)", Dept: "pe", Credit: 1.0, Type: "公共必修", Hours: 32, Status: "active"},
 	}
-	DB.Create(&courses)
+	db.Create(&courses)
 
 	// ===== Class Groups =====
 	groups := []models.ClassGroup{
@@ -95,7 +95,7 @@ func SeedData() {
 		{Code: "EM2301", Name: "经管2301", Dept: "经济与管理学院", Grade: 2023, Students: 78, Status: "active"},
 		{Code: "AD2301", Name: "艺设2301", Dept: "艺术设计学院", Grade: 2023, Students: 40, Status: "active"},
 	}
-	DB.Create(&groups)
+	db.Create(&groups)
 
 	// ===== Schedule Entries (连上规则：startPeriod 必须是 0/2/4/6/8) =====
 	entries := []models.ScheduleEntry{
@@ -128,5 +128,5 @@ func SeedData() {
 		{CourseID: 13, TeacherID: 13, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 产品设计 黄蕾
 		{CourseID: 2, TeacherID: 1, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 数控技术 张建国
 	}
-	DB.Create(&entries)
+	db.Create(&entries)
 }

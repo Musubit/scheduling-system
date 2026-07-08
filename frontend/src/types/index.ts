@@ -19,7 +19,6 @@ export interface Teacher {
   code: string
   name: string
   dept: string
-  title: string
   status: 'active' | 'inactive'
   weeklyHours?: number
   preferNoEarly?: boolean
@@ -141,7 +140,7 @@ export const PERIODS: Period[] = [
 export const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 /** 页面标识 */
-export type PageId = 'schedule' | 'resource' | 'scheduling' | 'conflict' | 'settings'
+export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settings'
 
 /** 课表视图 */
 export type ScheduleView = 'week' | 'timeline' | 'month'

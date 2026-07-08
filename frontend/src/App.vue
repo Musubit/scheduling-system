@@ -11,7 +11,7 @@ import AppDrawer from './components/layout/AppDrawer.vue'
 import SchedulePage from './views/SchedulePage.vue'
 import ResourcePage from './views/ResourcePage.vue'
 import SchedulingPage from './views/SchedulingPage.vue'
-import ConflictPage from './views/ConflictPage.vue'
+import ReportPage from './views/ReportPage.vue'
 import SettingsPage from './views/SettingsPage.vue'
 
 import type { PageId } from './types'
@@ -63,13 +63,13 @@ const themeOverrides = computed(() => ({
 }))
 
 // 页面组件映射
-const pageComponents: Record<PageId, any> = {
-  schedule: SchedulePage,
-  resource: ResourcePage,
-  scheduling: SchedulingPage,
-  conflict: ConflictPage,
-  settings: SettingsPage,
-}
+	const pageComponents: Record<PageId, any> = {
+	  schedule: SchedulePage,
+	  resource: ResourcePage,
+	  scheduling: SchedulingPage,
+	  report: ReportPage,
+	  settings: SettingsPage,
+	}
 
 const currentPageComponent = computed(() => pageComponents[appStore.currentPage])
 

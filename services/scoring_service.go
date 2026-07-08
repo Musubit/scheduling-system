@@ -156,7 +156,7 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxS
 			ci = &courseInfo{days: make(map[int]bool)}
 			courses[e.CourseID] = ci
 		}
-		ci.days[e.DayOfWeek] = true
+		ci.days[int(e.DayOfWeek)] = true
 		ci.count++
 	}
 
@@ -194,7 +194,7 @@ func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teache
 			days = make(map[int]bool)
 			teacherDays[e.TeacherID] = days
 		}
-		days[e.DayOfWeek] = true
+		days[int(e.DayOfWeek)] = true
 	}
 
 	if len(teacherDays) == 0 {

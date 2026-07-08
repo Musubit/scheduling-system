@@ -28,7 +28,7 @@ export const useAppStore = defineStore('app', () => {
       schedule: '课表中心',
       resource: '资源管理',
       scheduling: '自动排课',
-      conflict: '冲突检测',
+      report: '验证报告',
       settings: '系统设置',
     }
     return titles[currentPage.value]
@@ -65,7 +65,7 @@ export const useAppStore = defineStore('app', () => {
       icon: 'settings',
       children: [
         { label: '自动排课', page: 'scheduling' },
-        { label: '冲突检测', page: 'conflict' },
+        { label: '验证报告', page: 'report' },
       ],
     },
     {

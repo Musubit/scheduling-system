@@ -15,7 +15,8 @@ var assets embed.FS
 
 func main() {
 	// Initialize database
-	if err := database.InitDB(); err != nil {
+	db, err := database.InitDB()
+	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
@@ -24,9 +25,8 @@ func main() {
 		Name:        "高校排课系统",
 		Description: "高校智能排课管理系统",
 		Services: []application.Service{
-			application.NewService(services.NewResourceService()),
-			application.NewService(services.NewSchedulingService()),
-			application.NewService(services.NewConflictService()),
+			application.NewService(services.NewResourceService(db)),
+			application.NewService(services.NewSchedulingService(db)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
