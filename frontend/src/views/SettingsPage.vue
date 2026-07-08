@@ -103,10 +103,7 @@ async function handleBackup() {
     if (!filePath) return
     const { BackupDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
     await BackupDatabase(filePath)
-    alert('备份已保存到: ' + filePath)
-  } catch (e: any) {
-    alert('备份失败: ' + (e?.message || '未知错误'))
-  }
+  } catch { /* silent */ }
 }
 
 async function handleRestore() {
@@ -117,13 +114,10 @@ async function handleRestore() {
       filters: [{ display: '数据库文件', pattern: '*.db' }],
     })
     if (!filePath) return
-    if (!confirm('导入备份将覆盖当前所有数据，确定继续吗？\n\n文件: ' + filePath)) return
+    if (!confirm('导入将覆盖当前所有数据，确定继续？')) return
     const { RestoreDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
     await RestoreDatabase(filePath)
-    alert('数据已恢复，请重启应用以生效。')
-  } catch (e: any) {
-    alert('恢复失败: ' + (e?.message || '未知错误'))
-  }
+  } catch { /* silent */ }
 }
 </script>
 
