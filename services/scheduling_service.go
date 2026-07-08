@@ -149,7 +149,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	var saResult *SAResult
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	if s.orchestrator != nil {
-		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, lockedSlots, config, log); ortoolsResult != nil {
+		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, lockedSlots, config, sportsCourseIDs, log); ortoolsResult != nil {
 			saResult = ortoolsResult
 		}
 	}
@@ -312,6 +312,7 @@ func (s *SchedulingService) tryORTools(
 	classrooms []models.Classroom,
 	lockedSlots []lockedTimeSlot,
 	config SchedulingConfig,
+	sportsCourseIDs map[uint]bool,
 	log func(string),
 ) *SAResult {
 	if s.orchestrator == nil || !s.orchestrator.IsORToolsAvailable() {
@@ -328,9 +329,10 @@ func (s *SchedulingService) tryORTools(
 
 	// Build OR-Tools input
 	input := ORToolsInput{
-		Constraints:      config.Constraints,
-		LockedSlots:      lockedSlots,
-		TimeLimitSeconds: config.TimeLimit,
+		Constraints:       config.Constraints,
+		LockedSlots:       lockedSlots,
+		ConstraintWeights: make(map[string]int),
+		TimeLimitSeconds:  config.TimeLimit,
 	}
 	if input.TimeLimitSeconds <= 0 {
 		input.TimeLimitSeconds = 60
@@ -339,7 +341,7 @@ func (s *SchedulingService) tryORTools(
 	// Map classrooms
 	for _, c := range classrooms {
 		input.Classrooms = append(input.Classrooms, ORToolsRoom{
-			ID: c.ID, Capacity: c.Capacity,
+			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity,
 		})
 	}
 
@@ -347,6 +349,7 @@ func (s *SchedulingService) tryORTools(
 	for _, t := range teachers {
 		input.Teachers = append(input.Teachers, ORToolsTeacher{
 			ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
+			MaxDaysPerWeek: t.MaxDaysPerWeek, PreferLowFloor: t.PreferLowFloor,
 		})
 	}
 
@@ -358,9 +361,27 @@ func (s *SchedulingService) tryORTools(
 			classIDs[j] = c.ClassGroupID
 		}
 		input.TeachingTasks = append(input.TeachingTasks, ORToolsTask{
-			ID: tt.ID, TeacherID: tt.TeacherID, ClassIDs: classIDs,
+			ID: tt.ID, TeacherID: tt.TeacherID, CourseID: tt.CourseID, ClassIDs: classIDs,
 		})
 		taskMap[tt.ID] = tt
+	}
+
+	// Sports course IDs
+	for cid := range sportsCourseIDs {
+		input.SportsCourseIDs = append(input.SportsCourseIDs, cid)
+	}
+
+	// Default constraint weights
+	weightDefaults := map[string]int{
+		"teacher_preference": 50, "course_dispersed": 50,
+		"teacher_days_limit": 50, "low_floor_preference": 50,
+		"avoid_saturday": 30, "avoid_sunday": 30,
+		"pe_preferred_periods": 50,
+	}
+	for _, c := range config.Constraints {
+		if w, ok := weightDefaults[c]; ok {
+			input.ConstraintWeights[c] = w
+		}
 	}
 
 	// Call OR-Tools
