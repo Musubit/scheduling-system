@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
-import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NInput, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
@@ -327,17 +327,16 @@ function downloadTemplate() {
     </div>
 
     <!-- Form Modal -->
-    <n-modal v-model:show="showModal" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')">
-      <div style="padding: 12px 0; display: flex; flex-direction: column; gap: 12px;">
-        <div v-for="f in formFields" :key="f.key" style="display: flex; align-items: center; gap: 8px;">
-          <label style="width: 60px; font-size: 13px; color: var(--b3-theme-on-surface); flex-shrink: 0;">{{ f.label }}</label>
-          <n-input v-model:value="formData[f.key]" size="small" :placeholder="f.label" :type="f.type === 'number' ? 'number' : 'text'" style="flex: 1;" />
-        </div>
-      </div>
+    <n-modal v-model:show="showModal" preset="card" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')" style="width: 480px;" :mask-closable="false">
+      <n-form label-placement="left" label-width="64" :style="{ padding: '8px 0' }">
+        <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
+          <n-input v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
+        </n-form-item>
+      </n-form>
       <template #footer>
         <n-space justify="end">
-          <n-button size="small" @click="closeModal()">取消</n-button>
-          <n-button size="small" type="primary" @click="saveItem()">保存</n-button>
+          <n-button @click="closeModal()">取消</n-button>
+          <n-button type="primary" @click="saveItem()">保存</n-button>
         </n-space>
       </template>
     </n-modal>
