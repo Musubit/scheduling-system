@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NTag, NButton } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 import { useScheduleStore } from '../stores/schedule'
+import { DetectConflicts } from '../../bindings/scheduling-system/services/conflictservice'
 
 const appStore = useAppStore()
 const scheduleStore = useScheduleStore()
@@ -86,6 +87,26 @@ const defaultConflicts: ConflictItem[] = [
 ]
 
 const conflicts = ref<ConflictItem[]>(defaultConflicts)
+
+// Load from Go backend
+onMounted(async () => {
+  try {
+    const data = await DetectConflicts('2025-2026 第二学期')
+    if (data && data.length > 0) {
+      conflicts.value = data.map((c, i) => ({
+        id: c.id || i + 1,
+        type: c.type || '',
+        description: c.description || '',
+        detail: c.detail || '',
+        severity: (c.severity === 'error' || c.severity === 'warning') ? c.severity : 'error',
+        info: c.info || [],
+        solutions: c.solutions || [],
+      }))
+    }
+  } catch (e) {
+    console.warn('Failed to load conflicts from Go backend, using defaults:', e)
+  }
+})
 const selectedId = ref(1)
 const selectedConflict = computed(() => conflicts.value.find(c => c.id === selectedId.value))
 const selectedSolution = ref(-1)

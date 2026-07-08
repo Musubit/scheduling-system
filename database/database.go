@@ -20,9 +20,7 @@ func InitDB() error {
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		log.Printf("Warning: Could not open database: %v", err)
-		// Don't fail — allow the app to start without a database for development
-		return nil
+		return err
 	}
 
 	// Auto-migrate all models
@@ -36,46 +34,12 @@ func InitDB() error {
 		&models.Setting{},
 	)
 	if err != nil {
-		log.Printf("Warning: Auto-migration failed: %v", err)
-		return nil
+		return err
 	}
 
 	// Seed default data if empty
-	seedDefaults()
+	SeedData()
 
 	log.Println("Database initialized successfully")
 	return nil
-}
-
-func seedDefaults() {
-	if DB == nil {
-		return
-	}
-
-	// Seed default semester if none exist
-	var count int64
-	DB.Model(&models.Semester{}).Count(&count)
-	if count == 0 {
-		DB.Create(&models.Semester{
-			Name:     "2025-2026 第二学期",
-			IsActive: true,
-		})
-	}
-
-	// Seed default settings
-	DB.Model(&models.Setting{}).Count(&count)
-	if count == 0 {
-		DB.Create(&models.Setting{
-			Key:   "iterations",
-			Value: "5000",
-		})
-		DB.Create(&models.Setting{
-			Key:   "max_daily_hours",
-			Value: "8",
-		})
-		DB.Create(&models.Setting{
-			Key:   "buffer_minutes",
-			Value: "10",
-		})
-	}
 }

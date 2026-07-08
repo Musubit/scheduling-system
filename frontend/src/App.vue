@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, provide, watch } from 'vue'
+import { computed, ref, provide, watch, onMounted } from 'vue'
 import { NConfigProvider, darkTheme } from 'naive-ui'
 import { useAppStore } from './stores/app'
+import { useScheduleStore } from './stores/schedule'
+import { useResourceStore } from './stores/resource'
 import AppSidebar from './components/layout/AppSidebar.vue'
 import AppToolbar from './components/layout/AppToolbar.vue'
 import AppDrawer from './components/layout/AppDrawer.vue'
@@ -15,6 +17,14 @@ import SettingsPage from './views/SettingsPage.vue'
 import type { PageId } from './types'
 
 const appStore = useAppStore()
+const scheduleStore = useScheduleStore()
+const resourceStore = useResourceStore()
+
+// Load data from Go backend on startup
+onMounted(async () => {
+  resourceStore.loadAll()
+  scheduleStore.loadSchedule(appStore.semesterFilter)
+})
 
 // Drawer ref — shared via provide/inject so child components can open it
 const drawerRef = ref<InstanceType<typeof AppDrawer>>()

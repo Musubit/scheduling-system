@@ -1,22 +1,40 @@
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { inject, computed } from 'vue'
 import { PERIODS, DAY_NAMES } from '../../types'
 import type { DeptCode, ScheduleEntry } from '../../types'
+import { useScheduleStore } from '../../stores/schedule'
 
-// 注入抽屉引用
+const scheduleStore = useScheduleStore()
 const drawerRef = inject<any>('drawerRef')
 
+// Use store entries if available, otherwise fall back to mock data
+const displayEntries = computed(() => {
+  if (scheduleStore.entries.length > 0) return scheduleStore.entries
+  return mockEntriesFromCourses()
+})
+
+function mockEntriesFromCourses(): ScheduleEntry[] {
+  return mockCourses.map(c => ({
+    id: 0,
+    courseId: 0, teacherId: 0, classroomId: 0,
+    semester: '',
+    dayOfWeek: c.day,
+    startPeriod: c.period,
+    span: c.span,
+    weeks: '1-16',
+    course: { id: 0, code: '', name: c.name, dept: c.dept, credit: 0, type: '', hours: 0 },
+    teacher: { id: 0, code: '', name: c.teacher, dept: '', title: '', status: 'active' },
+    classroom: { id: 0, code: '', name: c.room, building: '', capacity: 0, type: '', status: '' },
+  }))
+}
+
 // 打开课程详情抽屉
-function openCourseDetail(course: MockCourse) {
+function getCourseAt(day: number, period: number): ScheduleEntry | undefined {
+  return displayEntries.value.find(e => e.dayOfWeek === day && e.startPeriod === period)
+}
+
+function openCourseDetail(entry: ScheduleEntry) {
   if (!drawerRef?.value) return
-  const entry: Partial<ScheduleEntry> = {
-    course: { id: 0, code: '', name: course.name, dept: course.dept, credit: 0, type: '', hours: 0 },
-    teacher: { id: 0, code: '', name: course.teacher, dept: '', title: '', status: 'active' },
-    classroom: { id: 0, code: '', name: course.room, building: '', capacity: 0, type: '', status: '' },
-    dayOfWeek: course.day,
-    startPeriod: course.period,
-    span: course.span,
-  }
   drawerRef.value.openDrawer(entry)
 }
 
@@ -52,17 +70,6 @@ const mockCourses: MockCourse[] = [
   { day: 5, period: 2, span: 2, name: '数学建模', teacher: '钱学森', room: 'A201', dept: 'math', classes: '数学2302' },
 ]
 
-function getCourseAt(day: number, period: number): MockCourse | undefined {
-  return mockCourses.find(c => c.day === day && c.period === period)
-}
-
-function getRowSpan(course: MockCourse, day: number, period: number): number {
-  // Only render on first period
-  if (course.period !== period) return 0
-  return course.span
-}
-
-const today = 1 // Tuesday
 </script>
 
 <template>
@@ -74,7 +81,7 @@ const today = 1 // Tuesday
         v-for="(name, di) in DAY_NAMES"
         :key="di"
         class="grid-header"
-        :class="{ today: di === today }"
+        :class="{ today: di === 1 }"
       >
         <span class="day-name">{{ name }}</span>
         <span class="day-date">3/{{ 24 + di }}</span>
@@ -95,14 +102,14 @@ const today = 1 // Tuesday
             <div
               class="course-card"
               :class="[
-                'course-' + getCourseAt(di, pi)!.dept,
-                { 'course-conflict': getCourseAt(di, pi)!.conflict }
+                'course-' + (getCourseAt(di, pi)!.course?.dept || 'cs'),
+                { 'course-conflict': false }
               ]"
               :style="{ gridRow: 'span ' + getCourseAt(di, pi)!.span }"
               @click="openCourseDetail(getCourseAt(di, pi)!)"
             >
-              <div class="course-name">{{ getCourseAt(di, pi)!.name }}</div>
-              <div class="course-detail">{{ getCourseAt(di, pi)!.room }} · {{ getCourseAt(di, pi)!.teacher }}</div>
+              <div class="course-name">{{ getCourseAt(di, pi)!.course?.name || '' }}</div>
+              <div class="course-detail">{{ getCourseAt(di, pi)!.classroom?.name || '' }} · {{ getCourseAt(di, pi)!.teacher?.name || '' }}</div>
             </div>
           </template>
         </div>

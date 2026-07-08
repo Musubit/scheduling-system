@@ -10,9 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.0",
+    "@wailsio/runtime": "^3.0.0-alpha.97",
     "naive-ui": "^2.41.0",
-    "pinia": "^2.3.0"
+    "pinia": "^2.3.0",
+    "vue": "^3.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.0",

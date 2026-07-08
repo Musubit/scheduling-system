@@ -2,9 +2,11 @@
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
-import { ref, computed, h } from 'vue'
+import { ref, computed, h, onMounted } from 'vue'
 
 const resourceStore = useResourceStore()
+
+onMounted(() => { resourceStore.loadAll() })
 
 const tabOptions = [
   { key: 'teacher' as const, label: '教师' },
@@ -135,10 +137,10 @@ const deptOptions = [
     </div>
 
     <div class="resource-table">
-      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherColumns" :data="mockTeachers" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomColumns" :data="mockClassrooms" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseColumns" :data="mockCourses" :single-line="false" size="small" />
-      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classColumns" :data="mockClasses" :single-line="false" size="small" />
+      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherColumns" :data="resourceStore.filteredTeachers.length ? resourceStore.filteredTeachers : mockTeachers" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomColumns" :data="resourceStore.filteredClassrooms.length ? resourceStore.filteredClassrooms : mockClassrooms" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseColumns" :data="resourceStore.filteredCourses.length ? resourceStore.filteredCourses : mockCourses" :single-line="false" size="small" />
+      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classColumns" :data="resourceStore.filteredClasses.length ? resourceStore.filteredClasses : mockClasses" :single-line="false" size="small" />
     </div>
   </div>
 </template>
