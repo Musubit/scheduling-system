@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { NButton, NSelect, NInput, NIcon } from 'naive-ui'
+import { NButton, NSelect, NInput } from 'naive-ui'
 import { useAppStore } from '../../stores/app'
-import { useScheduleStore } from '../../stores/schedule'
 import { DEPARTMENTS } from '../../types'
 
 const appStore = useAppStore()
-const scheduleStore = useScheduleStore()
 
 const deptOptions = [
   { label: '全部院系', value: '全部院系' },
@@ -18,11 +16,6 @@ const semesterOptions = [
   { label: '2024-2025 第二学期', value: '2024-2025 第二学期' },
 ]
 
-const viewButtons = [
-  { key: 'week' as const, label: '周', icon: '📅' },
-  { key: 'timeline' as const, label: '时间线', icon: '📋' },
-  { key: 'month' as const, label: '月', icon: '📆' },
-]
 </script>
 
 <template>
@@ -58,19 +51,6 @@ const viewButtons = [
       size="small"
       style="width: 170px"
     />
-
-    <!-- 视图切换（课表页显示） -->
-    <div v-if="appStore.currentPage === 'schedule'" class="view-switcher">
-      <n-button
-        v-for="btn in viewButtons"
-        :key="btn.key"
-        :type="scheduleStore.currentView === btn.key ? 'primary' : 'default'"
-        size="small"
-        @click="scheduleStore.switchView(btn.key)"
-      >
-        {{ btn.icon }} {{ btn.label }}
-      </n-button>
-    </div>
 
     <!-- 主题切换 -->
     <n-button
@@ -117,10 +97,5 @@ const viewButtons = [
 
 .toolbar-spacer {
   flex: 1;
-}
-
-.view-switcher {
-  display: flex;
-  gap: 4px;
 }
 </style>
