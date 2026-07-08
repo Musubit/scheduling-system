@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NModal, NSelect, NDataTable, NSpace, NTag } from 'naive-ui'
-import { DEPARTMENTS } from '../types'
+import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/services/resourceservice'
 import * as XLSX from 'xlsx'
@@ -101,7 +101,7 @@ const classroomColumns = [
 const courseColumns = [
   { title: '编号', key: 'code', width: 80 },
   { title: '课程名', key: 'name', width: 140 },
-  { title: '院系', key: 'dept', width: 140 },
+  { title: '院系', key: 'dept', width: 140, render: (row: any) => DEPT_NAME_MAP[row.dept] || row.dept },
   { title: '学分', key: 'credit', width: 60 },
   { title: '类型', key: 'type', width: 100 },
   { title: '课时', key: 'hours', width: 60 },
@@ -150,10 +150,10 @@ async function saveItem() {
     console.warn('Go backend CRUD failed, using local:', e)
     // Fallback to local
     if (editingItem.value) {
-      const idx = data.findIndex((i: any) => i.id === editingItem.value.id)
+      const idx = data.findIndex((i: any) => i.ID === editingItem.value.ID)
       if (idx >= 0) Object.assign(data[idx], formData.value)
     } else {
-      data.push({ ...formData.value, id: Date.now() })
+      data.push({ ...formData.value, ID: Date.now() })
     }
   }
   closeModal()
@@ -163,7 +163,7 @@ async function deleteItem(row: any) {
   if (!confirm('确定要删除这条记录吗？')) return
   const data = getMockData(resourceStore.activeTab)
   try {
-    await callDelete(resourceStore.activeTab, row.id)
+    await callDelete(resourceStore.activeTab, row.ID)
   } catch (e) { console.warn('Delete via Go failed, local fallback:', e) }
   const idx = data.findIndex((i: any) => i.id === row.id)
   if (idx >= 0) data.splice(idx, 1)
@@ -197,7 +197,7 @@ async function callDelete(tab: string, id: number) {
   }
 }
 function toModel(_tab: string, item: any): any {
-  return { ...item, id: item.id || 0 }
+  return { ...item, ID: item.ID || 0 }
 }
 
 function getMockData(tab: string): any[] {

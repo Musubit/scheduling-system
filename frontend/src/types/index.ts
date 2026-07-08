@@ -1,41 +1,42 @@
 // ===== 核心数据类型 =====
+// Note: field names match Go GORM binding conventions (ID uppercase)
 
 /** 课程 */
 export interface Course {
-  id: number
+  ID: number
   code: string
   name: string
   dept: DeptCode
   credit: number
-  type: string  // 专业必修 | 全校选修 | ...
+  type: string
   hours: number
 }
 
 /** 教师 */
 export interface Teacher {
-  id: number
+  ID: number
   code: string
   name: string
   dept: string
-  title: string   // 教授 | 副教授 | 讲师
+  title: string
   status: 'active' | 'inactive'
   weeklyHours?: number
 }
 
 /** 教室 */
 export interface Classroom {
-  id: number
+  ID: number
   code: string
   name: string
   building: string
   capacity: number
-  type: string   // 普通教室 | 实验室 | 体育馆
+  type: string
   status: string
 }
 
 /** 班级 */
 export interface ClassGroup {
-  id: number
+  ID: number
   code: string
   name: string
   dept: string
@@ -45,22 +46,22 @@ export interface ClassGroup {
 
 /** 学期 */
 export interface Semester {
-  id: number
+  ID: number
   name: string
   isActive: boolean
 }
 
 /** 排课条目 */
 export interface ScheduleEntry {
-  id: number
+  ID: number
   courseId: number
   teacherId: number
   classroomId: number
   semester: string
-  dayOfWeek: number    // 0=Mon ... 6=Sun
-  startPeriod: number  // 0-9
-  span: number         // 连续节数
-  weeks: string        // "1-16"
+  dayOfWeek: number
+  startPeriod: number
+  span: number
+  weeks: string
   course?: Course
   teacher?: Teacher
   classroom?: Classroom
@@ -97,6 +98,14 @@ export const DEPARTMENTS: Department[] = [
   { code: 'engtech', name: '工程技术学院' },
   { code: 'detroit', name: '底特律绿色工业学院' },
 ]
+
+/** Code→Chinese name lookup */
+export const DEPT_NAME_MAP: Record<string, string> = {}
+DEPARTMENTS.forEach(d => { DEPT_NAME_MAP[d.code] = d.name })
+
+/** Chinese name→code lookup */
+export const DEPT_CODE_MAP: Record<string, string> = {}
+DEPARTMENTS.forEach(d => { DEPT_CODE_MAP[d.name] = d.code })
 
 /** 时间段 */
 export interface Period {

@@ -38,13 +38,18 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// Load courses
 	var courses []models.Course
+	scopeCode := reverseDeptMap[config.Scope] // Convert Chinese→code for DB query
+	scopeSQL := config.Scope
+	if scopeCode != "" {
+		scopeSQL = scopeCode
+	}
 	if config.Scope == "全校所有院系" {
 		if err := database.DB.Find(&courses).Error; err != nil {
 			result.Error = "加载课程失败: " + err.Error()
 			return result
 		}
 	} else {
-		if err := database.DB.Where("dept = ?", config.Scope).Find(&courses).Error; err != nil {
+		if err := database.DB.Where("dept = ?", scopeSQL).Find(&courses).Error; err != nil {
 			result.Error = "加载课程失败: " + err.Error()
 			return result
 		}
@@ -173,24 +178,25 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		}
 
 		result.Scheduled = scheduled
-		// Detect conflicts
-		conflicts := (&ConflictService{}).DetectConflicts(config.Semester)
-		result.Conflicts = len(conflicts)
-		if result.TotalCourses > 0 {
-			result.Utilization = float64(scheduled) / float64(result.TotalCourses)
-		}
-
-		log(fmt.Sprintf("INFO 排课完成！已排 %d/%d 门，利用率 %.1f%%，冲突 %d 个",
-			scheduled, result.TotalCourses, result.Utilization*100, len(conflicts)))
-		if scheduled < result.TotalCourses {
-			log(fmt.Sprintf("WARN 剩余 %d 门课程需手动调整", result.TotalCourses-scheduled))
-		}
 		return nil
 	})
 
 	if err != nil {
 		result.Error = "排课事务失败: " + err.Error()
 		log("ERR " + err.Error())
+		return result
+	}
+
+	// Conflict detection AFTER transaction (sees committed data)
+	conflicts := (&ConflictService{}).DetectConflicts(config.Semester)
+	result.Conflicts = len(conflicts)
+	if result.TotalCourses > 0 {
+		result.Utilization = float64(result.Scheduled) / float64(result.TotalCourses)
+	}
+	log(fmt.Sprintf("INFO 排课完成！已排 %d/%d 门，利用率 %.1f%%，冲突 %d 个",
+		result.Scheduled, result.TotalCourses, result.Utilization*100, len(conflicts)))
+	if result.Scheduled < result.TotalCourses {
+		log(fmt.Sprintf("WARN 剩余 %d 门课程需手动调整", result.TotalCourses-result.Scheduled))
 	}
 
 	return result
@@ -208,6 +214,15 @@ var deptMap = map[string]string{
 	"pe": "体育学院", "cont": "继续教育学院",
 	"innov": "创新创业学院", "engtech": "工程技术学院",
 	"detroit": "底特律绿色工业学院",
+}
+
+// reverseDeptMap maps Chinese names back to codes (for scope filtering)
+var reverseDeptMap = map[string]string{}
+
+func init() {
+	for k, v := range deptMap {
+		reverseDeptMap[v] = k
+	}
 }
 
 func findTeachers(teachers []models.Teacher, courseDept string) []models.Teacher {
