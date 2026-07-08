@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, computed, ref, onMounted, watch } from 'vue'
+import { inject, computed, ref, onMounted } from 'vue'
 import { PERIODS, DAY_NAMES } from '../../types'
 import type { ScheduleEntry, LockedTimeSlot } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
@@ -15,9 +15,8 @@ const displayEntries = computed(() => scheduleStore.displayEntries)
 const editMode = ref(false)
 const lockedSlots = ref<LockedTimeSlot[]>([])
 
-// Default locked slots: Thursday periods 4-7 (第5-8节)
 const DEFAULT_LOCKED: LockedTimeSlot[] = [
-  { dayOfWeek: 3, startPeriod: 4, span: 4 }, // 周四 5-8节
+  { dayOfWeek: 3, startPeriod: 4, span: 4 },
 ]
 
 function loadLockedSlots() {
@@ -36,12 +35,11 @@ function loadLockedSlots() {
 
 function saveLockedSlots() {
   localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
-  // Also persist to backend
   try {
     import('../../../bindings/scheduling-system/services/resourceservice').then(({ SaveSetting }) => {
       SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
     })
-  } catch { /* backend not available */ }
+  } catch { }
 }
 
 function isLocked(day: number, period: number): boolean {
@@ -54,17 +52,11 @@ function isLocked(day: number, period: number): boolean {
 
 function toggleLockCell(day: number, period: number) {
   if (!editMode.value) return
-
-  // Always snap to even start period (2-period block, matching course span)
   const startPeriod = period % 2 === 0 ? period : period - 1
   const span = 2
-
   const existingIdx = lockedSlots.value.findIndex(ls =>
-    ls.dayOfWeek === day &&
-    ls.startPeriod === startPeriod &&
-    ls.span === span
+    ls.dayOfWeek === day && ls.startPeriod === startPeriod && ls.span === span
   )
-
   if (existingIdx >= 0) {
     lockedSlots.value.splice(existingIdx, 1)
   } else {
@@ -73,15 +65,16 @@ function toggleLockCell(day: number, period: number) {
   saveLockedSlots()
 }
 
-onMounted(() => {
-  loadLockedSlots()
-})
+onMounted(() => loadLockedSlots())
 
-// ---- Drag & Drop for schedule entries (only in view mode) ----
+// ---- Drag & Drop ----
 const dragEntry = ref<ScheduleEntry | null>(null)
 const dragOverDay = ref(-1)
 const dragOverPeriod = ref(-1)
 const conflictFlash = ref<{ day: number; period: number } | null>(null)
+
+// Popover state
+const popoverCell = ref<{ day: number; period: number } | null>(null)
 
 // Dynamic today
 const todayDow = computed(() => {
@@ -89,7 +82,6 @@ const todayDow = computed(() => {
   return d === 0 ? 6 : d - 1
 })
 
-// Dynamic dates based on current week
 const weekDates = computed(() => {
   const now = new Date()
   const startOfYear = new Date(now.getFullYear(), 0, 1)
@@ -102,8 +94,14 @@ const weekDates = computed(() => {
   })
 })
 
+// Returns ALL courses at a given cell
+function getCoursesAt(day: number, period: number): ScheduleEntry[] {
+  return displayEntries.value.filter(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
+}
+
+// Returns the first course (for main card rendering)
 function getCourseAt(day: number, period: number): ScheduleEntry | undefined {
-  return displayEntries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
+  return getCoursesAt(day, period)[0]
 }
 
 function isFirstCell(entry: ScheduleEntry, period: number): boolean {
@@ -111,10 +109,11 @@ function isFirstCell(entry: ScheduleEntry, period: number): boolean {
 }
 
 function cellStyle(day: number, period: number): Record<string, string> {
-  const entry = getCourseAt(day, period)
-  if (!entry) return {}
-  if (isFirstCell(entry, period)) {
-    return { gridRow: `span ${entry.span}` }
+  const courses = getCoursesAt(day, period)
+  if (courses.length === 0) return {}
+  const first = courses[0]
+  if (isFirstCell(first, period)) {
+    return { gridRow: `span ${first.span}` }
   }
   return { display: 'none' }
 }
@@ -124,10 +123,18 @@ function openCourseDetail(entry: ScheduleEntry) {
   drawerRef.value.openDrawer(entry)
 }
 
-// Drag & Drop handlers
+// Toggle popover
+function togglePopover(day: number, period: number) {
+  const courses = getCoursesAt(day, period)
+  if (courses.length <= 1) return
+  popoverCell.value = { day, period }
+}
+
+// Drag handlers
 function onDragStart(e: DragEvent, entry: ScheduleEntry) {
   if (editMode.value) return
   dragEntry.value = entry
+  popoverCell.value = null
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', String(entry.ID))
@@ -142,7 +149,7 @@ function onDragEnd() {
 
 function onDragOver(e: DragEvent, day: number, period: number) {
   if (editMode.value) return
-  if (!isDropTarget(day, period)) return  // Don't allow drop on invalid cells
+  if (!isDropTarget(day, period)) return
   e.preventDefault()
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = 'move'
@@ -162,21 +169,19 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   dragOverDay.value = -1
   dragOverPeriod.value = -1
 
-	  if (!dragEntry.value) return
-	  const entry = dragEntry.value
+  if (!dragEntry.value) return
+  const entry = dragEntry.value
 
-	  // Safety check: reject drop on already occupied or locked cells
-	  if (!isDropTarget(day, period)) {
-	    dragEntry.value = null
-	    return
-	  }
-
-	  if (entry.dayOfWeek === day && entry.startPeriod === period) {
+  if (!isDropTarget(day, period)) {
     dragEntry.value = null
     return
   }
 
-  // Check locked slots
+  if (entry.dayOfWeek === day && entry.startPeriod === period) {
+    dragEntry.value = null
+    return
+  }
+
   if (isDropBlockedByLock(day, period, entry.span)) {
     message.error('该时段为全校锁定时间，无法排课')
     dragEntry.value = null
@@ -210,7 +215,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
     })
 
     message.success('课表已调整')
-    await scheduleStore.loadSchedule(scheduleStore.currentSemester)
+    await scheduleStore.loadSchedule('')
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))
   }
@@ -220,11 +225,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
 
 function isDropTarget(day: number, period: number): boolean {
   if (editMode.value) return false
-  if (isLocked(day, period)) return false
-  const existing = getCourseAt(day, period)
-  if (!existing) return true
-  if (dragEntry.value && existing.ID === dragEntry.value.ID) return true
-  return false
+  return true // Allow stacking: multiple courses can share a cell
 }
 
 function isDropBlockedByLock(day: number, period: number, span: number): boolean {
@@ -237,7 +238,6 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 
 <template>
   <div class="week-view">
-    <!-- Mode toggle -->
     <div class="week-toolbar" v-if="displayEntries.length > 0 || editMode">
       <span class="mode-label" v-if="editMode">🔒 锁定时段编辑模式</span>
       <span class="mode-label" v-else>📋 课表查看模式</span>
@@ -267,15 +267,24 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             'cell-locked': isLocked(di, pi),
             'cell-edit-locked': editMode && isLocked(di, pi),
             'cell-edit-free': editMode && !isLocked(di, pi),
-            'drag-over': !editMode && dragOverDay === di && dragOverPeriod === pi && isDropTarget(di, pi),
+            'drag-over': !editMode && dragOverDay === di && dragOverPeriod === pi,
             'conflict-flash': !editMode && conflictFlash?.day === di && conflictFlash?.period === pi,
-            'drop-target': !editMode && dragEntry && isDropTarget(di, pi),
+            'drop-target': !editMode && dragEntry,
+            'has-overflow': !editMode && getCoursesAt(di, pi).length > 1,
           }"
-          @click="editMode ? toggleLockCell(di, pi) : undefined"
+          @click="editMode ? toggleLockCell(di, pi) : togglePopover(di, pi)"
           @dragover="!editMode ? onDragOver($event, di, pi) : undefined"
           @dragleave="!editMode ? onDragLeave : undefined"
           @drop="!editMode ? onDrop($event, di, pi) : undefined"
         >
+          <!-- +N badge -->
+          <span
+            v-if="!editMode && getCoursesAt(di, pi).length > 1 && isFirstCell(getCourseAt(di, pi)!, pi)"
+            class="overflow-badge"
+            @click.stop="togglePopover(di, pi)"
+          >+{{ getCoursesAt(di, pi).length - 1 }}</span>
+
+          <!-- Main course card -->
           <template v-if="!editMode && getCourseAt(di, pi) && isFirstCell(getCourseAt(di, pi)!, pi)">
             <div
               class="course-card"
@@ -283,18 +292,47 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
               draggable="true"
               @dragstart="onDragStart($event, getCourseAt(di, pi)!)"
               @dragend="onDragEnd"
-              @click="openCourseDetail(getCourseAt(di, pi)!)"
+              @click.stop="openCourseDetail(getCourseAt(di, pi)!)"
             >
               <div class="course-name">{{ getCourseAt(di, pi)!.course?.name || '' }}</div>
               <div class="course-detail">{{ getCourseAt(di, pi)!.classroom?.name || '' }} · {{ getCourseAt(di, pi)!.teacher?.name || '' }}</div>
             </div>
           </template>
+
+          <!-- Lock icon in edit mode -->
           <template v-if="editMode && isLocked(di, pi)">
             <span class="lock-icon">🔒</span>
           </template>
         </div>
       </template>
     </div>
+
+    <!-- Popover for overlapping courses -->
+    <Teleport to="body">
+      <div
+        v-if="popoverCell && !editMode"
+        class="overflow-popover-backdrop"
+        @click="popoverCell = null"
+      >
+        <div class="overflow-popover" @click.stop>
+          <div class="overflow-popover-title">
+            {{ DAY_NAMES[popoverCell.day] }} 第{{ popoverCell.period + 1 }}-{{ popoverCell.period + 3 }}节（{{ getCoursesAt(popoverCell.day, popoverCell.period).length }}门课）
+          </div>
+          <div
+            v-for="e in getCoursesAt(popoverCell.day, popoverCell.period)"
+            :key="e.ID"
+            class="overflow-item"
+            :class="'course-' + (e.course?.dept || 'cs')"
+            draggable="true"
+            @dragstart="onDragStart($event, e)"
+            @click="openCourseDetail(e); popoverCell = null"
+          >
+            <div class="oi-name">{{ e.course?.name }}</div>
+            <div class="oi-meta">{{ e.teacher?.name }} · {{ e.classroom?.name }}</div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -302,47 +340,22 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 .week-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
 .week-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 6px 12px;
-  background: var(--b3-theme-surface);
-  border: 1px solid var(--b3-border-color);
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; padding: 6px 12px;
+  background: var(--b3-theme-surface); border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius-s);
 }
-
-.mode-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--b3-theme-on-surface);
-}
-
+.mode-label { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-surface); }
 .mode-toggle-btn {
-  font-size: 12px;
-  padding: 4px 12px;
-  border: 1px solid var(--b3-theme-primary);
-  background: var(--b3-theme-primary-lightest);
-  color: var(--b3-theme-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
+  font-size: 12px; padding: 4px 12px; border: 1px solid var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest); color: var(--b3-theme-primary);
+  border-radius: 4px; cursor: pointer; font-weight: 500;
 }
-
-.mode-toggle-btn:hover {
-  background: var(--b3-theme-primary-light);
-}
+.mode-toggle-btn:hover { background: var(--b3-theme-primary-light); }
 
 .empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--b3-theme-on-surface-light); font-size: 14px; }
 
 .schedule-grid { flex: 1; display: grid; grid-template-columns: 60px repeat(7, 1fr); grid-template-rows: auto repeat(11, minmax(48px, 1fr)); gap: 1px; background: var(--b3-border-color); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); overflow: hidden; }
-
-.edit-mode .grid-cell {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .grid-corner, .grid-header, .time-label { background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--b3-theme-on-surface); }
 .grid-header { flex-direction: column; gap: 1px; }
@@ -355,30 +368,12 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 
 .grid-cell { background: var(--b3-theme-background); min-height: 48px; overflow: hidden; position: relative; transition: background 0.15s; }
 
-/* Locked cell in view mode */
-.cell-locked:not(.cell-edit-locked) {
-  background: repeating-linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-surface) 3px, transparent 3px, transparent 6px);
-  cursor: not-allowed;
-}
-
-/* Locked cell in edit mode */
-.cell-edit-locked {
-  background: rgba(244, 67, 54, 0.25) !important;
-}
-
-/* Free cell in edit mode */
-.cell-edit-free {
-  background: var(--b3-theme-background);
-}
-.cell-edit-free:hover {
-  background: var(--b3-theme-primary-lightest);
-}
-
-.lock-icon {
-  font-size: 14px;
-  opacity: 0.7;
-  pointer-events: none;
-}
+.edit-mode .grid-cell { cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.cell-locked:not(.cell-edit-locked) { background: repeating-linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-surface) 3px, transparent 3px, transparent 6px); cursor: not-allowed; }
+.cell-edit-locked { background: rgba(244, 67, 54, 0.25) !important; }
+.cell-edit-free { background: var(--b3-theme-background); }
+.cell-edit-free:hover { background: var(--b3-theme-primary-lightest); }
+.lock-icon { font-size: 14px; opacity: 0.7; pointer-events: none; }
 
 .grid-cell.drop-target { background: var(--b3-theme-primary-lightest); opacity: 0.85; }
 .grid-cell.drag-over { background: var(--b3-theme-primary-light); outline: 2px dashed var(--b3-theme-primary); outline-offset: -2px; z-index: 1; }
@@ -387,11 +382,47 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
   0%, 100% { background: var(--b3-theme-error-lightest); }
   50% { background: var(--b3-theme-error); }
 }
+
+/* +N badge */
+.overflow-badge {
+  position: absolute; top: 2px; right: 2px; z-index: 2;
+  background: var(--b3-theme-warning); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 1px 5px;
+  border-radius: 8px; cursor: pointer; line-height: 1.4;
+}
+
+/* Popover */
+.overflow-popover-backdrop {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.2); display: flex;
+  align-items: center; justify-content: center;
+}
+.overflow-popover {
+  background: var(--b3-theme-surface); border: 1px solid var(--b3-border-color);
+  border-radius: 8px; padding: 16px; min-width: 280px; max-width: 360px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+.overflow-popover-title {
+  font-size: 13px; font-weight: 600; color: var(--b3-theme-on-background);
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+.overflow-item {
+  padding: 8px 10px; border-radius: 4px; border-left: 3px solid;
+  cursor: grab; margin-bottom: 6px; font-size: 12px;
+}
+.overflow-item:last-child { margin-bottom: 0; }
+.overflow-item:active { cursor: grabbing; }
+.overflow-item:hover { filter: brightness(0.95); }
+.oi-name { font-weight: 600; color: var(--b3-theme-on-background); }
+.oi-meta { font-size: 11px; color: var(--b3-theme-on-surface-light); margin-top: 2px; }
+
 .course-card { height: 100%; padding: 4px 6px; font-size: 11px; cursor: grab; transition: box-shadow 0.15s, opacity 0.15s; border-left: 3px solid; overflow: hidden; display: flex; flex-direction: column; }
 .course-card:active { cursor: grabbing; }
 .course-card:hover { box-shadow: var(--b3-point-shadow); }
 .course-name { font-weight: 600; color: var(--b3-theme-on-background); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .course-detail { font-size: 10px; color: var(--b3-theme-on-surface-light); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .course-mech { background: var(--course-mech-bg); border-left-color: var(--course-mech-border); }
 .course-elec { background: var(--course-elec-bg); border-left-color: var(--course-elec-border); }
 .course-mate { background: var(--course-mate-bg); border-left-color: var(--course-mate-border); }
