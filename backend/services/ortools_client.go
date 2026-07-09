@@ -19,7 +19,12 @@ type ORToolsClient struct {
 func NewORToolsClient(port int) *ORToolsClient {
 	return &ORToolsClient{
 		baseURL: fmt.Sprintf("http://127.0.0.1:%d", port),
-		client: &http.Client{Timeout: 120 * time.Second},
+		client: &http.Client{
+			Timeout: 120 * time.Second,
+			Transport: &http.Transport{
+				DisableKeepAlives: true, // prevent "unsolicited response" on idle channels
+			},
+		},
 	}
 }
 
