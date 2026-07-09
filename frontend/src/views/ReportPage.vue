@@ -52,7 +52,7 @@ async function loadSnapshots() {
   loading.value = true
   try {
     // Dynamic import of Go binding — works at build time
-    const { GetSnapshots } = await import('../../bindings/scheduling-system/services/snapshotservice')
+    const { GetSnapshots } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
     const result = await GetSnapshots(appStore.semesterFilter)
     snapshots.value = result || []
     if (snapshots.value.length > 0 && !selectedSnapshot.value) {
@@ -67,7 +67,7 @@ async function loadSnapshots() {
 
 async function loadSnapshotDetail(snapshot: any) {
   try {
-    const { GetSnapshotWithDetails } = await import('../../bindings/scheduling-system/services/snapshotservice')
+    const { GetSnapshotWithDetails } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
     const detail = await GetSnapshotWithDetails(snapshot.ID)
     selectedSnapshot.value = detail
   } catch {
@@ -86,7 +86,7 @@ function selectSnapshot(snapshot: any) {
 async function generateManualReport() {
   try {
     loading.value = true
-    const { CreateManualSnapshot } = await import('../../bindings/scheduling-system/services/snapshotservice')
+    const { CreateManualSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
     await CreateManualSnapshot(appStore.semesterFilter)
     await loadSnapshots()
   } catch (e: any) {

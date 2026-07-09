@@ -119,7 +119,7 @@ async function saveChanges() {
 
   isSaving.value = true
   try {
-    const { UpdateTeacher, UpdateClassroom, UpdateCourse } = await import('../../../bindings/scheduling-system/services/resourceservice')
+    const { UpdateTeacher, UpdateClassroom, UpdateCourse } = await import('../../../bindings/scheduling-system/backend/services/resourceservice')
     if (selectedEntry.value.teacher && editForm.value.teacherName) {
       await UpdateTeacher({ ...selectedEntry.value.teacher, name: editForm.value.teacherName })
     }

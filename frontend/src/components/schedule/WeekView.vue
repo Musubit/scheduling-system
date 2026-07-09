@@ -36,7 +36,7 @@ function loadLockedSlots() {
 function saveLockedSlots() {
   localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
   try {
-    import('../../../bindings/scheduling-system/services/resourceservice').then(({ SaveSetting }) => {
+    import('../../../bindings/scheduling-system/backend/services/resourceservice').then(({ SaveSetting }) => {
       SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
     })
   } catch { }
@@ -189,7 +189,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   }
 
   try {
-    const { CheckMove } = await import('../../../bindings/scheduling-system/services/moveservice')
+    const { CheckMove } = await import('../../../bindings/scheduling-system/backend/services/moveservice')
     const result = await CheckMove({
       entryId: entry.ID,
       newDay: day,
@@ -206,7 +206,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
       return
     }
 
-    const { MoveEntry } = await import('../../../bindings/scheduling-system/services/moveservice')
+    const { MoveEntry } = await import('../../../bindings/scheduling-system/backend/services/moveservice')
     await MoveEntry({
       entryId: entry.ID,
       newDay: day,

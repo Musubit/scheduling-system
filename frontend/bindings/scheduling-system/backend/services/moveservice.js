@@ -21,7 +21,7 @@ import * as $models from "./models.js";
  * @returns {$CancellablePromise<$models.CheckMoveResult | null>}
  */
 export function CheckMove(req) {
-    return $Call.ByID(313766329, req).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(3592166944, req).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -32,7 +32,7 @@ export function CheckMove(req) {
  * @returns {$CancellablePromise<void>}
  */
 export function MoveEntry(req) {
-    return $Call.ByID(267007231, req);
+    return $Call.ByID(410174494, req);
 }
 
 // Private type creation functions

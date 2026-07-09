@@ -4,8 +4,8 @@ import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSele
 import { DEPARTMENTS, DEPT_NAME_MAP } from '../types'
 import type { TeachingTask } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
-import * as RS from '../../bindings/scheduling-system/services/resourceservice'
-import * as TS from '../../bindings/scheduling-system/services/teachingtaskservice'
+import * as RS from '../../bindings/scheduling-system/backend/services/resourceservice'
+import * as TS from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
 import * as XLSX from 'xlsx'
 import { useAppStore } from '../stores/app'
 

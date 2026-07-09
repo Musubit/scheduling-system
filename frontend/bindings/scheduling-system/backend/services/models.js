@@ -470,6 +470,14 @@ export class ScoreBreakdown {
              */
             this["pePeriodPref"] = 0;
         }
+        if (!("studentFatigue" in $$source)) {
+            /**
+             * 学生连续疲劳度
+             * @member
+             * @type {number}
+             */
+            this["studentFatigue"] = 0;
+        }
 
         Object.assign(this, $$source);
     }

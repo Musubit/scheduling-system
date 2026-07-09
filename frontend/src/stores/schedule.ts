@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ScheduleEntry, ScheduleView } from '@/types'
-import { GetScheduleEntries } from '../../bindings/scheduling-system/services/resourceservice'
+import { GetScheduleEntries } from '../../bindings/scheduling-system/backend/services/resourceservice'
 
 export const useScheduleStore = defineStore('schedule', () => {
   const currentView = ref<ScheduleView>('week')

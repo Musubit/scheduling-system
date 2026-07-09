@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { PageId, ScheduleView } from '@/types'
-import { GetActiveSemester, GetSemesters } from '../../bindings/scheduling-system/services/resourceservice'
+import { GetActiveSemester, GetSemesters } from '../../bindings/scheduling-system/backend/services/resourceservice'
 
 /**
  * 全局应用状态：主题、导航、侧栏

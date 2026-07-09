@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { SchedulingConfig, SchedulingResult, LockedTimeSlot } from '@/types'
-import { RunScheduling } from '../../bindings/scheduling-system/services/schedulingservice'
-import { GetActiveSemester } from '../../bindings/scheduling-system/services/resourceservice'
+import { RunScheduling } from '../../bindings/scheduling-system/backend/services/schedulingservice'
+import { GetActiveSemester } from '../../bindings/scheduling-system/backend/services/resourceservice'
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
 const DEFAULT_LOCKED: LockedTimeSlot[] = [
@@ -14,7 +14,7 @@ function ensureLockedSlots() {
     const saved = localStorage.getItem('locked-time-slots')
     if (!saved) {
       localStorage.setItem('locked-time-slots', JSON.stringify(DEFAULT_LOCKED))
-      import('../../bindings/scheduling-system/services/resourceservice').then(({ SaveSetting }) => {
+      import('../../bindings/scheduling-system/backend/services/resourceservice').then(({ SaveSetting }) => {
         SaveSetting('locked_time_slots', JSON.stringify(DEFAULT_LOCKED))
       }).catch(() => {})
     }

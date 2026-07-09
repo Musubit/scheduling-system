@@ -8,7 +8,7 @@ import { Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as gorm$0 from "../../gorm.io/gorm/models.js";
+import * as gorm$0 from "../../../gorm.io/gorm/models.js";
 
 /**
  * ClassGroup represents a student class/group (e.g., 计算机2301).
@@ -29,16 +29,16 @@ export class ClassGroup {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -102,7 +102,15 @@ export class ClassGroup {
      * @returns {ClassGroup}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new ClassGroup(/** @type {Partial<ClassGroup>} */($$parsedSource));
     }
 }
@@ -126,16 +134,16 @@ export class Classroom {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -205,7 +213,15 @@ export class Classroom {
      * @returns {Classroom}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new Classroom(/** @type {Partial<Classroom>} */($$parsedSource));
     }
 }
@@ -229,16 +245,16 @@ export class Course {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -308,7 +324,15 @@ export class Course {
      * @returns {Course}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new Course(/** @type {Partial<Course>} */($$parsedSource));
     }
 }
@@ -360,16 +384,16 @@ export class ScheduleEntry {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -499,12 +523,20 @@ export class ScheduleEntry {
      * @returns {ScheduleEntry}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         const $$createField14_0 = $$createType0;
         const $$createField15_0 = $$createType1;
         const $$createField16_0 = $$createType2;
         const $$createField17_0 = $$createType4;
         const $$createField18_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         if ("course" in $$parsedSource) {
             $$parsedSource["course"] = $$createField14_0($$parsedSource["course"]);
         }
@@ -544,16 +576,16 @@ export class ScheduleSnapshot {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -721,8 +753,16 @@ export class ScheduleSnapshot {
      * @returns {ScheduleSnapshot}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         const $$createField23_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         if ("details" in $$parsedSource) {
             $$parsedSource["details"] = $$createField23_0($$parsedSource["details"]);
         }
@@ -749,16 +789,16 @@ export class Semester {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -799,7 +839,15 @@ export class Semester {
      * @returns {Semester}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new Semester(/** @type {Partial<Semester>} */($$parsedSource));
     }
 }
@@ -823,16 +871,16 @@ export class SnapshotDetail {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -946,7 +994,15 @@ export class SnapshotDetail {
      * @returns {SnapshotDetail}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new SnapshotDetail(/** @type {Partial<SnapshotDetail>} */($$parsedSource));
     }
 }
@@ -970,16 +1026,16 @@ export class Teacher {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -1050,6 +1106,15 @@ export class Teacher {
              */
             this["preferLowFloor"] = false;
         }
+        if (!("unavailableSlots" in $$source)) {
+            /**
+             * Per-teacher unavailable time slots (JSON array).
+             * Each element: {"dayOfWeek":0-6, "startPeriod":0-10, "span":2-4}
+             * @member
+             * @type {string}
+             */
+            this["unavailableSlots"] = "";
+        }
 
         Object.assign(this, $$source);
     }
@@ -1060,7 +1125,15 @@ export class Teacher {
      * @returns {Teacher}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         return new Teacher(/** @type {Partial<Teacher>} */($$parsedSource));
     }
 }
@@ -1086,16 +1159,16 @@ export class TeachingTask {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -1172,11 +1245,19 @@ export class TeachingTask {
      * @returns {TeachingTask}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         const $$createField8_0 = $$createType0;
         const $$createField9_0 = $$createType1;
         const $$createField10_0 = $$createType9;
         const $$createField11_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         if ("course" in $$parsedSource) {
             $$parsedSource["course"] = $$createField8_0($$parsedSource["course"]);
         }
@@ -1213,16 +1294,16 @@ export class TeachingTaskClass {
         if (!("CreatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["CreatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("UpdatedAt" in $$source)) {
             /**
              * @member
-             * @type {string}
+             * @type {Date}
              */
-            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+            this["UpdatedAt"] = new Date("0001-01-01T00:00:00.000Z");
         }
         if (!("DeletedAt" in $$source)) {
             /**
@@ -1262,8 +1343,16 @@ export class TeachingTaskClass {
      * @returns {TeachingTaskClass}
      */
     static createFrom($$source = {}) {
+        const $$createField1_0 = $Create.DateFromTime;
+        const $$createField2_0 = $Create.DateFromTime;
         const $$createField6_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("CreatedAt" in $$parsedSource) {
+            $$parsedSource["CreatedAt"] = $$createField1_0($$parsedSource["CreatedAt"]);
+        }
+        if ("UpdatedAt" in $$parsedSource) {
+            $$parsedSource["UpdatedAt"] = $$createField2_0($$parsedSource["UpdatedAt"]);
+        }
         if ("classGroup" in $$parsedSource) {
             $$parsedSource["classGroup"] = $$createField6_0($$parsedSource["classGroup"]);
         }

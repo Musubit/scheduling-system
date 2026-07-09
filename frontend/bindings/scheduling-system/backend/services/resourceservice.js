@@ -22,7 +22,7 @@ import * as models$0 from "../models/models.js";
  * @returns {$CancellablePromise<void>}
  */
 export function BackupDatabase(backupPath) {
-    return $Call.ByID(3922053154, backupPath);
+    return $Call.ByID(426460745, backupPath);
 }
 
 /**
@@ -30,7 +30,7 @@ export function BackupDatabase(backupPath) {
  * @returns {$CancellablePromise<void>}
  */
 export function CreateClassGroup(c) {
-    return $Call.ByID(2378452998, c);
+    return $Call.ByID(2929636441, c);
 }
 
 /**
@@ -38,7 +38,7 @@ export function CreateClassGroup(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function CreateClassroom(c) {
-    return $Call.ByID(4230659480, c);
+    return $Call.ByID(2979645581, c);
 }
 
 /**
@@ -46,7 +46,7 @@ export function CreateClassroom(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function CreateCourse(c) {
-    return $Call.ByID(986378328, c);
+    return $Call.ByID(1220227755, c);
 }
 
 /**
@@ -54,7 +54,7 @@ export function CreateCourse(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function CreateSemester(sem) {
-    return $Call.ByID(25164431, sem);
+    return $Call.ByID(2898724944, sem);
 }
 
 /**
@@ -62,7 +62,7 @@ export function CreateSemester(sem) {
  * @returns {$CancellablePromise<void>}
  */
 export function CreateTeacher(t) {
-    return $Call.ByID(118883989, t);
+    return $Call.ByID(3813397992, t);
 }
 
 /**
@@ -70,7 +70,7 @@ export function CreateTeacher(t) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteClassGroup(id) {
-    return $Call.ByID(2583998629, id);
+    return $Call.ByID(3930905198, id);
 }
 
 /**
@@ -78,7 +78,7 @@ export function DeleteClassGroup(id) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteClassroom(id) {
-    return $Call.ByID(21048417, id);
+    return $Call.ByID(32826096, id);
 }
 
 /**
@@ -86,7 +86,7 @@ export function DeleteClassroom(id) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteCourse(id) {
-    return $Call.ByID(2971047935, id);
+    return $Call.ByID(2400459696, id);
 }
 
 /**
@@ -94,7 +94,7 @@ export function DeleteCourse(id) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteSemester(id) {
-    return $Call.ByID(2376560436, id);
+    return $Call.ByID(246029095, id);
 }
 
 /**
@@ -102,14 +102,14 @@ export function DeleteSemester(id) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteTeacher(id) {
-    return $Call.ByID(1946163876, id);
+    return $Call.ByID(3486932189, id);
 }
 
 /**
  * @returns {$CancellablePromise<models$0.Semester | null>}
  */
 export function GetActiveSemester() {
-    return $Call.ByID(1477465107).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(1572033238).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -118,7 +118,7 @@ export function GetActiveSemester() {
  * @returns {$CancellablePromise<models$0.ClassGroup[]>}
  */
 export function GetClassGroups() {
-    return $Call.ByID(1591698177).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(738541606).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
     }));
 }
@@ -127,7 +127,7 @@ export function GetClassGroups() {
  * @returns {$CancellablePromise<models$0.Classroom[]>}
  */
 export function GetClassrooms() {
-    return $Call.ByID(943463975).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(625788786).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType5($result);
     }));
 }
@@ -136,7 +136,7 @@ export function GetClassrooms() {
  * @returns {$CancellablePromise<models$0.Course[]>}
  */
 export function GetCourses() {
-    return $Call.ByID(3364788411).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(1247827488).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType7($result);
     }));
 }
@@ -146,7 +146,7 @@ export function GetCourses() {
  * @returns {$CancellablePromise<string>}
  */
 export function GetDatabasePath() {
-    return $Call.ByID(1311432297);
+    return $Call.ByID(4115972420);
 }
 
 /**
@@ -154,7 +154,7 @@ export function GetDatabasePath() {
  * @returns {$CancellablePromise<models$0.ScheduleEntry[]>}
  */
 export function GetScheduleEntries(semester) {
-    return $Call.ByID(1801965054, semester).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(1541252201, semester).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType9($result);
     }));
 }
@@ -163,7 +163,7 @@ export function GetScheduleEntries(semester) {
  * @returns {$CancellablePromise<models$0.Semester[]>}
  */
 export function GetSemesters() {
-    return $Call.ByID(1035169946).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(4004272785).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType10($result);
     }));
 }
@@ -173,14 +173,14 @@ export function GetSemesters() {
  * @returns {$CancellablePromise<string>}
  */
 export function GetSetting(key) {
-    return $Call.ByID(1320426373, key);
+    return $Call.ByID(2106596506, key);
 }
 
 /**
  * @returns {$CancellablePromise<models$0.Teacher[]>}
  */
 export function GetTeachers() {
-    return $Call.ByID(1580423400).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(4028316649).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType12($result);
     }));
 }
@@ -193,7 +193,7 @@ export function GetTeachers() {
  * @returns {$CancellablePromise<void>}
  */
 export function RestoreDatabase(backupPath) {
-    return $Call.ByID(571916084, backupPath);
+    return $Call.ByID(4284031461, backupPath);
 }
 
 /**
@@ -202,7 +202,7 @@ export function RestoreDatabase(backupPath) {
  * @returns {$CancellablePromise<void>}
  */
 export function SaveSetting(key, value) {
-    return $Call.ByID(1513734492, key, value);
+    return $Call.ByID(3754637109, key, value);
 }
 
 /**
@@ -210,7 +210,7 @@ export function SaveSetting(key, value) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateClassGroup(c) {
-    return $Call.ByID(3147255191, c);
+    return $Call.ByID(2402162084, c);
 }
 
 /**
@@ -218,7 +218,7 @@ export function UpdateClassGroup(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateClassroom(c) {
-    return $Call.ByID(662507967, c);
+    return $Call.ByID(3496546402, c);
 }
 
 /**
@@ -226,7 +226,7 @@ export function UpdateClassroom(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateCourse(c) {
-    return $Call.ByID(1882758153, c);
+    return $Call.ByID(3826924046, c);
 }
 
 /**
@@ -234,7 +234,7 @@ export function UpdateCourse(c) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateSemester(sem) {
-    return $Call.ByID(2496429506, sem);
+    return $Call.ByID(1025382337, sem);
 }
 
 /**
@@ -242,7 +242,7 @@ export function UpdateSemester(sem) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateTeacher(t) {
-    return $Call.ByID(3029258410, t);
+    return $Call.ByID(702117399, t);
 }
 
 // Private type creation functions

@@ -31,7 +31,7 @@ const semesterForm = reactive({ name: '', isActive: false, startDate: '' })
 
 async function loadSemesters() {
   try {
-      const { GetSemesters } = await import('../../bindings/scheduling-system/services/resourceservice')
+      const { GetSemesters } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
     const result = await GetSemesters()
     semesters.value = (result || []) as SemesterData[]
   } catch (e) {
@@ -57,7 +57,7 @@ function openEditSemester(sem: SemesterData) {
 
 async function saveSemester() {
   try {
-    const { CreateSemester, UpdateSemester } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const { CreateSemester, UpdateSemester } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
     const data = {
       ID: editingSemester.value?.ID || 0,
       name: semesterForm.name,
@@ -80,7 +80,7 @@ async function saveSemester() {
 async function deleteSemester(id: number) {
   if (!confirm('确定要删除该学期吗？')) return
   try {
-    const { DeleteSemester } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const { DeleteSemester } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
     await DeleteSemester(id)
     await loadSemesters()
     await appStore.loadSemesters()  // refresh toolbar dropdown
@@ -103,7 +103,7 @@ async function handleBackup() {
       filters: [{ display: '数据库文件', pattern: '*.db' }],
     })
     if (!filePath) return
-    const { BackupDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const { BackupDatabase } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
     await BackupDatabase(filePath)
   } catch { /* silent */ }
 }
@@ -117,7 +117,7 @@ async function handleRestore() {
     })
     if (!filePath) return
     if (!confirm('导入将覆盖当前所有数据，确定继续？')) return
-    const { RestoreDatabase } = await import('../../bindings/scheduling-system/services/resourceservice')
+    const { RestoreDatabase } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
     await RestoreDatabase(filePath)
   } catch { /* silent */ }
 }

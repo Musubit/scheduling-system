@@ -21,7 +21,7 @@ import * as models$0 from "../models/models.js";
  * @returns {$CancellablePromise<models$0.ScheduleSnapshot | null>}
  */
 export function CreateManualSnapshot(semester) {
-    return $Call.ByID(2433123319, semester).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(299046732, semester).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -41,7 +41,7 @@ export function CreateManualSnapshot(semester) {
  * @returns {$CancellablePromise<models$0.ScheduleSnapshot | null>}
  */
 export function CreateSnapshot(semester, dept, trigger, solver, entries, teachers, classrooms, constraints, solveTimeMs, conflictCount) {
-    return $Call.ByID(162352929, semester, dept, trigger, solver, entries, teachers, classrooms, constraints, solveTimeMs, conflictCount).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(1676786010, semester, dept, trigger, solver, entries, teachers, classrooms, constraints, solveTimeMs, conflictCount).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -52,7 +52,7 @@ export function CreateSnapshot(semester, dept, trigger, solver, entries, teacher
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteSnapshot(id) {
-    return $Call.ByID(1178185690, id);
+    return $Call.ByID(1169474405, id);
 }
 
 /**
@@ -61,7 +61,7 @@ export function DeleteSnapshot(id) {
  * @returns {$CancellablePromise<models$0.ScheduleSnapshot | null>}
  */
 export function GetSnapshotWithDetails(id) {
-    return $Call.ByID(2503829355, id).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(769250772, id).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -72,7 +72,7 @@ export function GetSnapshotWithDetails(id) {
  * @returns {$CancellablePromise<models$0.ScheduleSnapshot[]>}
  */
 export function GetSnapshots(semester) {
-    return $Call.ByID(3577178096, semester).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(3410442531, semester).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType2($result);
     }));
 }

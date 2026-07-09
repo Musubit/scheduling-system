@@ -26,7 +26,7 @@ import * as $models from "./models.js";
  * @returns {$CancellablePromise<void>}
  */
 export function CreateTeachingTask(task, classGroupIDs) {
-    return $Call.ByID(1025251569, task, classGroupIDs);
+    return $Call.ByID(1884256178, task, classGroupIDs);
 }
 
 /**
@@ -35,7 +35,7 @@ export function CreateTeachingTask(task, classGroupIDs) {
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteTeachingTask(id) {
-    return $Call.ByID(2471024758, id);
+    return $Call.ByID(763924985, id);
 }
 
 /**
@@ -46,7 +46,7 @@ export function DeleteTeachingTask(id) {
  * @returns {$CancellablePromise<$models.MergeableGroup[]>}
  */
 export function DetectMergeableTasks(semesterID) {
-    return $Call.ByID(2170145582, semesterID).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(1305060129, semesterID).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -57,7 +57,7 @@ export function DetectMergeableTasks(semesterID) {
  * @returns {$CancellablePromise<string[][]>}
  */
 export function ExportTeachingTasks(semesterID) {
-    return $Call.ByID(3520798392, semesterID).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(3612443393, semesterID).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
     }));
 }
@@ -68,7 +68,7 @@ export function ExportTeachingTasks(semesterID) {
  * @returns {$CancellablePromise<models$0.TeachingTask | null>}
  */
 export function GetTeachingTask(id) {
-    return $Call.ByID(3046931823, id).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(2408803522, id).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType5($result);
     }));
 }
@@ -81,7 +81,7 @@ export function GetTeachingTask(id) {
  * @returns {$CancellablePromise<[number, string[]]>}
  */
 export function ImportTeachingTasks(semesterID, rows) {
-    return $Call.ByID(2119571453, semesterID, rows).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(2540860548, semesterID, rows).then(/** @type {($result: any) => any} */(($result) => {
         $result[1] = $$createType2($result[1]);
         return $result;
     }));
@@ -93,7 +93,7 @@ export function ImportTeachingTasks(semesterID, rows) {
  * @returns {$CancellablePromise<models$0.TeachingTask[]>}
  */
 export function ListTeachingTasks(semesterID) {
-    return $Call.ByID(4029152710, semesterID).then(/** @type {($result: any) => any} */(($result) => {
+    return $Call.ByID(4246079887, semesterID).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType6($result);
     }));
 }
@@ -106,7 +106,7 @@ export function ListTeachingTasks(semesterID) {
  * @returns {$CancellablePromise<void>}
  */
 export function UpdateTeachingTask(id, task, classGroupIDs) {
-    return $Call.ByID(2970503324, id, task, classGroupIDs);
+    return $Call.ByID(2358490451, id, task, classGroupIDs);
 }
 
 // Private type creation functions
