@@ -59,13 +59,13 @@ type schedulingContext struct {
 	teachers        []models.Teacher
 	classrooms      []models.Classroom
 	classGroups     []models.ClassGroup
-	lockedSlots     []lockedTimeSlot
+	lockedSlots     []LockedTimeSlot
 	constraints     []string
 	semester        string
 	sportsCourseIDs map[uint]bool // course IDs for sports courses
 
 	// Per-teacher unavailable time slots (keyed by teacher ID)
-	teacherUnavailable map[uint][]lockedTimeSlot
+	teacherUnavailable map[uint][]LockedTimeSlot
 	// Per-class-group student count (keyed by class group ID)
 	classGroupStudents map[uint]int
 
@@ -86,7 +86,7 @@ func (s *SASolver) Solve(
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
 	classGroups []models.ClassGroup,
-	lockedSlots []lockedTimeSlot,
+	lockedSlots []LockedTimeSlot,
 	constraints []string,
 	semester string,
 	config SAConfig,
@@ -111,10 +111,10 @@ func (s *SASolver) Solve(
 	}
 
 	// Build per-teacher unavailable slots map
-	teacherUnavailable := make(map[uint][]lockedTimeSlot)
+	teacherUnavailable := make(map[uint][]LockedTimeSlot)
 	for _, t := range teachers {
 		if t.UnavailableSlots != "" {
-			var slots []lockedTimeSlot
+			var slots []LockedTimeSlot
 			if err := json.Unmarshal([]byte(t.UnavailableSlots), &slots); err == nil && len(slots) > 0 {
 				teacherUnavailable[t.ID] = slots
 			}
@@ -307,7 +307,7 @@ func (s *SASolver) SolveMultiRun(
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
 	classGroups []models.ClassGroup,
-	lockedSlots []lockedTimeSlot,
+	lockedSlots []LockedTimeSlot,
 	constraints []string,
 	semester string,
 	config SAConfig,

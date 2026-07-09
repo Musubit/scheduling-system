@@ -91,7 +91,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 
 		// 1b. Check teacher unavailable slots
 		if entry.Teacher.ID > 0 && entry.Teacher.UnavailableSlots != "" {
-			var unavailSlots []lockedTimeSlot
+			var unavailSlots []LockedTimeSlot
 			if err := json.Unmarshal([]byte(entry.Teacher.UnavailableSlots), &unavailSlots); err == nil {
 				for _, u := range unavailSlots {
 					if int(u.DayOfWeek) == req.NewDay && periodsOverlapInt(req.NewPeriod, span, int(u.StartPeriod), u.Span) {

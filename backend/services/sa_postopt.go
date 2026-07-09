@@ -13,7 +13,7 @@ func (s *SASolver) PostOptimize(
 	teachingTasks []models.TeachingTask,
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
-	lockedSlots []lockedTimeSlot,
+	lockedSlots []LockedTimeSlot,
 	constraints []string,
 	topN int,
 ) []models.ScheduleEntry {
@@ -48,10 +48,10 @@ func (s *SASolver) PostOptimize(
 	}
 
 	// Build teacher unavailable map
-	teacherUnavailable := make(map[uint][]lockedTimeSlot)
+	teacherUnavailable := make(map[uint][]LockedTimeSlot)
 	for _, t := range teachers {
 		if t.UnavailableSlots != "" {
-			var slots []lockedTimeSlot
+			var slots []LockedTimeSlot
 			if err := json.Unmarshal([]byte(t.UnavailableSlots), &slots); err == nil && len(slots) > 0 {
 				teacherUnavailable[t.ID] = slots
 			}

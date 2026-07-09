@@ -29,7 +29,7 @@ type ORToolsInput struct {
 	Teachers          []ORToolsTeacher   `json:"teachers"`
 	Classrooms        []ORToolsRoom      `json:"classrooms"`
 	ClassGroups       []ORToolsClassGroup `json:"classGroups"`
-	LockedSlots       []lockedTimeSlot   `json:"lockedSlots"`
+	LockedSlots       []LockedTimeSlot   `json:"lockedSlots"`
 	Constraints       []string           `json:"constraints"`
 	ConstraintWeights map[string]int     `json:"constraintWeights"`
 	SportsCourseIDs   []uint             `json:"sportsCourseIDs"`

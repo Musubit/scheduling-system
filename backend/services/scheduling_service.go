@@ -25,7 +25,7 @@ type SchedulingConfig struct {
 	Iterations  int              `json:"iterations"`
 	TimeLimit   int              `json:"timeLimit"` // max solve time in seconds, default 60
 	Constraints []string         `json:"constraints"`
-	LockedSlots []lockedTimeSlot `json:"lockedSlots,omitempty"`
+	LockedSlots []LockedTimeSlot `json:"lockedSlots,omitempty"`
 	SemesterID  uint             `json:"semesterId,omitempty"` // active semester ID
 }
 
@@ -41,7 +41,7 @@ type SchedulingResult struct {
 }
 
 // LockedTimeSlot represents a globally locked time period.
-type lockedTimeSlot struct {
+type LockedTimeSlot struct {
 	DayOfWeek   models.DayOfWeek `json:"dayOfWeek"`
 	StartPeriod models.Period    `json:"startPeriod"`
 	Span        int              `json:"span"`
@@ -249,19 +249,19 @@ func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.Teaching
 
 // loadLockedSlots reads locked time slots from the settings table.
 // Package-level function so MoveService can also use it without coupling to SchedulingService.
-func loadLockedSlotsDB(db database.DB) []lockedTimeSlot {
+func loadLockedSlotsDB(db database.DB) []LockedTimeSlot {
 	var setting models.Setting
 	if err := db.Where("key = ?", "locked_time_slots").First(&setting).Error(); err != nil {
 		return nil
 	}
-	var slots []lockedTimeSlot
+	var slots []LockedTimeSlot
 	if err := json.Unmarshal([]byte(setting.Value), &slots); err != nil {
 		return nil
 	}
 	return slots
 }
 
-func (s *SchedulingService) loadLockedSlots() []lockedTimeSlot {
+func (s *SchedulingService) loadLockedSlots() []LockedTimeSlot {
 	return loadLockedSlotsDB(s.db)
 }
 
@@ -315,7 +315,7 @@ func (s *SchedulingService) tryORTools(
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
 	classGroups []models.ClassGroup,
-	lockedSlots []lockedTimeSlot,
+	lockedSlots []LockedTimeSlot,
 	config SchedulingConfig,
 	sportsCourseIDs map[uint]bool,
 	log func(string),

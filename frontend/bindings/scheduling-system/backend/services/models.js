@@ -117,6 +117,51 @@ export class CheckMoveResult {
 }
 
 /**
+ * LockedTimeSlot represents a globally locked time period.
+ */
+export class LockedTimeSlot {
+    /**
+     * Creates a new LockedTimeSlot instance.
+     * @param {Partial<LockedTimeSlot>} [$$source = {}] - The source object to create the LockedTimeSlot.
+     */
+    constructor($$source = {}) {
+        if (!("dayOfWeek" in $$source)) {
+            /**
+             * @member
+             * @type {models$0.DayOfWeek}
+             */
+            this["dayOfWeek"] = models$0.DayOfWeek.$zero;
+        }
+        if (!("startPeriod" in $$source)) {
+            /**
+             * @member
+             * @type {models$0.Period}
+             */
+            this["startPeriod"] = 0;
+        }
+        if (!("span" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["span"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LockedTimeSlot instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LockedTimeSlot}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LockedTimeSlot(/** @type {Partial<LockedTimeSlot>} */($$parsedSource));
+    }
+}
+
+/**
  * MergeableGroup represents a group of teaching tasks that could be merged
  * (same course name + same teacher).
  */
@@ -286,7 +331,7 @@ export class SchedulingConfig {
         if (/** @type {any} */(false)) {
             /**
              * @member
-             * @type {lockedTimeSlot[] | undefined}
+             * @type {LockedTimeSlot[] | undefined}
              */
             this["lockedSlots"] = undefined;
         }
@@ -493,51 +538,6 @@ export class ScoreBreakdown {
     }
 }
 
-/**
- * LockedTimeSlot represents a globally locked time period.
- */
-export class lockedTimeSlot {
-    /**
-     * Creates a new lockedTimeSlot instance.
-     * @param {Partial<lockedTimeSlot>} [$$source = {}] - The source object to create the lockedTimeSlot.
-     */
-    constructor($$source = {}) {
-        if (!("dayOfWeek" in $$source)) {
-            /**
-             * @member
-             * @type {models$0.DayOfWeek}
-             */
-            this["dayOfWeek"] = models$0.DayOfWeek.$zero;
-        }
-        if (!("startPeriod" in $$source)) {
-            /**
-             * @member
-             * @type {models$0.Period}
-             */
-            this["startPeriod"] = 0;
-        }
-        if (!("span" in $$source)) {
-            /**
-             * @member
-             * @type {number}
-             */
-            this["span"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new lockedTimeSlot instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {lockedTimeSlot}
-     */
-    static createFrom($$source = {}) {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new lockedTimeSlot(/** @type {Partial<lockedTimeSlot>} */($$parsedSource));
-    }
-}
-
 // Private type creation functions
 const $$createType0 = MoveConflict.createFrom;
 const $$createType1 = $Create.Array($$createType0);
@@ -546,7 +546,7 @@ const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = models$0.ClassGroup.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $Create.Array($Create.Any);
-const $$createType7 = lockedTimeSlot.createFrom;
+const $$createType7 = LockedTimeSlot.createFrom;
 const $$createType8 = $Create.Array($$createType7);
 const $$createType9 = ScoreBreakdown.createFrom;
 const $$createType10 = $Create.Nullable($$createType9);
