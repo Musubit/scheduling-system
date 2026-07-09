@@ -35,11 +35,11 @@ function loadLockedSlots() {
 
 function saveLockedSlots() {
   localStorage.setItem('locked-time-slots', JSON.stringify(lockedSlots.value))
-  try {
-    import('../../../bindings/scheduling-system/backend/services/resourceservice').then(({ SaveSetting }) => {
-      SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
-    })
-  } catch { }
+  import('../../../bindings/scheduling-system/backend/services/resourceservice').then(({ SaveSetting }) => {
+    return SaveSetting('locked_time_slots', JSON.stringify(lockedSlots.value))
+  }).catch((err: any) => {
+    console.warn('[WeekView] 锁定时段保存到数据库失败:', err)
+  })
 }
 
 function isLocked(day: number, period: number): boolean {

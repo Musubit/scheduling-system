@@ -121,20 +121,41 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		return result
 	}
 
-	// Load locked time slots
+	// Load locked time slots — merge from both frontend JSON and SQLite
 		var lockedSlots []LockedTimeSlot
-		if config.LockedSlotsJSON != "" {
-			if err := json.Unmarshal([]byte(config.LockedSlotsJSON), &lockedSlots); err != nil {
-				log("WARN 无法解析前端传入的锁定时段，从数据库加载")
+		seen := make(map[string]bool)
+		addSlots := func(slots []LockedTimeSlot) {
+			for _, s := range slots {
+				key := fmt.Sprintf("%d-%d-%d", s.DayOfWeek, s.StartPeriod, s.Span)
+				if !seen[key] {
+					seen[key] = true
+					lockedSlots = append(lockedSlots, s)
+				}
 			}
 		}
-		if len(lockedSlots) == 0 {
-			lockedSlots = s.loadLockedSlots()
+
+		// 1. Parse frontend JSON
+		if config.LockedSlotsJSON != "" {
+			var parsed []LockedTimeSlot
+			if err := json.Unmarshal([]byte(config.LockedSlotsJSON), &parsed); err == nil {
+				addSlots(parsed)
+				log(fmt.Sprintf("[DEBUG] 前端传入 %d 个锁定时段", len(parsed)))
+			} else {
+				log(fmt.Sprintf("[DEBUG] 前端JSON解析失败: %v", err))
+			}
 		}
+
+		// 2. Load from database (always — as merge, not just fallback)
+		dbSlots := s.loadLockedSlots()
+		addSlots(dbSlots)
+		if len(dbSlots) > 0 {
+			log(fmt.Sprintf("[DEBUG] 数据库加载 %d 个锁定时段", len(dbSlots)))
+		}
+
 		if len(lockedSlots) > 0 {
-			log(fmt.Sprintf("加载了 %d 个全局锁定时间段", len(lockedSlots)))
+			log(fmt.Sprintf("加载了 %d 个全局锁定时间段 (前端+数据库合并)", len(lockedSlots)))
 		} else {
-			log("未加载任何全局锁定时间段")
+			log("未加载任何全局锁定时间段 — 锁定时段功能未启用")
 		}
 
 	// Configure SA solver
