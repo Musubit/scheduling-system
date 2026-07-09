@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"scheduling-system/models"
+	"scheduling-system/backend/models"
 )
 
 type neighborOp struct {
@@ -77,15 +77,21 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	}
 	span := entry.Span
 
-	// Check locked slots
-	for _, ls := range ctx.lockedSlots {
-		if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+		// Check locked slots
+		for _, ls := range ctx.lockedSlots {
+			if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+				ctx.restoreOccupancy(entry)
+				return currentScore
+			}
+		}
+
+		// Check teacher unavailable slots
+		if ctx.isTeacherUnavailable(entry.TeacherID, day, start, span) {
 			ctx.restoreOccupancy(entry)
 			return currentScore
 		}
-	}
 
-	// Check teacher preferences
+		// Check teacher preferences
 	if ctx.hasConstraint("teacher_preference") {
 		for _, t := range ctx.teachers {
 			if t.ID == entry.TeacherID {
@@ -129,6 +135,11 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 	for _, room := range rooms {
+		// Check room capacity
+		if td := ctx.findTaskDataByEntry(entry); td != nil && !ctx.canRoomFitCapacity(room, td) {
+			continue
+		}
+
 		roomBusy := false
 		for p := start; p < start+span; p++ {
 			key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
@@ -217,6 +228,11 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 		}
 	}
 
+	// Check teacher unavailable slots
+	if ctx.isTeacherUnavailable(e.TeacherID, day, start, span) {
+		return true
+	}
+
 	// Check teacher busy
 	for p := start; p < start+span; p++ {
 		key := fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)
@@ -296,7 +312,12 @@ func (ctx *schedulingContext) computeScore() float64 {
 	if len(ctx.entries) == 0 {
 		return 0
 	}
-	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.constraints, ctx.sportsCourseIDs)
+	// Extract teaching tasks for fatigue scoring
+	ttList := make([]models.TeachingTask, len(ctx.teachingTasks))
+	for i, td := range ctx.teachingTasks {
+		ttList[i] = td.Task
+	}
+	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.constraints, ctx.sportsCourseIDs, ttList)
 	return breakdown.Total
 }
 

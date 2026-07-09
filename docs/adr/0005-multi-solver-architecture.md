@@ -54,7 +54,7 @@ ADR-0001 否决了 OR-Tools 作为主要求解器，理由包括体积激增 150
 ### uv 打包方案
 
 - 使用 `uv` 创建自包含虚拟环境（`.venv/`），包含 Python + ortools + flask
-- 整个 `ortools_service/` 目录嵌入 Wails 资源
+- 整个 `scheduler/` 目录嵌入 Wails 资源
 - 应用启动时自动解压并拉起 Python 服务
 - 对比 PyInstaller：体积更可控，不重复打包 Python 解释器
 
@@ -69,5 +69,5 @@ ADR-0001 否决了 OR-Tools 作为主要求解器，理由包括体积激增 150
 ## 后果
 
 - **正面**：满足不同用户需求（轻量 vs 精确），SA 结果质量显著提升，架构可扩展支持未来更多引擎
-- **负面**：维护两套求解路径增加了代码复杂度；uv 打包增加约 50-100MB 体积（可选，用户可删除 ortools_service 目录使用纯 SA 模式）
+- **负面**：维护两套求解路径增加了代码复杂度；uv 打包增加约 50-100MB 体积（可选，用户可删除 scheduler 目录使用纯 SA 模式）
 - **可逆性**：SolverOrchestrator 的降级逻辑确保即使 OR-Tools 完全移除，SA 仍可独立工作

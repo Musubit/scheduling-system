@@ -3,8 +3,8 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"scheduling-system/database"
-	"scheduling-system/models"
+	"scheduling-system/backend/database"
+	"scheduling-system/backend/models"
 	"time"
 )
 
@@ -172,9 +172,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			max(5, len(saResult.Entries)/10),
 		)
 
-		// Re-score after post-optimization
-		postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs)
-		saResult.Score = postBreakdown.Total
+			// Re-score after post-optimization
+			postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
+			saResult.Score = postBreakdown.Total
 
 		log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
 			saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
@@ -209,9 +209,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	result.Score = saResult.Score
 
 	// Re-score on final data for detailed breakdown
-	scorer := NewScoringService()
-	finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs)
-	result.ScoreDetail = &finalBreakdown
+		scorer := NewScoringService()
+		finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
+		result.ScoreDetail = &finalBreakdown
 
 	log(fmt.Sprintf("排课完成！已排 %d/%d 个教学任务，利用率 %.1f%%，评分 %.1f/100",
 		len(saResult.Entries), result.TotalCourses, result.Utilization*100, saResult.Score))
@@ -350,13 +350,14 @@ func (s *SchedulingService) tryORTools(
 		})
 	}
 
-	// Map teachers
-	for _, t := range teachers {
-		input.Teachers = append(input.Teachers, ORToolsTeacher{
-			ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
-			MaxDaysPerWeek: t.MaxDaysPerWeek, PreferLowFloor: t.PreferLowFloor,
-		})
-	}
+		// Map teachers
+		for _, t := range teachers {
+			input.Teachers = append(input.Teachers, ORToolsTeacher{
+				ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
+				MaxDaysPerWeek: t.MaxDaysPerWeek, PreferLowFloor: t.PreferLowFloor,
+				UnavailableSlots: t.UnavailableSlots,
+			})
+		}
 
 	// Map class groups (needed for capacity constraint)
 	for _, cg := range classGroups {

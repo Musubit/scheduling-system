@@ -44,11 +44,12 @@ type ORToolsTask struct {
 }
 
 type ORToolsTeacher struct {
-	ID             uint `json:"id"`
-	PreferNoEarly  bool `json:"preferNoEarly"`
-	PreferNoLate   bool `json:"preferNoLate"`
-	MaxDaysPerWeek int  `json:"maxDaysPerWeek"`
-	PreferLowFloor bool `json:"preferLowFloor"`
+	ID               uint   `json:"id"`
+	PreferNoEarly    bool   `json:"preferNoEarly"`
+	PreferNoLate     bool   `json:"preferNoLate"`
+	MaxDaysPerWeek   int    `json:"maxDaysPerWeek"`
+	PreferLowFloor   bool   `json:"preferLowFloor"`
+	UnavailableSlots string `json:"unavailableSlots"`
 }
 
 type ORToolsRoom struct {

@@ -1,9 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
-	"scheduling-system/models"
+	"scheduling-system/backend/models"
 	"time"
 )
 
@@ -20,14 +21,60 @@ func (s *SASolver) PostOptimize(
 		return entries
 	}
 
-	// Build teaching task lookup
+	// Build per-class-group student map
+	classGroupStudents := make(map[uint]int)
+	for _, tt := range teachingTasks {
+		for _, c := range tt.Classes {
+			if c.ClassGroup.ID > 0 {
+				classGroupStudents[c.ClassGroupID] = c.ClassGroup.Students
+			}
+		}
+	}
+
+	// Build teaching task lookup with total students
 	taskMap := make(map[uint]teachingTaskData)
 	for _, tt := range teachingTasks {
 		classIDs := make([]uint, len(tt.Classes))
+		totalStudents := 0
 		for j, c := range tt.Classes {
 			classIDs[j] = c.ClassGroupID
+			totalStudents += classGroupStudents[c.ClassGroupID]
 		}
-		taskMap[tt.ID] = teachingTaskData{Task: tt, ClassIDs: classIDs}
+		taskMap[tt.ID] = teachingTaskData{
+			Task:          tt,
+			ClassIDs:      classIDs,
+			TotalStudents: totalStudents,
+		}
+	}
+
+	// Build teacher unavailable map
+	teacherUnavailable := make(map[uint][]lockedTimeSlot)
+	for _, t := range teachers {
+		if t.UnavailableSlots != "" {
+			var slots []lockedTimeSlot
+			if err := json.Unmarshal([]byte(t.UnavailableSlots), &slots); err == nil && len(slots) > 0 {
+				teacherUnavailable[t.ID] = slots
+			}
+		}
+	}
+
+	// Helper: check teacher unavailable
+	isTeacherUnavailable := func(teacherID uint, day, start, span int) bool {
+		slots, ok := teacherUnavailable[teacherID]
+		if !ok {
+			return false
+		}
+		for _, u := range slots {
+			if int(u.DayOfWeek) == day && periodsOverlapInt(start, span, int(u.StartPeriod), u.Span) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Helper: check room capacity
+	canRoomFit := func(room models.Classroom, td teachingTaskData) bool {
+		return td.TotalStudents <= 0 || room.Capacity >= td.TotalStudents
 	}
 
 	validStarts := []int{0, 2, 4, 6, 8}
@@ -37,20 +84,17 @@ func (s *SASolver) PostOptimize(
 		idx   int
 		entry models.ScheduleEntry
 	}
-	// Use a simple heuristic: entries on weekends or with early/late periods score lower
 	var scored []entryScore
 	for i, e := range entries {
 		scored = append(scored, entryScore{idx: i, entry: e})
 	}
 
-	// Sort by a simple quality heuristic (weekend = worse, early/late = worse)
-	// We'll just try all entries up to topN
 	limit := topN
 	if limit > len(entries) {
 		limit = len(entries)
 	}
 
-	// Shuffle scored to avoid bias (shuffle the order we process entries, not entries themselves)
+	// Shuffle scored to avoid bias
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	rng.Shuffle(len(scored), func(i, j int) { scored[i], scored[j] = scored[j], scored[i] })
 
@@ -93,29 +137,28 @@ func (s *SASolver) PostOptimize(
 		roomOcc, teacherOcc, classOcc := buildOcc(eIdx)
 
 		bestDay, bestStart, bestRoom := originalDay, originalStart, originalRoom
-		bestPenalty := 999 // lower is better for this heuristic
+		bestPenalty := 999
 
-		// Simple penalty: early/late/wekkend
+		// Simple penalty: early/late/weekend
 		calcPenalty := func(day, start int) int {
 			p := 0
 			if day >= 5 {
-				p += 3 // weekend penalty
+				p += 3
 			}
 			if start <= 1 {
-				p += 1 // early
+				p += 1
 			}
 			if start >= 6 {
-				p += 1 // late
+				p += 1
 			}
 			return p
 		}
 
 		for _, day := range rng.Perm(7) {
-			// Check locked slots
+			// Check locked slots (at day level)
 			lsBlocked := false
 			for _, ls := range lockedSlots {
 				if int(ls.DayOfWeek) == day && periodsOverlapInt(0, 11, int(ls.StartPeriod), ls.Span) {
-					// Check if any start period would overlap
 					for _, start := range validStarts {
 						if periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
 							lsBlocked = true
@@ -129,6 +172,11 @@ func (s *SASolver) PostOptimize(
 			}
 
 			for _, start := range validStarts {
+				// Check teacher unavailable (at specific day+start)
+				if isTeacherUnavailable(e.TeacherID, day, start, span) {
+					continue
+				}
+
 				penalty := calcPenalty(day, start)
 				if penalty > bestPenalty {
 					continue
@@ -166,7 +214,13 @@ func (s *SASolver) PostOptimize(
 				}
 
 				// Try rooms
+				td, tdOk := taskMap[*e.TeachingTaskID]
 				for _, room := range classrooms {
+					// Check room capacity
+					if tdOk && !canRoomFit(room, td) {
+						continue
+					}
+
 					roomBusy := false
 					for p := start; p < start+span; p++ {
 						if roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] {
@@ -202,4 +256,3 @@ func (s *SASolver) PostOptimize(
 }
 
 // ---- Helpers ----
-

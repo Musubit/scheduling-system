@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"scheduling-system/models"
+	"scheduling-system/backend/models"
 )
 
 func (ctx *schedulingContext) buildInitial() {
@@ -74,19 +74,24 @@ func (ctx *schedulingContext) buildInitial() {
 				span := 2
 
 				// Check locked slots
-				locked := false
-				for _, ls := range ctx.lockedSlots {
-					if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
-						locked = true
-						break
+					locked := false
+					for _, ls := range ctx.lockedSlots {
+						if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+							locked = true
+							break
+						}
 					}
-				}
-				if locked {
-					continue
-				}
+					if locked {
+						continue
+					}
 
-				// Check teacher preferences
-				if ctx.hasConstraint("teacher_preference") {
+					// Check teacher unavailable slots
+					if ctx.isTeacherUnavailable(td.Task.TeacherID, day, start, span) {
+						continue
+					}
+
+					// Check teacher preferences
+					if ctx.hasConstraint("teacher_preference") {
 					for _, t := range ctx.teachers {
 						if t.ID == td.Task.TeacherID {
 							if t.PreferNoEarly && start <= 1 {
@@ -137,17 +142,22 @@ func (ctx *schedulingContext) buildInitial() {
 				ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 				for _, room := range rooms {
-					roomBusy := false
-					for p := start; p < start+span; p++ {
-						key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
-						if ctx.roomOcc[key] {
-							roomBusy = true
-							break
+						// Check room capacity
+						if !ctx.canRoomFitCapacity(room, &td) {
+							continue
 						}
-					}
-					if roomBusy {
-						continue
-					}
+
+						roomBusy := false
+						for p := start; p < start+span; p++ {
+							key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+							if ctx.roomOcc[key] {
+								roomBusy = true
+								break
+							}
+						}
+						if roomBusy {
+							continue
+						}
 
 					// All constraints satisfied, create entry
 					entry := models.ScheduleEntry{

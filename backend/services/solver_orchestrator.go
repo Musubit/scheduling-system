@@ -18,9 +18,17 @@ func NewSolverOrchestrator() *SolverOrchestrator {
 }
 
 // StartORTools attempts to start the OR-Tools Python microservice.
-// pythonPath should point to the uv virtual environment's Python executable.
+// pythonPath: path to Python executable (or scheduler.exe for production).
+// scriptPath: path to solver.py (empty if using scheduler.exe directly).
+// port: the port number to listen on.
 func (o *SolverOrchestrator) StartORTools(pythonPath string, scriptPath string, port int) error {
-	o.ortoolsCmd = exec.Command(pythonPath, scriptPath, fmt.Sprintf("%d", port))
+	if scriptPath == "" {
+		// Running as standalone exe (scheduler.exe)
+		o.ortoolsCmd = exec.Command(pythonPath, fmt.Sprintf("%d", port))
+	} else {
+		// Running as Python script (solver.py)
+		o.ortoolsCmd = exec.Command(pythonPath, scriptPath, fmt.Sprintf("%d", port))
+	}
 	// Capture output for debugging
 	o.ortoolsCmd.Stdout = log.Writer()
 	o.ortoolsCmd.Stderr = log.Writer()

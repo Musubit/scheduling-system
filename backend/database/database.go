@@ -2,8 +2,10 @@ package database
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 
-	"scheduling-system/models"
+	"scheduling-system/backend/models"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -97,9 +99,34 @@ func (g *GormAdapter) Error() error {
 }
 
 // InitDB initializes the SQLite database and runs auto-migration.
-// Uses github.com/glebarez/sqlite which is a pure Go SQLite driver (no CGO required).
-func InitDB() (*GormAdapter, error) {
-	gormDB, err := gorm.Open(sqlite.Open("scheduling.db"), &gorm.Config{
+// The database is stored at {baseDir}/resources/schedule.db.
+// baseDir: path to the executable directory (or project root in dev mode).
+// If baseDir is empty, it falls back to the working directory.
+//
+// It also records the resolved database path in DBPath for use by backup/restore.
+func InitDB(baseDir string) (*GormAdapter, error) {
+	if baseDir == "" {
+		baseDir = resolveBaseDir()
+	}
+
+	dbDir := filepath.Join(baseDir, "resources")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		return nil, err
+	}
+
+	dbPath := filepath.Join(dbDir, "schedule.db")
+
+	// Migration: if old scheduling.db exists at baseDir, rename it
+	oldPath := filepath.Join(baseDir, "scheduling.db")
+	if _, err := os.Stat(oldPath); err == nil {
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			if renameErr := os.Rename(oldPath, dbPath); renameErr == nil {
+				log.Printf("Database: migrated %s → %s", oldPath, dbPath)
+			}
+		}
+	}
+
+	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
@@ -129,6 +156,35 @@ func InitDB() (*GormAdapter, error) {
 	// Seed default data if empty
 	SeedData(adapter)
 
-	log.Println("Database initialized successfully")
+	SetDBPath(dbPath)
+	log.Printf("Database initialized: %s", dbPath)
 	return adapter, nil
+}
+
+var (
+	activeDBPath string
+)
+
+// SetDBPath records the currently active database file path.
+func SetDBPath(path string) {
+	activeDBPath = path
+}
+
+// GetDBPath returns the path to the currently active database file.
+func GetDBPath() string {
+	return activeDBPath
+}
+
+// resolveBaseDir returns the executable directory, falling back to working directory.
+func resolveBaseDir() string {
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		if dir != "" {
+			return dir
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return "."
 }

@@ -1,9 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
-	"scheduling-system/database"
-	"scheduling-system/models"
+	"scheduling-system/backend/database"
+	"scheduling-system/backend/models"
 )
 
 // MoveService validates schedule entry moves for drag-and-drop micro-adjustment.
@@ -71,24 +72,60 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 	// Load locked slots via shared package-level function
 	lockedSlots := loadLockedSlotsDB(s.db)
 
-	// 1. Check locked time slots
-	for _, ls := range lockedSlots {
-		if int(ls.DayOfWeek) == req.NewDay {
-			if periodsOverlapInt(req.NewPeriod, span, int(ls.StartPeriod), ls.Span) {
+		// 1. Check locked time slots
+		for _, ls := range lockedSlots {
+			if int(ls.DayOfWeek) == req.NewDay {
+				if periodsOverlapInt(req.NewPeriod, span, int(ls.StartPeriod), ls.Span) {
+					result.Valid = false
+					result.Conflicts = append(result.Conflicts, MoveConflict{
+						Type:        "locked",
+						Description: fmt.Sprintf("该时段为全校锁定时间（周%s %d-%d节）",
+							models.DayOfWeek(req.NewDay).String(),
+							ls.StartPeriod.DisplayNum(),
+							int(ls.StartPeriod)+ls.Span),
+						Entity: "系统设置",
+					})
+				}
+			}
+		}
+
+		// 1b. Check teacher unavailable slots
+		if entry.Teacher.ID > 0 && entry.Teacher.UnavailableSlots != "" {
+			var unavailSlots []lockedTimeSlot
+			if err := json.Unmarshal([]byte(entry.Teacher.UnavailableSlots), &unavailSlots); err == nil {
+				for _, u := range unavailSlots {
+					if int(u.DayOfWeek) == req.NewDay && periodsOverlapInt(req.NewPeriod, span, int(u.StartPeriod), u.Span) {
+						result.Valid = false
+						result.Conflicts = append(result.Conflicts, MoveConflict{
+							Type:        "teacher",
+							Description: fmt.Sprintf("%s在周%s的%d-%d节有不可用时间设置",
+								entry.Teacher.Name,
+								models.DayOfWeek(req.NewDay).String(),
+								u.StartPeriod.DisplayNum(),
+								int(u.StartPeriod)+u.Span),
+							Entity: entry.Teacher.Name,
+						})
+					}
+				}
+			}
+		}
+
+		// 1c. Check room capacity
+		if req.NewClassroom > 0 {
+			var newRoom models.Classroom
+			s.db.First(&newRoom, req.NewClassroom)
+			totalStudents := s.getClassGroupTotalStudents(entry)
+			if totalStudents > 0 && newRoom.Capacity < totalStudents {
 				result.Valid = false
 				result.Conflicts = append(result.Conflicts, MoveConflict{
-					Type:        "locked",
-					Description: fmt.Sprintf("该时段为全校锁定时间（周%s %d-%d节）",
-						models.DayOfWeek(req.NewDay).String(),
-						ls.StartPeriod.DisplayNum(),
-						int(ls.StartPeriod)+ls.Span),
-					Entity: "系统设置",
+					Type:        "room",
+					Description: fmt.Sprintf("%s容量不足（需%d人，仅%d座）", newRoom.Name, totalStudents, newRoom.Capacity),
+					Entity:      newRoom.Name,
 				})
 			}
 		}
-	}
 
-	// 2. Check teacher conflict
+		// 2. Check teacher conflict
 	for _, other := range others {
 		if other.TeacherID != entry.TeacherID {
 			continue
@@ -215,4 +252,21 @@ func (s *MoveService) getClassIDs(entry models.ScheduleEntry) []uint {
 		return []uint{*entry.ClassGroupID}
 	}
 	return nil
+}
+
+// getClassGroupTotalStudents returns the total number of students across all class groups
+// associated with a schedule entry.
+func (s *MoveService) getClassGroupTotalStudents(entry models.ScheduleEntry) int {
+	cgIDs := s.getClassIDs(entry)
+	if len(cgIDs) == 0 {
+		return 0
+	}
+	var total int
+	for _, cgID := range cgIDs {
+		var cg models.ClassGroup
+		if err := s.db.First(&cg, cgID).Error(); err == nil {
+			total += cg.Students
+		}
+	}
+	return total
 }

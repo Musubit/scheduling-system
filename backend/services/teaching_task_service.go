@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"scheduling-system/database"
-	"scheduling-system/models"
+	"scheduling-system/backend/database"
+	"scheduling-system/backend/models"
 )
 
 // TeachingTaskService handles CRUD and intelligent detection for teaching tasks.

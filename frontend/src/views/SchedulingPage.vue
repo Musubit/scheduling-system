@@ -243,6 +243,11 @@ const weightLabels: Record<string, string> = {
               <n-progress :percentage="(store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
               <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(0) }}/{{ categoryMax }}</span>
             </div>
+            <div class="breakdown-item" v-if="isConstraintEnabled('student_fatigue')">
+              <span class="breakdown-label">学生疲劳度</span>
+              <n-progress :percentage="(store.result.scoreDetail.studentFatigue || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(0) }}/{{ categoryMax }}</span>
+            </div>
           </div>
         </div>
 

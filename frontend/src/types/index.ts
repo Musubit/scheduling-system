@@ -213,6 +213,7 @@ export interface ScoreBreakdown {
   lowFloorPref: number
   weekendAvoid: number
   pePeriodPref?: number
+  studentFatigue?: number
 }
 
 /** 冲突 */

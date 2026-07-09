@@ -1,6 +1,6 @@
 package database
 
-import "scheduling-system/models"
+import "scheduling-system/backend/models"
 
 // SeedData initializes the database with sample data.
 func SeedData(db DB) {

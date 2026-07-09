@@ -3,8 +3,8 @@ package services
 import (
 	"io"
 	"os"
-	"scheduling-system/database"
-	"scheduling-system/models"
+	"scheduling-system/backend/database"
+	"scheduling-system/backend/models"
 )
 
 // ResourceService handles CRUD for teachers, classrooms, courses, and class groups.
@@ -197,7 +197,7 @@ func (s *ResourceService) GetDatabasePath() string {
 // BackupDatabase copies the database file to a backup location.
 // Returns the backup file path.
 func (s *ResourceService) BackupDatabase(backupPath string) error {
-	src, err := os.Open("scheduling.db")
+	src, err := os.Open(database.GetDBPath())
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (s *ResourceService) RestoreDatabase(backupPath string) error {
 	}
 	defer src.Close()
 
-	dst, err := os.Create("scheduling.db")
+	dst, err := os.Create(database.GetDBPath())
 	if err != nil {
 		return err
 	}

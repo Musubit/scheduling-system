@@ -288,17 +288,18 @@ function getMockData(tab: string): any[] {
   return map[tab] || []
 }
 
-		const formFields = computed(() => {
-		  const fields: Record<string, { key: string; label: string; type?: string; options?: {label:string;value:any}[] | string; filterable?: boolean; min?: number; max?: number }[]> = {
-	    teacher: [
-	      { key: 'code', label: '工号' },
-	      { key: 'name', label: '姓名' },
-	      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
-	      { key: 'preferNoEarly', label: '避免早课', type: 'switch' },
-	      { key: 'preferNoLate', label: '避免晚课', type: 'switch' },
-	      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number', min: 1, max: 7 },
-	      { key: 'preferLowFloor', label: '优先低楼层', type: 'switch' },
-	    ],
+const formFields = computed(() => {
+  const fields: Record<string, { key: string; label: string; type?: string; options?: any[]; min?: number; max?: number; filterable?: boolean; placeholder?: string }[]> = {
+    teacher: [
+      { key: 'code', label: '工号' },
+      { key: 'name', label: '姓名' },
+      { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
+      { key: 'preferNoEarly', label: '避免早课', type: 'switch' },
+      { key: 'preferNoLate', label: '避免晚课', type: 'switch' },
+      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number', min: 1, max: 7 },
+      { key: 'preferLowFloor', label: '优先低楼层', type: 'switch' },
+      { key: 'unavailableSlots', label: '不可用时段(JSON)', type: 'textarea', placeholder: '[{"dayOfWeek":2,"startPeriod":0,"span":4}]' },
+    ],
 	    classroom: [
 	      { key: 'code', label: '编号' },
 	      { key: 'name', label: '教室名' },
@@ -440,25 +441,47 @@ async function handleFileChange(e: Event) {
   const reader = new FileReader()
   reader.onload = async (ev) => {
     try {
-      const wb = XLSX.read(ev.target?.result, { type: 'binary' })
+      const data = new Uint8Array(ev.target?.result as ArrayBuffer)
+      const wb = XLSX.read(data, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
       if (rows.length < 2) { message.warning('文件为空或格式不正确'); return }
       const headers = rows[0] as string[]
-      const data = rows.slice(1).filter((r: any) => r.length > 0 && r[0])
+      const dataRows = rows.slice(1).filter((r: any) => r.length > 0 && String(r[0]).trim())
       let count = 0
-      for (const row of data) {
+      let errors: string[] = []
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i]
         const item: any = {}
-        headers.forEach((h, i) => { item[h] = row[i] ?? '' })
-        try { await callCreate(resourceStore.activeTab, item); count++ } catch {}
+        headers.forEach((h, j) => { item[h.trim()] = row[j] ?? '' })
+        try {
+          if (resourceStore.activeTab === 'teachingTask') {
+            // 教学任务导入：利用后端 ImportTeachingTasks 实现编码→ID解析
+            const courseCode = String(item.courseId || item.courseCode || '').trim()
+            const teacherCode = String(item.teacherId || item.teacherCode || '').trim()
+            const classCodes = String(item.classGroupIds || '').split(',').map((s: string) => s.trim()).filter(Boolean)
+            if (!courseCode || !teacherCode) { errors.push(`第${i+2}行: 课程编号或教师编号为空`); continue }
+            try {
+              const imported: [number, string[]] = await TS.ImportTeachingTasks(activeSemester.value?.ID || 0, [[courseCode, teacherCode, classCodes.join(',')]])
+              if (imported[0] > 0) count += imported[0]
+              if (imported[1] && imported[1].length > 0) errors.push(...imported[1])
+            } catch { errors.push(`第${i+2}行: 后端导入接口调用失败`) }
+          } else {
+            await callCreate(resourceStore.activeTab, item)
+            count++
+          }
+        } catch (e) {
+          errors.push(`第${i+2}行: ${(e as any)?.message || '未知错误'}`)
+        }
       }
-	      message.success(`成功导入 ${count} 条记录`)
-	      resourceStore.loadAll()
-	    } catch (err) {
-	      message.error('导入失败：' + (err as any).message)
+      if (count > 0) message.success(`成功导入 ${count} 条记录`)
+      if (errors.length > 0) message.warning(`导入完成，${errors.length} 行失败：\n${errors.slice(0,5).join('\n')}${errors.length > 5 ? `\n...还有 ${errors.length - 5} 行错误` : ''}`)
+      resourceStore.loadAll()
+    } catch (err) {
+      message.error('导入失败：' + (err as any).message)
     }
   }
-  reader.readAsBinaryString(file)
+  reader.readAsArrayBuffer(file)
   // Reset input
   if (e.target) (e.target as HTMLInputElement).value = ''
 }
@@ -480,14 +503,14 @@ function downloadTemplate() {
       headers = ['code', 'name', 'dept', 'credit', 'type', 'hours']
       example = ['CS999', '新课程', 'cs', '3.0', '专业选修', '48']
       break
-	    case 'class':
-	      headers = ['code', 'name', 'dept', 'grade', 'students']
-	      example = ['XX2301', '班级名', '计算机学院', '2023', '60']
-	      break
-	    case 'teachingTask':
-	      headers = ['课程编号', '教师编号', '班级编号列表']
-	      example = ['CS301', 'T001', 'CS2301,CS2302']
-	      break
+    case 'class':
+      headers = ['code', 'name', 'dept', 'grade', 'students']
+      example = ['XX2301', '班级名', '计算机学院', '2023', '60']
+      break
+    case 'teachingTask':
+      headers = ['courseId', 'teacherId', 'classGroupIds']
+      example = ['1', '1', '1,2']
+      break
   }
   const ws = XLSX.utils.aoa_to_sheet([headers, example])
   const wb = XLSX.utils.book_new()
@@ -542,11 +565,12 @@ function downloadTemplate() {
     <n-modal v-model:show="showModal" preset="card" :title="(editingItem ? '编辑' : '新增') + (tabLabels[resourceStore.activeTab] || '')" style="width: 520px;" :mask-closable="false">
       <n-form label-placement="left" label-width="110" :style="{ padding: '8px 0' }">
         <n-form-item v-for="f in formFields" :key="f.key" :label="f.label">
-          <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
-          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
-          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
-          <n-select v-else-if="f.type === 'multiSelect'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :multiple="true" :clearable="true" :placeholder="'请选择' + f.label" />
-          <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
+	          <n-switch v-if="f.type === 'switch'" v-model:value="formData[f.key]" />
+	          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
+	          <n-input v-else-if="f.type === 'textarea'" v-model:value="formData[f.key]" type="textarea" :rows="3" :placeholder="f.placeholder || ('请输入' + f.label)" clearable style="width:100%" />
+	          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
+	          <n-select v-else-if="f.type === 'multiSelect'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilter : undefined" :multiple="true" :clearable="true" :placeholder="'请选择' + f.label" />
+	          <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>
       <template #footer>

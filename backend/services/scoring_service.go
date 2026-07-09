@@ -2,7 +2,7 @@ package services
 
 import (
 	"math"
-	"scheduling-system/models"
+	"scheduling-system/backend/models"
 )
 
 // ScoringService evaluates a schedule's quality against soft constraints.
@@ -21,14 +21,21 @@ type ScoreBreakdown struct {
 	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层
 	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让
 	PePeriodPref  float64 `json:"pePeriodPref"`  // 体育课时段偏好
+	StudentFatigue float64 `json:"studentFatigue"` // 学生连续疲劳度
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
 // enabledConstraints: list of constraint keys to evaluate. If empty, all are enabled.
 // sportsCourseIDs: set of course IDs that are sports courses (for pe_preferred_periods).
+// teachingTasks: optional — needed for student_fatigue constraint; pass nil to skip fatigue scoring.
 // Returns a score from 0-100 with detailed breakdown.
-func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string, sportsCourseIDs map[uint]bool) ScoreBreakdown {
+func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string, sportsCourseIDs map[uint]bool, teachingTasks ...[]models.TeachingTask) ScoreBreakdown {
 	breakdown := ScoreBreakdown{}
+
+	var ttList []models.TeachingTask
+	if len(teachingTasks) > 0 {
+		ttList = teachingTasks[0]
+	}
 
 	if len(enabledConstraints) == 0 {
 		// Default: enable all
@@ -58,6 +65,9 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		enabledCount++
 	}
 	if enabled["pe_preferred_periods"] && sportsCourseIDs != nil {
+		enabledCount++
+	}
+	if enabled["student_fatigue"] && len(ttList) > 0 {
 		enabledCount++
 	}
 	perCategoryMax := 100.0 / float64(enabledCount)
@@ -105,7 +115,12 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		breakdown.PePeriodPref = s.scorePePeriodPref(entries, sportsCourseIDs, perCategoryMax)
 	}
 
-	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid + breakdown.PePeriodPref)*100) / 100
+	// 7. Student fatigue scoring (requires teaching task data)
+	if enabled["student_fatigue"] && len(ttList) > 0 {
+		breakdown.StudentFatigue = s.scoreStudentFatigue(entries, ttList, perCategoryMax)
+	}
+
+	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid + breakdown.PePeriodPref + breakdown.StudentFatigue)*100) / 100
 	return breakdown
 }
 
@@ -375,5 +390,103 @@ func (s *ScoringService) scorePePeriodPref(entries []models.ScheduleEntry, sport
 	}
 
 	ratio := float64(preferredCount) / float64(sportsCount)
-	return math.Round(maxScore * ratio * 100) / 100
-}
+		return math.Round(maxScore * ratio * 100) / 100
+	}
+
+	// scoreStudentFatigue evaluates whether students have excessive consecutive periods.
+	// For each class group, find the longest consecutive period span on a single day.
+	// Full score (perCategoryMax) if no class exceeds 4 consecutive periods (2 course blocks).
+	// Penalty increases proportionally for each extra consecutive period.
+	// Requires teaching task data to map entries to class groups.
+	func (s *ScoringService) scoreStudentFatigue(entries []models.ScheduleEntry, teachingTasks []models.TeachingTask, maxScore float64) float64 {
+		// Build entry -> class group IDs map from teaching tasks
+		type classDayInfo struct {
+			periods map[int]bool // period numbers occupied for this (classGroup, day)
+		}
+
+		// Build teaching task lookup
+		taskClassMap := make(map[uint][]uint) // teaching task ID -> class group IDs
+		for _, tt := range teachingTasks {
+			ids := make([]uint, len(tt.Classes))
+			for j, c := range tt.Classes {
+				ids[j] = c.ClassGroupID
+			}
+			taskClassMap[tt.ID] = ids
+		}
+
+		// Build class-day occupancy: for each class group, which periods are occupied per day
+		type dayPeriods map[int]bool
+		classDay := make(map[uint]map[int]dayPeriods) // classGroupID -> day -> set of periods
+
+		for _, e := range entries {
+			var cgIDs []uint
+			if e.TeachingTaskID != nil {
+				cgIDs = taskClassMap[*e.TeachingTaskID]
+			} else if e.ClassGroupID != nil {
+				cgIDs = []uint{*e.ClassGroupID}
+			}
+			if len(cgIDs) == 0 {
+				continue
+			}
+			day := int(e.DayOfWeek)
+			for p := int(e.StartPeriod); p < int(e.StartPeriod)+e.Span; p++ {
+				for _, cgID := range cgIDs {
+					if classDay[cgID] == nil {
+						classDay[cgID] = make(map[int]dayPeriods)
+					}
+					if classDay[cgID][day] == nil {
+						classDay[cgID][day] = make(dayPeriods)
+					}
+					classDay[cgID][day][p] = true
+				}
+			}
+		}
+
+		if len(classDay) == 0 {
+			return maxScore
+		}
+
+		// For each class group, find the longest consecutive span
+		maxConsecutiveAcrossAll := 0
+		for _, days := range classDay {
+			for _, periods := range days {
+				// Find longest consecutive run of occupied periods
+				longest := 0
+				current := 0
+				for p := 0; p <= 10; p++ { // periods 0-10
+					if periods[p] {
+						current++
+						if current > longest {
+							longest = current
+						}
+					} else {
+						current = 0
+					}
+				}
+				if longest > maxConsecutiveAcrossAll {
+					maxConsecutiveAcrossAll = longest
+				}
+			}
+		}
+
+		// Threshold: 4 consecutive periods is acceptable (2 course blocks).
+		// Up to 6 is somewhat tiring (3 blocks), beyond that is severe.
+		threshold := 4
+		if maxConsecutiveAcrossAll <= threshold {
+			return maxScore
+		}
+
+		// Penalty: each extra period beyond threshold reduces score.
+		// Max penalty at 10 consecutive periods (threshold + 6).
+		extra := maxConsecutiveAcrossAll - threshold
+		maxPenaltyRange := 6 // 10 - 4
+		if extra > maxPenaltyRange {
+			extra = maxPenaltyRange
+		}
+		penaltyFactor := float64(extra) / float64(maxPenaltyRange)
+		score := maxScore * (1.0 - penaltyFactor)
+		if score < 0 {
+			score = 0
+		}
+		return math.Round(score*100) / 100
+	}

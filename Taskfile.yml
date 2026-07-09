@@ -14,11 +14,15 @@ includes:
 tasks:
   build:
     summary: Builds the application
+    deps:
+      - task: setup:scheduler
     cmds:
       - task: "{{.GOOS}}:build"
 
   package:
     summary: Packages a production build of the application
+    deps:
+      - task: setup:scheduler
     cmds:
       - task: "{{.GOOS}}:package"
 
@@ -29,6 +33,8 @@ tasks:
 
   dev:
     summary: Runs the application in development mode
+    deps:
+      - task: setup:scheduler
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
   go:mod:tidy:
@@ -39,6 +45,24 @@ tasks:
     run: once
     cmds:
       - go mod tidy
+
+  setup:scheduler:
+    summary: Creates/updates the Python OR-Tools venv in scheduler/
+    run: once
+    dir: scheduler
+    sources:
+      - pyproject.toml
+      - uv.lock
+      - solver.py
+    generates:
+      - .venv/Scripts/python.exe
+    preconditions:
+      - sh: uv --version
+        msg: "uv is required. Install it from https://docs.astral.sh/uv/"
+    cmds:
+      - uv sync
+    status:
+      - test -f .venv/Scripts/python.exe
 
   install:frontend:deps:
     summary: Install frontend dependencies

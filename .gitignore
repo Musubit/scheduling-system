@@ -20,6 +20,14 @@ bin/
 *.db-journal
 *.db-wal
 
+# Python solver venv (recreated by `uv sync` during build)
+scheduler/.venv/
+
+# Runtime data (created automatically on first run)
+config/
+logs/
+resources/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

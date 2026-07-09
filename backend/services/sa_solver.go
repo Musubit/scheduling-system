@@ -1,12 +1,13 @@
 package services
 
 import (
-	"fmt"
-	"math"
-	"math/rand"
-	"scheduling-system/models"
-	"time"
-)
+		"encoding/json"
+		"fmt"
+		"math"
+		"math/rand"
+		"scheduling-system/backend/models"
+		"time"
+	)
 
 // SASolver implements Simulated Annealing for course scheduling.
 // Pure Go, zero external dependencies beyond the standard library.
@@ -47,8 +48,9 @@ type SAResult struct {
 
 // teachingTaskData holds pre-loaded data for one teaching task.
 type teachingTaskData struct {
-	Task        models.TeachingTask
-	ClassIDs    []uint // all ClassGroup IDs in this task
+	Task           models.TeachingTask
+	ClassIDs       []uint // all ClassGroup IDs in this task
+	TotalStudents  int    // total students across all class groups (for capacity check)
 }
 
 // schedulingContext holds all the data needed during solving.
@@ -61,6 +63,11 @@ type schedulingContext struct {
 	constraints     []string
 	semester        string
 	sportsCourseIDs map[uint]bool // course IDs for sports courses
+
+	// Per-teacher unavailable time slots (keyed by teacher ID)
+	teacherUnavailable map[uint][]lockedTimeSlot
+	// Per-class-group student count (keyed by class group ID)
+	classGroupStudents map[uint]int
 
 	// Mutable state
 	entries    []models.ScheduleEntry
@@ -97,16 +104,36 @@ func (s *SASolver) Solve(
 	rng := rand.New(rand.NewSource(config.Seed))
 	startTime := time.Now()
 
+	// Build per-class-group student map
+	classGroupStudents := make(map[uint]int, len(classGroups))
+	for _, cg := range classGroups {
+		classGroupStudents[cg.ID] = cg.Students
+	}
+
+	// Build per-teacher unavailable slots map
+	teacherUnavailable := make(map[uint][]lockedTimeSlot)
+	for _, t := range teachers {
+		if t.UnavailableSlots != "" {
+			var slots []lockedTimeSlot
+			if err := json.Unmarshal([]byte(t.UnavailableSlots), &slots); err == nil && len(slots) > 0 {
+				teacherUnavailable[t.ID] = slots
+			}
+		}
+	}
+
 	// Pre-load teaching task data
 	taskData := make([]teachingTaskData, len(teachingTasks))
 	for i, tt := range teachingTasks {
 		classIDs := make([]uint, len(tt.Classes))
+		totalStudents := 0
 		for j, c := range tt.Classes {
 			classIDs[j] = c.ClassGroupID
+			totalStudents += classGroupStudents[c.ClassGroupID]
 		}
 		taskData[i] = teachingTaskData{
-			Task:     tt,
-			ClassIDs: classIDs,
+			Task:          tt,
+			ClassIDs:      classIDs,
+			TotalStudents: totalStudents,
 		}
 	}
 
@@ -119,15 +146,17 @@ func (s *SASolver) Solve(
 	}
 
 	ctx := &schedulingContext{
-		teachingTasks:   taskData,
-		teachers:        teachers,
-		classrooms:      classrooms,
-		classGroups:     classGroups,
-		lockedSlots:     lockedSlots,
-		constraints:     constraints,
-		semester:        semester,
-		sportsCourseIDs: sportsCourseIDs,
-		rng:             rng,
+		teachingTasks:      taskData,
+		teachers:           teachers,
+		classrooms:         classrooms,
+		classGroups:        classGroups,
+		lockedSlots:        lockedSlots,
+		constraints:        constraints,
+		semester:           semester,
+		sportsCourseIDs:    sportsCourseIDs,
+		teacherUnavailable: teacherUnavailable,
+		classGroupStudents: classGroupStudents,
+		rng:                rng,
 	}
 
 	// Phase 1: Generate initial solution with greedy construction
@@ -330,4 +359,39 @@ func periodsOverlapInt(start1, span1, start2, span2 int) bool {
 	end1 := start1 + span1
 	end2 := start2 + span2
 	return start1 < end2 && start2 < end1
+}
+
+// isTeacherUnavailable checks if a teacher has an unavailable time slot overlapping (day, start, span).
+func (ctx *schedulingContext) isTeacherUnavailable(teacherID uint, day, start, span int) bool {
+	slots, ok := ctx.teacherUnavailable[teacherID]
+	if !ok {
+		return false
+	}
+	for _, u := range slots {
+		if int(u.DayOfWeek) == day && periodsOverlapInt(start, span, int(u.StartPeriod), u.Span) {
+			return true
+		}
+	}
+	return false
+}
+
+// canRoomFitCapacity checks if a classroom's capacity is sufficient for the given teaching task.
+func (ctx *schedulingContext) canRoomFitCapacity(classroom models.Classroom, taskData *teachingTaskData) bool {
+	if taskData.TotalStudents <= 0 {
+		return true
+	}
+	return classroom.Capacity >= taskData.TotalStudents
+}
+
+// findTaskDataByEntry finds the teachingTaskData for a given schedule entry.
+func (ctx *schedulingContext) findTaskDataByEntry(e models.ScheduleEntry) *teachingTaskData {
+	if e.TeachingTaskID == nil {
+		return nil
+	}
+	for i := range ctx.teachingTasks {
+		if ctx.teachingTasks[i].Task.ID == *e.TeachingTaskID {
+			return &ctx.teachingTasks[i]
+		}
+	}
+	return nil
 }

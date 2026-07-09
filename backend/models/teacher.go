@@ -15,4 +15,8 @@ type Teacher struct {
 	PreferNoLate   bool `gorm:"default:false" json:"preferNoLate"`    // 避免晚课（7-8节及晚上）
 	MaxDaysPerWeek int  `gorm:"default:3" json:"maxDaysPerWeek"`     // 每周最多到校天数
 	PreferLowFloor bool `gorm:"default:false" json:"preferLowFloor"`  // 优先低楼层
+
+	// Per-teacher unavailable time slots (JSON array).
+	// Each element: {"dayOfWeek":0-6, "startPeriod":0-10, "span":2-4}
+	UnavailableSlots string `gorm:"type:text" json:"unavailableSlots"`
 }

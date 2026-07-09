@@ -22,6 +22,9 @@ interface Snapshot {
   courseSpacing: number
   teacherDays: number
   lowFloorPref: number
+  weekendAvoid?: number
+  pePeriodPref?: number
+  studentFatigue?: number
   totalEntries: number
   solveTimeMs: number
   solver: string
@@ -108,6 +111,7 @@ const perCategoryMax = computed(() => {
   if (s.lowFloorPref > 0) count++
   if ((s.weekendAvoid || 0) > 0) count++
   if ((s.pePeriodPref || 0) > 0) count++
+  if ((s.studentFatigue || 0) > 0) count++
   return count > 0 ? 100 / count : 25
 })
 
@@ -255,6 +259,16 @@ onMounted(() => {
                   :height="16"
                 />
                 <span class="bar-value">{{ (selectedSnapshot.pePeriodPref || 0).toFixed(1) }}</span>
+              </div>
+              <div class="score-bar-item" v-if="(selectedSnapshot.studentFatigue || 0) > 0">
+                <span>学生疲劳度</span>
+                <n-progress
+                  type="line"
+                  :percentage="((selectedSnapshot.studentFatigue || 0) / perCategoryMax) * 100"
+                  :color="scoreColor((selectedSnapshot.studentFatigue || 0) / perCategoryMax * 100)"
+                  :height="16"
+                />
+                <span class="bar-value">{{ (selectedSnapshot.studentFatigue || 0).toFixed(1) }}</span>
               </div>
             </div>
           </n-card>

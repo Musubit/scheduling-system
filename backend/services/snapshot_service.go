@@ -2,8 +2,8 @@ package services
 
 import (
 	"fmt"
-	"scheduling-system/database"
-	"scheduling-system/models"
+	"scheduling-system/backend/database"
+	"scheduling-system/backend/models"
 )
 
 // SnapshotService manages schedule validation snapshots.
