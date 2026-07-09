@@ -132,11 +132,13 @@ def solve_scheduling(data):
             model.Add(position[i] == p).OnlyEnforceIf(at_pos)
 
     # day[i], start[i] derived from position[i]
+    # day[i], start[i] derived from position[i] via linear equation
+    # Note: CP-SAT supports IntVar * constant but NOT IntVar // constant
     day = [model.NewIntVar(0, DAYS - 1, f"day_{i}") for i in range(n_tasks)]
-    start = [model.NewIntVar(0, PERIODS_PER_DAY - 1, f"start_{i}") for i in range(n_tasks)]
+    start = [model.NewIntVarFromDomain(cp_model.Domain.FromValues(VALID_STARTS), f"start_{i}")
+             for i in range(n_tasks)]
     for i in range(n_tasks):
-        model.Add(day[i] == position[i] // PERIODS_PER_DAY)
-        model.Add(start[i] == position[i] % PERIODS_PER_DAY)
+        model.Add(position[i] == day[i] * PERIODS_PER_DAY + start[i])
 
     # =====================================================================
     # HARD CONSTRAINTS (expressed in X)
@@ -388,12 +390,14 @@ def solve_scheduling(data):
 
                 if len(any_this_day) >= 3:
                     count = sum(any_this_day)
+                    # Penalty only when count > 2 (3+ tasks on same day)
+                    has_excess = model.NewBoolVar(f"fat_has_{cid}_d{d}")
+                    model.Add(count >= 3).OnlyEnforceIf(has_excess)
+                    model.Add(count <= 2).OnlyEnforceIf(has_excess.Not())
                     excess = model.NewIntVar(0, len(any_this_day), f"fat_ex_{cid}_d{d}")
-                    model.Add(excess == count - 2)
-                    pos_excess = model.NewIntVar(0, len(any_this_day), f"fat_pex_{cid}_d{d}")
-                    zero = model.NewConstant(0)
-                    model.AddMaxEquality(pos_excess, [zero, excess])
-                    objective_terms.append(pos_excess * (-w))
+                    model.Add(excess == count - 2).OnlyEnforceIf(has_excess)
+                    model.Add(excess == 0).OnlyEnforceIf(has_excess.Not())
+                    objective_terms.append(excess * (-w))
 
     # ===== Objective =====
     model.Maximize(sum(objective_terms))
