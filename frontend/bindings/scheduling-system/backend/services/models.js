@@ -117,51 +117,6 @@ export class CheckMoveResult {
 }
 
 /**
- * LockedTimeSlot represents a globally locked time period.
- */
-export class LockedTimeSlot {
-    /**
-     * Creates a new LockedTimeSlot instance.
-     * @param {Partial<LockedTimeSlot>} [$$source = {}] - The source object to create the LockedTimeSlot.
-     */
-    constructor($$source = {}) {
-        if (!("dayOfWeek" in $$source)) {
-            /**
-             * @member
-             * @type {models$0.DayOfWeek}
-             */
-            this["dayOfWeek"] = models$0.DayOfWeek.$zero;
-        }
-        if (!("startPeriod" in $$source)) {
-            /**
-             * @member
-             * @type {models$0.Period}
-             */
-            this["startPeriod"] = 0;
-        }
-        if (!("span" in $$source)) {
-            /**
-             * @member
-             * @type {number}
-             */
-            this["span"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new LockedTimeSlot instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {LockedTimeSlot}
-     */
-    static createFrom($$source = {}) {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new LockedTimeSlot(/** @type {Partial<LockedTimeSlot>} */($$parsedSource));
-    }
-}
-
-/**
  * MergeableGroup represents a group of teaching tasks that could be merged
  * (same course name + same teacher).
  */
@@ -330,10 +285,11 @@ export class SchedulingConfig {
         }
         if (/** @type {any} */(false)) {
             /**
+             * JSON string, avoids Wails enum serialization pitfall
              * @member
-             * @type {LockedTimeSlot[] | undefined}
+             * @type {string | undefined}
              */
-            this["lockedSlots"] = undefined;
+            this["lockedSlotsJson"] = undefined;
         }
         if (/** @type {any} */(false)) {
             /**
@@ -354,13 +310,9 @@ export class SchedulingConfig {
      */
     static createFrom($$source = {}) {
         const $$createField5_0 = $$createType6;
-        const $$createField6_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("constraints" in $$parsedSource) {
             $$parsedSource["constraints"] = $$createField5_0($$parsedSource["constraints"]);
-        }
-        if ("lockedSlots" in $$parsedSource) {
-            $$parsedSource["lockedSlots"] = $$createField6_0($$parsedSource["lockedSlots"]);
         }
         return new SchedulingConfig(/** @type {Partial<SchedulingConfig>} */($$parsedSource));
     }
@@ -438,7 +390,7 @@ export class SchedulingResult {
      * @returns {SchedulingResult}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType10;
+        const $$createField5_0 = $$createType8;
         const $$createField6_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scoreDetail" in $$parsedSource) {
@@ -546,7 +498,5 @@ const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = models$0.ClassGroup.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $Create.Array($Create.Any);
-const $$createType7 = LockedTimeSlot.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = ScoreBreakdown.createFrom;
-const $$createType10 = $Create.Nullable($$createType9);
+const $$createType7 = ScoreBreakdown.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);

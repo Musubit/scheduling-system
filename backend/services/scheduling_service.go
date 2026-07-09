@@ -19,15 +19,15 @@ func NewSchedulingService(db database.DB, snapshots *SnapshotService, orchestrat
 }
 
 type SchedulingConfig struct {
-	Scope       string           `json:"scope"`
-	Semester    string           `json:"semester"`
-	Strategy    string           `json:"strategy"`
-	Iterations  int              `json:"iterations"`
-	TimeLimit   int              `json:"timeLimit"` // max solve time in seconds, default 60
-	Constraints []string         `json:"constraints"`
-	LockedSlots []LockedTimeSlot `json:"lockedSlots,omitempty"`
-	SemesterID  uint             `json:"semesterId,omitempty"` // active semester ID
-}
+		Scope       string   `json:"scope"`
+		Semester    string   `json:"semester"`
+		Strategy    string   `json:"strategy"`
+		Iterations  int      `json:"iterations"`
+		TimeLimit   int      `json:"timeLimit"` // max solve time in seconds, default 60
+		Constraints []string `json:"constraints"`
+		LockedSlotsJSON string `json:"lockedSlotsJson,omitempty"` // JSON string, avoids Wails enum serialization pitfall
+		SemesterID      uint   `json:"semesterId,omitempty"`     // active semester ID
+	}
 
 type SchedulingResult struct {
 	TotalCourses int             `json:"totalCourses"`
@@ -122,13 +122,20 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	// Load locked time slots
-	lockedSlots := config.LockedSlots
-	if len(lockedSlots) == 0 {
-		lockedSlots = s.loadLockedSlots()
-	}
-	if len(lockedSlots) > 0 {
-		log(fmt.Sprintf("加载了 %d 个全局锁定时间段", len(lockedSlots)))
-	}
+		var lockedSlots []LockedTimeSlot
+		if config.LockedSlotsJSON != "" {
+			if err := json.Unmarshal([]byte(config.LockedSlotsJSON), &lockedSlots); err != nil {
+				log("WARN 无法解析前端传入的锁定时段，从数据库加载")
+			}
+		}
+		if len(lockedSlots) == 0 {
+			lockedSlots = s.loadLockedSlots()
+		}
+		if len(lockedSlots) > 0 {
+			log(fmt.Sprintf("加载了 %d 个全局锁定时间段", len(lockedSlots)))
+		} else {
+			log("未加载任何全局锁定时间段")
+		}
 
 	// Configure SA solver
 	saConfig := defaultSAConfig()

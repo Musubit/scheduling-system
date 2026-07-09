@@ -174,11 +174,11 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     logs.value = ['🔍 正在加载教学任务数据...']
 
     try {
-      // Load locked slots from localStorage
-      let lockedSlots: { dayOfWeek: number; startPeriod: number; span: number }[] = []
+      // Load locked slots from localStorage (pass raw JSON to avoid Wails enum serialization)
+      let lockedSlotsJson = ''
       try {
         const saved = localStorage.getItem('locked-time-slots')
-        if (saved) { lockedSlots = JSON.parse(saved) }
+        if (saved) { lockedSlotsJson = saved }
       } catch {}
 
       // Build config for Go backend
@@ -196,7 +196,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         iterations: 5000,
         timeLimit: 60,
         constraints: config.value.constraints,
-        lockedSlots: lockedSlots.length > 0 ? lockedSlots : undefined,
+        lockedSlotsJson: lockedSlotsJson || undefined,
         semesterId: activeSemesterId.value,
       }
       progress.value = 20

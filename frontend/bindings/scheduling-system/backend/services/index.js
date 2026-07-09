@@ -18,7 +18,6 @@ export {
 export {
     CheckMoveRequest,
     CheckMoveResult,
-    LockedTimeSlot,
     MergeableGroup,
     MoveConflict,
     SchedulingConfig,
