@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.2] - 2026-07-11 — Final Stabilization
+
+> v0.3 系列最终稳定版本。统一核心数据来源，建立 Stable Core 基线。
+> 除严重 Bug 外，ScoreSchedule / ScoreBreakdown / ScoringContext / ScheduleSnapshot / Snapshot.Name 在 v0.4.x 不再修改。
+
+### Fixed
+
+- **评分一致性**：CreateManualSnapshot 修复 TeachingTasks 传入 nil 导致 `student_fatigue` 不参与评分的 Bug
+- **显示一致性**：教师评分明细摘要重复"周"前缀（"周周一3-4节" → "周一 3-4节"）
+- **静态资源**：favicon 从 325KB PNG 替换为 15KB 多分辨率 .ico，消除 404
+
+### Added
+
+- **ScoreBreakdown 新增字段**：`PerCategoryMax`（每分类满分）、`EnabledCategoryCount`（评分类别数），Go 后端统一计算
+- **ScheduleSnapshot 新增字段**：`PerCategoryMax`、`EnabledCategoryCount`、`Name`，数据模型完善
+- **Snapshot.Name 机制**：快照创建时自动命名（`自动排课 · 2026-07-11 14:30:05`），`GetSnapshots` 存量回填，前端各页面统一使用
+
+### Changed
+
+- **perCategoryMax 统一来源**：ReportPage 和 SchedulingPage 删除独立的 perCategoryMax 计算逻辑（共 27 行），改为读取后端计算的字段
+- **历史快照命名统一**：HistoryComparePage 下拉、ReportPage 侧边栏、PDF 导出、打印头均使用 `snapshot.Name`
+
+### Removed
+
+- 暗色模式完全移除（#0.3.1 收尾）
+
+---
+
 ## [0.3.1] - 2026-07-11
 
 ### Removed
