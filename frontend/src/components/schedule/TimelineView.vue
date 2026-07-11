@@ -103,7 +103,7 @@ const AXIS_TICKS = P_INFOS.map((p, i) => ({
 // 统一时间轴刻度：节次起点 + 午休/晚饭标记（12:00 / 17:30）
 const HEADER_TICKS = [
   ...AXIS_TICKS.map(t => ({ label: t.label, pct: t.pct })),
-  { label: '12:00', pct: absToPct(12 * 60) },
+  { label: '11:50', pct: absToPct(11 * 60 + 50) },
   { label: '17:30', pct: absToPct(17 * 60 + 30) },
 ].sort((a, b) => a.pct - b.pct)
 
