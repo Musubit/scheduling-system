@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.1] - 2026-07-11
+
+### Removed
+
+- **移除暗色模式**：删除深色/浅色主题切换功能，系统仅保留亮色主题
+  - 移除 `stores/app.ts` 中的 `theme` 状态、`toggleTheme()`、`setTheme()` 及 localStorage 持久化
+  - 移除 `App.vue` 中的 `darkTheme` 导入、`isDark` 计算属性、`themeOverrides` 三元条件
+  - 移除 `AppToolbar.vue` 中的主题切换按钮（太阳/月亮图标）
+  - 移除 `SettingsPage.vue` 中的"深色模式"设置项
+  - 移除 `ziwu.css` 中 `[data-theme="dark"]` 覆盖块（85行）
+  - 移除 `TimelineView.vue` 中暗色主题适配 CSS
+
+### Changed
+
+- vendor-vue chunk 从 730 kB 缩减至 682 kB（-48 kB，移除 darkTheme）
+- index.css 从 31.8 kB 缩减至 28.8 kB（-3 kB）
+
+### Fixed
+
+- 修复移除 `watch` 导入导致 App 白屏的回归问题
+
+---
+
 ## [0.3.0] - 2026-07-11
 
 ### Added

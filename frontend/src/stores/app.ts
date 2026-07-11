@@ -7,28 +7,6 @@ import { GetActiveSemester, GetSemesters } from '../../bindings/scheduling-syste
  * 全局应用状态：主题、导航、侧栏
  */
 export const useAppStore = defineStore('app', () => {
-  // ===== 主题 =====
-  const theme = ref<'light' | 'dark'>(
-    (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
-  )
-
-  // Apply theme on load
-  if (theme.value === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark')
-  }
-
-  function toggleTheme() {
-    theme.value = theme.value === 'light' ? 'dark' : 'light'
-    document.documentElement.setAttribute('data-theme', theme.value)
-    localStorage.setItem('theme', theme.value)
-  }
-
-  function setTheme(t: 'light' | 'dark') {
-    theme.value = t
-    document.documentElement.setAttribute('data-theme', t)
-    localStorage.setItem('theme', t)
-  }
-
   // ===== 侧边栏折叠 =====
   const sidebarCollapsed = ref(
     localStorage.getItem('sidebar-collapsed') === 'true'
@@ -155,13 +133,9 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  return {
-    // theme
-    theme,
-    toggleTheme,
-    setTheme,
-    // sidebar
-    sidebarCollapsed,
+	return {
+	    // sidebar
+	    sidebarCollapsed,
     toggleSidebar,
     // nav
     currentPage,

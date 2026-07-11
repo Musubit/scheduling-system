@@ -19,9 +19,11 @@ export type {
     CheckMoveResult,
     MergeableGroup,
     MoveConflict,
+    ScheduleProgress,
     SchedulingConfig,
     SchedulingResult,
     ScoreBreakdown,
     SnapshotCompareResult,
-    TeacherSnapshotDiff
+    TeacherSnapshotDiff,
+    TeacherWorkloadInfo
 } from "./models.js";

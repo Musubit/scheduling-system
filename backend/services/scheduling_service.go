@@ -246,15 +246,20 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			max(5, len(saResult.Entries)/10),
 		)
 
-			// Re-score after post-optimization
-			postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
-			saResult.Score = postBreakdown.Total
-
-		addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
-			saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
+			addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms",
+				saResult.Iterations, float64(saResult.ElapsedMs)))
 		}
 
-	// Post-solve analysis
+		// 统一评分：OR-Tools 和 SA 路径共用同一个 ScoreBreakdown
+		{
+			scorer := NewScoringService()
+			breakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
+			saResult.Score = breakdown.Total
+			result.Score = breakdown.Total
+			result.ScoreDetail = &breakdown
+		}
+
+		// Post-solve analysis
 	addProgress(70, "分析冲突")
 
 	// Save result to database
@@ -295,16 +300,10 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 	result.TasksScheduled = len(taskSet)
 	if result.TotalCourses > 0 {
-		result.Utilization = float64(result.TasksScheduled) / float64(result.TotalCourses)
-	}
-	result.Score = saResult.Score
+			result.Utilization = float64(result.TasksScheduled) / float64(result.TotalCourses)
+		}
 
-	// Re-score on final data for detailed breakdown
-		scorer := NewScoringService()
-		finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
-		result.ScoreDetail = &finalBreakdown
-
-	addLog(fmt.Sprintf("排课完成！任务 %d/%d（%d条），评分 %.1f/100，冲突 教师%d 教室%d 班级%d",
+		addLog(fmt.Sprintf("排课完成！任务 %d/%d（%d条），评分 %.1f/100，冲突 教师%d 教室%d 班级%d",
 		result.TasksScheduled, result.TotalCourses, len(saResult.Entries), saResult.Score,
 		result.TeacherConflicts, result.RoomConflicts, result.ClassConflicts))
 	if result.TasksScheduled < result.TotalCourses {

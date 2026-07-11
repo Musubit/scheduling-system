@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, onMounted, defineAsyncComponent } from 'vue'
-import { NConfigProvider, NDialogProvider, NMessageProvider, darkTheme } from 'naive-ui'
+import { NConfigProvider, NDialogProvider, NMessageProvider } from 'naive-ui'
 import { useAppStore } from './stores/app'
 import { useScheduleStore } from './stores/schedule'
 import { useResourceStore } from './stores/resource'
@@ -56,32 +56,29 @@ watch(() => appStore.semesterFilter, (newSemester) => {
 const drawerRef = ref<InstanceType<typeof AppDrawer>>()
 provide('drawerRef', drawerRef)
 
-// Naive UI 主题适配
-const isDark = computed(() => appStore.theme === 'dark')
-
-// Naive UI themeOverrides — 映射子午配色
-const themeOverrides = computed(() => ({
+// Naive UI themeOverrides — light theme only
+const themeOverrides = {
   common: {
     primaryColor: '#3575f0',
     primaryColorHover: '#5b8af7',
     primaryColorPressed: '#2b62d0',
     primaryColorSuppl: '#8ab4f8',
-    bodyColor: isDark.value ? '#1e1e1e' : '#ffffff',
-    cardColor: isDark.value ? '#262626' : '#f6f6f6',
-    modalColor: isDark.value ? '#1e1e1e' : '#ffffff',
-    popoverColor: isDark.value ? '#262626' : '#ffffff',
-    textColorBase: isDark.value ? '#e0e0e0' : '#222222',
-    textColor1: isDark.value ? '#e0e0e0' : '#222222',
-    textColor2: isDark.value ? '#a0a4a8' : '#5f6368',
-    textColor3: isDark.value ? 'rgba(160,164,168,0.68)' : 'rgba(95,99,104,0.68)',
-    borderColor: isDark.value ? '#3a3a3a' : '#e0e0e0',
+    bodyColor: '#ffffff',
+    cardColor: '#f6f6f6',
+    modalColor: '#ffffff',
+    popoverColor: '#ffffff',
+    textColorBase: '#222222',
+    textColor1: '#222222',
+    textColor2: '#5f6368',
+    textColor3: 'rgba(95,99,104,0.68)',
+    borderColor: '#e0e0e0',
     borderRadius: '6px',
     fontFamily: 'BlinkMacSystemFont, Helvetica, "PingFang SC", "Luxi Sans", "DejaVu Sans", arial, "Microsoft Yahei", "Hiragino Sans GB", "Source Han Sans SC", sans-serif',
     fontSize: '14px',
-    scrollbarColor: isDark.value ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
-    scrollbarColorHover: isDark.value ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)',
+    scrollbarColor: 'rgba(0,0,0,0.2)',
+    scrollbarColorHover: 'rgba(0,0,0,0.35)',
   },
-}))
+}
 
 // 页面组件映射
 	const pageComponents: Record<PageId, any> = {
@@ -95,18 +92,13 @@ const themeOverrides = computed(() => ({
 	}
 
 const currentPageComponent = computed(() => pageComponents[appStore.currentPage])
-
-// 初始化主题
-watch(() => appStore.theme, (val) => {
-  document.documentElement.setAttribute('data-theme', val)
-}, { immediate: true })
 </script>
 
 <template>
-  <n-config-provider :theme="isDark ? darkTheme : null" :theme-overrides="themeOverrides">
+  <n-config-provider :theme-overrides="themeOverrides">
     <n-dialog-provider>
     <n-message-provider>
-    <div class="app-layout" :data-theme="appStore.theme">
+    <div class="app-layout">
       <AppSidebar />
       <main class="main-content">
         <AppToolbar />

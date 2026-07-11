@@ -132,13 +132,6 @@ async function handleRestore() {
       <h3 class="section-title">基本设置</h3>
       <div class="setting-item">
         <div>
-          <div class="setting-label">深色模式</div>
-          <div class="setting-desc">切换系统界面为深色主题</div>
-        </div>
-        <n-switch :value="appStore.theme === 'dark'" @update:value="appStore.toggleTheme()" />
-      </div>
-      <div class="setting-item">
-        <div>
           <div class="setting-label">自动保存</div>
           <div class="setting-desc">排课修改后自动保存到本地数据库</div>
         </div>

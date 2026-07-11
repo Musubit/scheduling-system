@@ -502,15 +502,6 @@ function isHighlighted(e: ScheduleEntry): boolean {
   color: var(--b3-theme-on-surface-light);
 }
 
-/* 暗色主题增强 */
-[data-theme="dark"] .tl-event-name {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .tl-seg.break {
-  opacity: 0.15;
-}
-
 /* 窄屏提示 */
 @media (max-width: 600px) {
   .timeline-view::before {

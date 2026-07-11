@@ -83,6 +83,21 @@ export interface MoveConflict {
     "suggestion": string;
 }
 
+/**
+ * ScheduleProgress records a scheduling phase milestone.
+ */
+export interface ScheduleProgress {
+    /**
+     * 0-100 percentage
+     */
+    "progress": number;
+
+    /**
+     * human-readable phase name
+     */
+    "stage": string;
+}
+
 export interface SchedulingConfig {
     "scope": string;
     "semester": string;
@@ -124,6 +139,7 @@ export interface SchedulingResult {
     "scoreDetail"?: ScoreBreakdown | null;
     "logs": string[] | null;
     "error"?: string;
+    "progressHistory"?: ScheduleProgress[] | null;
 }
 
 /**
@@ -202,4 +218,31 @@ export interface TeacherSnapshotDiff {
      * improved / regressed / unchanged / added / removed
      */
     "status": string;
+}
+
+/**
+ * TeacherWorkloadInfo holds per-teacher workload analysis (post-hoc, does not affect scoring).
+ */
+export interface TeacherWorkloadInfo {
+    "teacherId": number;
+    "teacherName": string;
+    "totalSessions": number;
+
+    /**
+     * 7 elements, sessions per day Mon-Sun
+     */
+    "dailyDistribution": number[] | null;
+    "busyDays": number;
+    "maxDaily": number;
+
+    /**
+     * min across all 7 days (may be 0)
+     */
+    "minDaily": number;
+
+    /**
+     * 0-100
+     */
+    "balanceScore": number;
+    "suggestion": string;
 }

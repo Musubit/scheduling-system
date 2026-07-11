@@ -1,7 +1,7 @@
 param(
     [string]$BinDir = "bin",
     [string]$AppName = "scheduling-system",
-    [string]$Version = "0.3.0"
+    [string]$Version = "0.3.1"
 )
 
 $ErrorActionPreference = "Stop"

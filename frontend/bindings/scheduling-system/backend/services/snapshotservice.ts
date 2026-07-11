@@ -19,6 +19,14 @@ import * as models$0 from "../models/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
+ * Pure post-hoc analysis — does not affect scoring or solver behaviour.
+ */
+export function AnalyzeTeacherWorkload(semester: string): $CancellablePromise<$models.TeacherWorkloadInfo[] | null> {
+    return $Call.ByID(2269459629, semester);
+}
+
+/**
  * CompareSnapshots returns a structured diff between two snapshots
  * (A = baseline, B = comparison target).
  */
