@@ -1,10 +1,13 @@
 package database
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
 
+	"scheduling-system/backend/appenv"
 	"scheduling-system/backend/models"
 
 	"github.com/glebarez/sqlite"
@@ -99,32 +102,18 @@ func (g *GormAdapter) Error() error {
 }
 
 // InitDB initializes the SQLite database and runs auto-migration.
-// The database is stored at {baseDir}/resources/schedule.db.
-// baseDir: path to the executable directory (or project root in dev mode).
-// If baseDir is empty, it falls back to the working directory.
-//
-// It also records the resolved database path in DBPath for use by backup/restore.
-func InitDB(baseDir string) (*GormAdapter, error) {
-	if baseDir == "" {
-		baseDir = resolveBaseDir()
+// The database is stored at {resourcesDir}/schedule.db.
+// resourcesDir is the writable directory (e.g., appenv.ResourcesDir()).
+func InitDB(resourcesDir string) (*GormAdapter, error) {
+	if resourcesDir == "" {
+		resourcesDir = appenv.ResourcesDir()
 	}
 
-	dbDir := filepath.Join(baseDir, "resources")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
+	if err := os.MkdirAll(resourcesDir, 0755); err != nil {
 		return nil, err
 	}
 
-	dbPath := filepath.Join(dbDir, "schedule.db")
-
-	// Migration: if old scheduling.db exists at baseDir, rename it
-	oldPath := filepath.Join(baseDir, "scheduling.db")
-	if _, err := os.Stat(oldPath); err == nil {
-		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			if renameErr := os.Rename(oldPath, dbPath); renameErr == nil {
-				log.Printf("Database: migrated %s → %s", oldPath, dbPath)
-			}
-		}
-	}
+	dbPath := filepath.Join(resourcesDir, "schedule.db")
 
 	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
@@ -148,10 +137,14 @@ func InitDB(baseDir string) (*GormAdapter, error) {
 		&models.SnapshotDetail{},
 		&models.TeachingTask{},
 		&models.TeachingTaskClass{},
+		&models.Department{},
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	// One-time migration: import departments from legacy settings JSON if table is empty
+	MigrateDepartmentsFromSettings(adapter)
 
 	// Seed default data if empty
 	SeedData(adapter)
@@ -175,16 +168,60 @@ func GetDBPath() string {
 	return activeDBPath
 }
 
-// resolveBaseDir returns the executable directory, falling back to working directory.
-func resolveBaseDir() string {
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		if dir != "" {
-			return dir
+// MigrateDepartmentsFromSettings imports departments from the legacy
+// settings JSON (key="departments") into the new departments table.
+// Safe to call on every startup: it only imports if the table is empty.
+func MigrateDepartmentsFromSettings(db DB) {
+	var count int64
+	db.Model(&models.Department{}).Count(&count)
+	if count > 0 {
+		return // already migrated
+	}
+
+	var setting models.Setting
+	if err := db.Where("key = ?", "departments").First(&setting).Error(); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return // no legacy data, nothing to do
 		}
+		log.Printf("[migrate] failed to read departments setting: %v", err)
+		return
 	}
-	if wd, err := os.Getwd(); err == nil {
-		return wd
+
+	if setting.Value == "" {
+		return
 	}
-	return "."
+
+	var raw []map[string]interface{}
+	if err := json.Unmarshal([]byte(setting.Value), &raw); err != nil {
+		log.Printf("[migrate] failed to parse departments JSON: %v", err)
+		return
+	}
+
+	if len(raw) == 0 {
+		return
+	}
+
+	depts := make([]models.Department, 0, len(raw))
+	for _, item := range raw {
+		code, _ := item["code"].(string)
+		name, _ := item["name"].(string)
+		if code == "" || name == "" {
+			continue
+		}
+		depts = append(depts, models.Department{Code: code, Name: name})
+	}
+
+	if len(depts) == 0 {
+		return
+	}
+
+	if err := db.Create(&depts).Error(); err != nil {
+		log.Printf("[migrate] failed to import departments: %v", err)
+		return
+	}
+
+	// Delete the legacy settings entry to avoid future confusion
+	db.Where("key = ?", "departments").Delete(&models.Setting{})
+	log.Printf("[migrate] imported %d departments from legacy settings", len(depts))
 }
+

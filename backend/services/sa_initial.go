@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"scheduling-system/backend/models"
+	"strings"
 )
 
 func (ctx *schedulingContext) buildInitial() {
@@ -22,178 +23,231 @@ func (ctx *schedulingContext) buildInitial() {
 
 	for _, ti := range taskOrder {
 		td := ctx.teachingTasks[ti]
-		placed := false
 
-		// Try days in random order, but push weekends to end if avoidance is on
-		baseDays := ctx.rng.Perm(7)
-		var days []int
-		if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
-			prefer, avoid := []int{}, []int{}
-			for _, d := range baseDays {
-				isAvoid := false
-				if ctx.hasConstraint("avoid_saturday") && d == int(models.Sat) {
-					isAvoid = true
-				}
-				if ctx.hasConstraint("avoid_sunday") && d == int(models.Sun) {
-					isAvoid = true
-				}
-				if isAvoid {
-					avoid = append(avoid, d)
-				} else {
-					prefer = append(prefer, d)
-				}
+		// Calculate sessions per week: ceil(CourseHours / 32), capped 1-4
+		sessionsPerWeek := 1
+		if td.CourseHours > 0 {
+			sessionsPerWeek = (td.CourseHours + 31) / 32
+			if sessionsPerWeek < 1 {
+				sessionsPerWeek = 1
 			}
-			ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
-			days = append(prefer, avoid...)
-		} else {
-			days = baseDays
+			if sessionsPerWeek > 4 {
+				sessionsPerWeek = 4
+			}
 		}
 
-		for _, day := range days {
-			if placed {
-				break
-			}
+		// Determine required room type for this task
+		requiredRoomType := ""
+		courseName := td.Task.Course.Name
+		if models.IsSportsCourse(courseName) {
+			requiredRoomType = "体育馆"
+		} else if strings.Contains(courseName, "实验") {
+			requiredRoomType = "实验室"
+		} else if strings.Contains(courseName, "上机") {
+			requiredRoomType = "机房"
+		}
 
-			starts := make([]int, len(validStarts))
-			copy(starts, validStarts)
-			// For sports courses, prefer start=2 (3-4节) and start=6 (7-8节)
-			if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[td.Task.CourseID] {
-				prefer := []int{2, 6}
-				other := []int{0, 4, 8}
+		for s := 0; s < sessionsPerWeek; s++ {
+			placed := false
+
+			// Try days in random order, but push weekends to end if avoidance is on
+			baseDays := ctx.rng.Perm(7)
+			var days []int
+			if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
+				prefer, avoid := []int{}, []int{}
+				for _, d := range baseDays {
+					isAvoid := false
+					if ctx.hasConstraint("avoid_saturday") && d == int(models.Sat) {
+						isAvoid = true
+					}
+					if ctx.hasConstraint("avoid_sunday") && d == int(models.Sun) {
+						isAvoid = true
+					}
+					if isAvoid {
+						avoid = append(avoid, d)
+					} else {
+						prefer = append(prefer, d)
+					}
+				}
 				ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
-				ctx.rng.Shuffle(len(other), func(i, j int) { other[i], other[j] = other[j], other[i] })
-				starts = append(prefer, other...)
+				days = append(prefer, avoid...)
 			} else {
-				ctx.rng.Shuffle(len(starts), func(i, j int) { starts[i], starts[j] = starts[j], starts[i] })
+				days = baseDays
 			}
 
-			for _, start := range starts {
-				if placed {
+			// Phase 1: Try with teacher preference enforced (soft — skip conflicting starts)
+			placed = ctx.tryPlaceSession(td, days, validStarts, requiredRoomType, true)
+
+			// Phase 2: Relax teacher preference if not placed
+			if !placed && ctx.hasConstraint("teacher_preference") {
+				placed = ctx.tryPlaceSession(td, days, validStarts, requiredRoomType, false)
+			}
+
+			_ = placed
+		} // end sessionsPerWeek loop
+	}
+}
+
+// tryPlaceSession attempts to place one session of a teaching task.
+// If enforcePref is true, teacher preference conflicts cause the start to be skipped.
+// If false, teacher preferences are ignored (relaxed phase).
+func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, starts []int, requiredRoomType string, enforcePref bool) bool {
+	for _, day := range days {
+		// Shuffle starts for randomness, but sports courses prefer specific starts
+		var orderedStarts []int
+		if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[td.Task.CourseID] {
+			prefer := []int{2, 6}
+			other := []int{0, 4, 8}
+			ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
+			ctx.rng.Shuffle(len(other), func(i, j int) { other[i], other[j] = other[j], other[i] })
+			orderedStarts = append(prefer, other...)
+		} else {
+			orderedStarts = make([]int, len(starts))
+			copy(orderedStarts, starts)
+			ctx.rng.Shuffle(len(orderedStarts), func(i, j int) { orderedStarts[i], orderedStarts[j] = orderedStarts[j], orderedStarts[i] })
+		}
+
+		for _, start := range orderedStarts {
+			span := 2
+
+			// Check locked slots
+			locked := false
+			for _, ls := range ctx.lockedSlots {
+				if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
+					locked = true
 					break
 				}
-				span := 2
+			}
+			if locked {
+				continue
+			}
 
-				// Check locked slots
-					locked := false
-					for _, ls := range ctx.lockedSlots {
-						if int(ls.DayOfWeek) == day && periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
-							locked = true
-							break
+			// Check teacher unavailable slots (always hard)
+			if ctx.isTeacherUnavailable(td.Task.TeacherID, day, start, span) {
+				continue
+			}
+
+			// Check teacher preferences (soft in relaxed mode)
+			if enforcePref && ctx.hasConstraint("teacher_preference") {
+				prefConflict := false
+				for _, t := range ctx.teachers {
+					if t.ID == td.Task.TeacherID {
+						if t.PreferNoEarly && start <= 1 {
+							prefConflict = true
 						}
-					}
-					if locked {
-						continue
-					}
-
-					// Check teacher unavailable slots
-					if ctx.isTeacherUnavailable(td.Task.TeacherID, day, start, span) {
-						continue
-					}
-
-					// Check teacher preferences
-					if ctx.hasConstraint("teacher_preference") {
-					for _, t := range ctx.teachers {
-						if t.ID == td.Task.TeacherID {
-							if t.PreferNoEarly && start <= 1 {
-								continue
-							}
-							if t.PreferNoLate && start >= 6 {
-								continue
-							}
-							break
+						if t.PreferNoLate && start >= 6 {
+							prefConflict = true
 						}
-					}
-				}
-
-				// Check teacher busy
-				teacherBusy := false
-				for p := start; p < start+span; p++ {
-					key := fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)
-					if ctx.teacherOcc[key] {
-						teacherBusy = true
 						break
 					}
 				}
-				if teacherBusy {
+				if prefConflict {
 					continue
 				}
+			}
 
-				// Check all class groups are free (combined class support)
-				classBusy := false
-				for _, cid := range td.ClassIDs {
-					for p := start; p < start+span; p++ {
-						key := fmt.Sprintf("%d-%d-%d", day, p, cid)
-						if ctx.classOcc[key] {
-							classBusy = true
-							break
-						}
+			// Check teacher busy
+			teacherBusy := false
+			for p := start; p < start+span; p++ {
+				key := fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)
+				if ctx.teacherOcc[key] {
+					teacherBusy = true
+					break
+				}
+			}
+			if teacherBusy {
+				continue
+			}
+
+			// Check not overlapping with already-placed sessions of same task
+			taskSelfBusy := false
+			for _, existing := range ctx.entries {
+				if existing.TeachingTaskID != nil && *existing.TeachingTaskID == td.Task.ID {
+					if int(existing.DayOfWeek) == day && periodsOverlapInt(start, span, int(existing.StartPeriod), existing.Span) {
+						taskSelfBusy = true
+						break
 					}
-					if classBusy {
+				}
+			}
+			if taskSelfBusy {
+				continue
+			}
+
+			// Check all class groups are free
+			classBusy := false
+			for _, cid := range td.ClassIDs {
+				for p := start; p < start+span; p++ {
+					key := fmt.Sprintf("%d-%d-%d", day, p, cid)
+					if ctx.classOcc[key] {
+						classBusy = true
 						break
 					}
 				}
 				if classBusy {
-					continue
-				}
-
-				// Try rooms
-				rooms := make([]models.Classroom, len(ctx.classrooms))
-				copy(rooms, ctx.classrooms)
-				ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
-
-				for _, room := range rooms {
-						// Check room capacity
-						if !ctx.canRoomFitCapacity(room, &td) {
-							continue
-						}
-
-						roomBusy := false
-						for p := start; p < start+span; p++ {
-							key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
-							if ctx.roomOcc[key] {
-								roomBusy = true
-								break
-							}
-						}
-						if roomBusy {
-							continue
-						}
-
-					// All constraints satisfied, create entry
-					entry := models.ScheduleEntry{
-						CourseID:       td.Task.CourseID,
-						TeacherID:      td.Task.TeacherID,
-						ClassroomID:    room.ID,
-						TeachingTaskID: &td.Task.ID,
-						ClassGroupID:   nil, // controlled by TeachingTask now
-						Semester:       ctx.semester,
-						DayOfWeek:      models.DayOfWeek(day),
-						StartPeriod:    models.Period(start),
-						Span:           span,
-						Weeks:          "1-16",
-					}
-					ctx.entries = append(ctx.entries, entry)
-
-					// Occupy room, teacher, and all class groups
-					for p := start; p < start+span; p++ {
-						ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
-						ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
-					}
-					for _, cid := range td.ClassIDs {
-						for p := start; p < start+span; p++ {
-							ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
-						}
-					}
-					placed = true
 					break
 				}
 			}
-		}
-		if !placed {
-			// Teaching task could not be placed — will be noted in result
-			_ = placed
+			if classBusy {
+				continue
+			}
+
+			// Try rooms (with room type filtering)
+			rooms := make([]models.Classroom, len(ctx.classrooms))
+			copy(rooms, ctx.classrooms)
+			ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
+
+			for _, room := range rooms {
+				// Check room type
+				if requiredRoomType != "" && room.Type != requiredRoomType {
+					continue
+				}
+				// Check room capacity
+				if !ctx.canRoomFitCapacity(room, &td) {
+					continue
+				}
+
+				roomBusy := false
+				for p := start; p < start+span; p++ {
+					key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+					if ctx.roomOcc[key] {
+						roomBusy = true
+						break
+					}
+				}
+				if roomBusy {
+					continue
+				}
+
+				// All constraints satisfied, create entry
+				entry := models.ScheduleEntry{
+					CourseID:       td.Task.CourseID,
+					TeacherID:      td.Task.TeacherID,
+					ClassroomID:    room.ID,
+					TeachingTaskID: &td.Task.ID,
+					ClassGroupID:   nil,
+					Semester:       ctx.semester,
+					DayOfWeek:      models.DayOfWeek(day),
+					StartPeriod:    models.Period(start),
+					Span:           span,
+					Weeks:          fmt.Sprintf("%d-%d", td.Task.StartWeek, td.Task.EndWeek),
+				}
+				ctx.entries = append(ctx.entries, entry)
+
+				// Occupy room, teacher, and all class groups
+				for p := start; p < start+span; p++ {
+					ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
+					ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
+				}
+				for _, cid := range td.ClassIDs {
+					for p := start; p < start+span; p++ {
+						ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+					}
+				}
+				return true
+			}
 		}
 	}
+	return false
 }
 
 // Neighbor operation types

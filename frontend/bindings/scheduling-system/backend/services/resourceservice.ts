@@ -34,6 +34,10 @@ export function CreateCourse(c: models$0.Course): $CancellablePromise<void> {
     return $Call.ByID(1220227755, c);
 }
 
+export function CreateDepartment(dept: models$0.Department): $CancellablePromise<void> {
+    return $Call.ByID(1572938852, dept);
+}
+
 export function CreateSemester(sem: models$0.Semester): $CancellablePromise<void> {
     return $Call.ByID(2898724944, sem);
 }
@@ -52,6 +56,10 @@ export function DeleteClassroom(id: number): $CancellablePromise<void> {
 
 export function DeleteCourse(id: number): $CancellablePromise<void> {
     return $Call.ByID(2400459696, id);
+}
+
+export function DeleteDepartment(id: number): $CancellablePromise<void> {
+    return $Call.ByID(521741391, id);
 }
 
 export function DeleteSemester(id: number): $CancellablePromise<void> {
@@ -79,10 +87,14 @@ export function GetCourses(): $CancellablePromise<models$0.Course[] | null> {
 }
 
 /**
- * GetDatabasePath returns the database file path.
+ * GetDatabasePath returns the absolute path to the active database file.
  */
 export function GetDatabasePath(): $CancellablePromise<string> {
     return $Call.ByID(4115972420);
+}
+
+export function GetDepartments(): $CancellablePromise<models$0.Department[] | null> {
+    return $Call.ByID(359877501);
 }
 
 export function GetScheduleEntries(semester: string): $CancellablePromise<models$0.ScheduleEntry[] | null> {
@@ -99,6 +111,13 @@ export function GetSetting(key: string): $CancellablePromise<string> {
 
 export function GetTeachers(): $CancellablePromise<models$0.Teacher[] | null> {
     return $Call.ByID(4028316649);
+}
+
+/**
+ * OpenDownloads opens the user's Downloads folder in the system file explorer.
+ */
+export function OpenDownloads(): $CancellablePromise<void> {
+    return $Call.ByID(1032748571);
 }
 
 /**
@@ -124,6 +143,10 @@ export function UpdateClassroom(c: models$0.Classroom): $CancellablePromise<void
 
 export function UpdateCourse(c: models$0.Course): $CancellablePromise<void> {
     return $Call.ByID(3826924046, c);
+}
+
+export function UpdateDepartment(dept: models$0.Department): $CancellablePromise<void> {
+    return $Call.ByID(1924014597, dept);
 }
 
 export function UpdateSemester(sem: models$0.Semester): $CancellablePromise<void> {

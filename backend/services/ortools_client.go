@@ -42,10 +42,14 @@ type ORToolsInput struct {
 }
 
 type ORToolsTask struct {
-	ID        uint   `json:"id"`
-	TeacherID uint   `json:"teacherId"`
-	CourseID  uint   `json:"courseId"`
-	ClassIDs  []uint `json:"classIds"`
+	ID                uint   `json:"id"`
+	TeacherID         uint   `json:"teacherId"`
+	CourseID          uint   `json:"courseId"`
+	ClassIDs          []uint `json:"classIds"`
+	SessionsPerWeek   int    `json:"sessionsPerWeek,omitempty"`
+	TotalHours        int    `json:"totalHours,omitempty"`
+	MaxHoursPerWeek   int    `json:"maxHoursPerWeek,omitempty"`
+	RequiredRoomType  string `json:"requiredRoomType,omitempty"`
 }
 
 type ORToolsTeacher struct {
@@ -58,9 +62,10 @@ type ORToolsTeacher struct {
 }
 
 type ORToolsRoom struct {
-	ID       uint `json:"id"`
-	Floor    int  `json:"floor"`
-	Capacity int  `json:"capacity"`
+	ID       uint   `json:"id"`
+	Floor    int    `json:"floor"`
+	Capacity int    `json:"capacity"`
+	Type     string `json:"type,omitempty"`
 }
 
 type ORToolsClassGroup struct {
@@ -70,20 +75,24 @@ type ORToolsClassGroup struct {
 
 // ORToolsOutput is the response from the Python solver.
 type ORToolsOutput struct {
-	Entries   []ORToolsEntry `json:"entries"`
-	Score     float64        `json:"score"`
-	Status    string         `json:"status"`
-	ElapsedMs int            `json:"elapsedMs"`
-	Error     string         `json:"error,omitempty"`
+	Entries          []ORToolsEntry `json:"entries"`
+	Score            float64        `json:"score"`
+	Status           string         `json:"status"`
+	ElapsedMs        int            `json:"elapsedMs"`
+	Error            string         `json:"error,omitempty"`
+	SessionsPlaced   int            `json:"sessionsPlaced,omitempty"`
+	SessionsExpected int            `json:"sessionsExpected,omitempty"`
+	Conflicts        []string       `json:"conflicts,omitempty"`
 }
 
 type ORToolsEntry struct {
-	TaskID      uint `json:"taskId"`
-	TeacherID   uint `json:"teacherId"`
-	ClassroomID uint `json:"classroomId"`
-	DayOfWeek   int  `json:"dayOfWeek"`
-	StartPeriod int  `json:"startPeriod"`
-	Span        int  `json:"span"`
+	TaskID       uint `json:"taskId"`
+	TeacherID    uint `json:"teacherId"`
+	ClassroomID  uint `json:"classroomId"`
+	DayOfWeek    int  `json:"dayOfWeek"`
+	StartPeriod  int  `json:"startPeriod"`
+	Span         int  `json:"span"`
+	SessionIndex int  `json:"sessionIndex,omitempty"`
 }
 
 // HealthCheck returns true if the OR-Tools service is reachable.

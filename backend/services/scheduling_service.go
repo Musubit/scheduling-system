@@ -3,8 +3,10 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
+	"strings"
 	"time"
 )
 
@@ -19,25 +21,30 @@ func NewSchedulingService(db database.DB, snapshots *SnapshotService, orchestrat
 }
 
 type SchedulingConfig struct {
-		Scope       string   `json:"scope"`
-		Semester    string   `json:"semester"`
-		Strategy    string   `json:"strategy"`
-		Iterations  int      `json:"iterations"`
-		TimeLimit   int      `json:"timeLimit"` // max solve time in seconds, default 60
-		Constraints []string `json:"constraints"`
-		LockedSlotsJSON string `json:"lockedSlotsJson,omitempty"` // JSON string, avoids Wails enum serialization pitfall
-		SemesterID      uint   `json:"semesterId,omitempty"`     // active semester ID
+		Scope            string            `json:"scope"`
+		Semester         string            `json:"semester"`
+		Strategy         string            `json:"strategy"`
+		Iterations       int               `json:"iterations"`
+		TimeLimit        int               `json:"timeLimit"` // max solve time in seconds, default 60
+		Constraints      []string          `json:"constraints"`
+		LockedSlotsJSON  string            `json:"lockedSlotsJson,omitempty"` // JSON string, avoids Wails enum serialization pitfall
+		SemesterID       uint              `json:"semesterId,omitempty"`     // active semester ID
+		ConstraintWeights map[string]int   `json:"constraintWeights,omitempty"` // per-constraint weights (0-100)
 	}
 
 type SchedulingResult struct {
-	TotalCourses int             `json:"totalCourses"`
-	Scheduled    int             `json:"scheduled"`
-	Conflicts    int             `json:"conflicts"`
-	Utilization  float64         `json:"utilization"`
-	Score        float64         `json:"score"`
-	ScoreDetail  *ScoreBreakdown `json:"scoreDetail,omitempty"`
-	Logs         []string        `json:"logs"`
-	Error        string          `json:"error,omitempty"`
+	TotalCourses     int             `json:"totalCourses"`
+	Scheduled        int             `json:"scheduled"`
+	TasksScheduled   int             `json:"tasksScheduled"`
+	Conflicts        int             `json:"conflicts"`
+	TeacherConflicts int             `json:"teacherConflicts"`
+	RoomConflicts    int             `json:"roomConflicts"`
+	ClassConflicts   int             `json:"classConflicts"`
+	Utilization      float64         `json:"utilization"`
+	Score            float64         `json:"score"`
+	ScoreDetail      *ScoreBreakdown `json:"scoreDetail,omitempty"`
+	Logs             []string        `json:"logs"`
+	Error            string          `json:"error,omitempty"`
 }
 
 // LockedTimeSlot represents a globally locked time period.
@@ -48,8 +55,11 @@ type LockedTimeSlot struct {
 }
 
 func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingResult {
+	log.Printf("[SCHED] RunScheduling CALLED: scope=%q semester=%q semesterId=%d lockedSlotsJsonLen=%d constraints=%v",
+		config.Scope, config.Semester, config.SemesterID, len(config.LockedSlotsJSON), config.Constraints)
+
 	result := &SchedulingResult{Logs: []string{}}
-	log := func(msg string) {
+	addLog := func(msg string) {
 		result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg))
 	}
 
@@ -60,22 +70,19 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		taskQuery = taskQuery.Where("semester_id = ?", config.SemesterID)
 	}
 	if err := taskQuery.Find(&teachingTasks).Error(); err != nil {
+		log.Printf("[SCHED] EARLY-RETURN-1: load teachingTasks failed: %v", err)
 		result.Error = "加载教学任务失败: " + err.Error()
 		return result
 	}
+	log.Printf("[SCHED] teachingTasks loaded: count=%d", len(teachingTasks))
 
-	// Filter by scope if needed
+	// Filter by scope if needed (Course.Dept is now Chinese name, same as config.Scope)
 	if config.Scope != "" && config.Scope != "全校所有院系" {
-		scopeCode := reverseDeptMap[config.Scope]
-		if scopeCode == "" {
-			scopeCode = config.Scope
-		}
-		// Filter teaching tasks by course department
 		var filtered []models.TeachingTask
 		for _, tt := range teachingTasks {
 			var course models.Course
 			if err := s.db.First(&course, tt.CourseID).Error(); err == nil {
-				if course.Dept == scopeCode {
+				if course.Dept == config.Scope {
 					filtered = append(filtered, tt)
 				}
 			}
@@ -97,19 +104,22 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	result.TotalCourses = len(teachingTasks)
 	if len(teachingTasks) == 0 {
+		log.Printf("[SCHED] EARLY-RETURN-2: zero teaching tasks")
 		result.Error = "没有找到教学任务，请先在资源管理中创建教学任务"
 		return result
 	}
-	log(fmt.Sprintf("排课引擎启动（模拟退火），共 %d 个教学任务待排", len(teachingTasks)))
+	addLog(fmt.Sprintf("排课引擎启动（模拟退火），共 %d 个教学任务待排", len(teachingTasks)))
 
 	// Load resources
 	var classrooms []models.Classroom
 	if err := s.db.Where("status = ?", "available").Find(&classrooms).Error(); err != nil {
+		log.Printf("[SCHED] EARLY-RETURN-3: load classrooms failed: %v", err)
 		result.Error = "加载教室失败: " + err.Error()
 		return result
 	}
 	var teachers []models.Teacher
 	if err := s.db.Where("status = ?", "active").Find(&teachers).Error(); err != nil {
+		log.Printf("[SCHED] EARLY-RETURN-4: load teachers failed: %v", err)
 		result.Error = "加载教师失败: " + err.Error()
 		return result
 	}
@@ -117,9 +127,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	s.db.Find(&classGroups)
 
 	if len(classrooms) == 0 || len(teachers) == 0 {
+		log.Printf("[SCHED] EARLY-RETURN-5: classrooms=%d teachers=%d", len(classrooms), len(teachers))
 		result.Error = "缺少教室或教师资源"
 		return result
 	}
+	log.Printf("[SCHED] resources loaded: classrooms=%d teachers=%d classGroups=%d", len(classrooms), len(teachers), len(classGroups))
 
 	// Load locked time slots — merge from both frontend JSON and SQLite
 		var lockedSlots []LockedTimeSlot
@@ -139,9 +151,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			var parsed []LockedTimeSlot
 			if err := json.Unmarshal([]byte(config.LockedSlotsJSON), &parsed); err == nil {
 				addSlots(parsed)
-				log(fmt.Sprintf("[DEBUG] 前端传入 %d 个锁定时段", len(parsed)))
+				addLog(fmt.Sprintf("[DEBUG] 前端传入 %d 个锁定时段", len(parsed)))
 			} else {
-				log(fmt.Sprintf("[DEBUG] 前端JSON解析失败: %v", err))
+				addLog(fmt.Sprintf("[DEBUG] 前端JSON解析失败: %v", err))
 			}
 		}
 
@@ -149,14 +161,17 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		dbSlots := s.loadLockedSlots()
 		addSlots(dbSlots)
 		if len(dbSlots) > 0 {
-			log(fmt.Sprintf("[DEBUG] 数据库加载 %d 个锁定时段", len(dbSlots)))
+			addLog(fmt.Sprintf("[DEBUG] 数据库加载 %d 个锁定时段", len(dbSlots)))
 		}
 
 		if len(lockedSlots) > 0 {
-			log(fmt.Sprintf("加载了 %d 个全局锁定时间段 (前端+数据库合并)", len(lockedSlots)))
+			addLog(fmt.Sprintf("加载了 %d 个全局锁定时间段 (前端+数据库合并)", len(lockedSlots)))
 		} else {
-			log("未加载任何全局锁定时间段 — 锁定时段功能未启用")
+			addLog("未加载任何全局锁定时间段 — 锁定时段功能未启用")
 		}
+
+	log.Printf("[SCHED] lockedSlots: frontendJsonLen=%d dbSlots=%d merged=%d slots=%+v",
+		len(config.LockedSlotsJSON), len(dbSlots), len(lockedSlots), lockedSlots)
 
 	// Configure SA solver
 	saConfig := defaultSAConfig()
@@ -169,14 +184,14 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		saConfig.MaxTimeSeconds = 60
 	}
 
-	log(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
+	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
 
 	// Try OR-Tools first if available
 	var saResult *SAResult
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	if s.orchestrator != nil {
-		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, classGroups, lockedSlots, config, sportsCourseIDs, log); ortoolsResult != nil {
+		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog); ortoolsResult != nil {
 			saResult = ortoolsResult
 		}
 	}
@@ -204,7 +219,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			postBreakdown := (&ScoringService{}).ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
 			saResult.Score = postBreakdown.Total
 
-		log(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
+		addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms, 最优分=%.1f",
 			saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
 		}
 
@@ -225,14 +240,27 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	if err != nil {
 		result.Error = "排课事务失败: " + err.Error()
-		log("ERR " + err.Error())
+		addLog("ERR " + err.Error())
 		return result
 	}
 
-	// Quick conflict count on best result
-	result.Conflicts = s.countConflictsQuick(saResult.Entries)
+	// Quick conflict count on best result — split by type
+	teacherC, roomC, classC := s.countConflictsQuick(saResult.Entries)
+	result.TeacherConflicts = teacherC
+	result.RoomConflicts = roomC
+	result.ClassConflicts = classC
+	result.Conflicts = teacherC + roomC + classC
+
+	// Count unique teaching tasks that got at least one entry
+	taskSet := make(map[uint]bool)
+	for _, e := range saResult.Entries {
+		if e.TeachingTaskID != nil {
+			taskSet[*e.TeachingTaskID] = true
+		}
+	}
+	result.TasksScheduled = len(taskSet)
 	if result.TotalCourses > 0 {
-		result.Utilization = float64(len(saResult.Entries)) / float64(result.TotalCourses)
+		result.Utilization = float64(result.TasksScheduled) / float64(result.TotalCourses)
 	}
 	result.Score = saResult.Score
 
@@ -241,10 +269,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		finalBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
 		result.ScoreDetail = &finalBreakdown
 
-	log(fmt.Sprintf("排课完成！已排 %d/%d 个教学任务，利用率 %.1f%%，评分 %.1f/100",
-		len(saResult.Entries), result.TotalCourses, result.Utilization*100, saResult.Score))
-	if len(saResult.Entries) < result.TotalCourses {
-		log(fmt.Sprintf("WARN 剩余 %d 个教学任务需手动调整", result.TotalCourses-len(saResult.Entries)))
+	addLog(fmt.Sprintf("排课完成！任务 %d/%d（%d条），评分 %.1f/100，冲突 教师%d 教室%d 班级%d",
+		result.TasksScheduled, result.TotalCourses, len(saResult.Entries), saResult.Score,
+		result.TeacherConflicts, result.RoomConflicts, result.ClassConflicts))
+	if result.TasksScheduled < result.TotalCourses {
+		addLog(fmt.Sprintf("WARN 剩余 %d 个教学任务未能排入", result.TotalCourses-result.TasksScheduled))
 	}
 
 	// Auto-snapshot after scheduling
@@ -255,11 +284,14 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			saResult.ElapsedMs, result.Conflicts,
 		)
 		if snapErr != nil {
-			log("WARN 快照保存失败: " + snapErr.Error())
+			addLog("WARN 快照保存失败: " + snapErr.Error())
 		} else {
-			log("快照已自动保存")
+			addLog("快照已自动保存")
 		}
 	}
+
+	log.Printf("[SCHED] RunScheduling DONE: totalCourses=%d scheduled=%d conflicts=%d logs=%d",
+		result.TotalCourses, result.Scheduled, result.Conflicts, len(result.Logs))
 
 	return result
 }
@@ -273,6 +305,11 @@ func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.Teaching
 		}
 	}
 	return ids
+}
+
+// containsKeyword checks if s contains the given keyword (case-insensitive).
+func containsKeyword(s, keyword string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(keyword))
 }
 
 // loadLockedSlots reads locked time slots from the settings table.
@@ -294,8 +331,19 @@ func (s *SchedulingService) loadLockedSlots() []LockedTimeSlot {
 }
 
 // countConflictsQuick does a fast in-memory conflict count without DB queries.
-func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) int {
-	count := 0
+// Returns teacher, room, and class conflict counts separately.
+func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) (teacher, room, class int) {
+	// Teacher conflicts
+	teacherSlots := make(map[string]bool)
+	for _, e := range entries {
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
+			if teacherSlots[key] {
+				teacher++
+			}
+			teacherSlots[key] = true
+		}
+	}
 
 	// Room conflicts
 	roomSlots := make(map[string]bool)
@@ -303,21 +351,9 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
 			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
 			if roomSlots[key] {
-				count++
+				room++
 			}
 			roomSlots[key] = true
-		}
-	}
-
-	// Teacher conflicts
-	teacherSlots := make(map[string]bool)
-	for _, e := range entries {
-		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
-			if teacherSlots[key] {
-				count++
-			}
-			teacherSlots[key] = true
 		}
 	}
 
@@ -327,13 +363,13 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
 			key := fmt.Sprintf("c-%d-%d-%d", e.TeachingTaskID, e.DayOfWeek, p)
 			if classSlots[key] {
-				count++
+				class++
 			}
 			classSlots[key] = true
 		}
 	}
 
-	return count
+	return
 }
 
 // tryORTools attempts to solve the scheduling problem using the OR-Tools microservice.
@@ -371,10 +407,10 @@ func (s *SchedulingService) tryORTools(
 		input.TimeLimitSeconds = 60
 	}
 
-	// Map classrooms
+	// Map classrooms (include type for room-type matching)
 	for _, c := range classrooms {
 		input.Classrooms = append(input.Classrooms, ORToolsRoom{
-			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity,
+			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity, Type: c.Type,
 		})
 	}
 
@@ -394,15 +430,33 @@ func (s *SchedulingService) tryORTools(
 		})
 	}
 
-	// Map teaching tasks
+	// Map teaching tasks (with multi-session + room type support)
 	taskMap := make(map[uint]models.TeachingTask)
 	for _, tt := range teachingTasks {
 		classIDs := make([]uint, len(tt.Classes))
 		for j, c := range tt.Classes {
 			classIDs[j] = c.ClassGroupID
 		}
+		// Determine required room type from course name
+		requiredRoomType := ""
+		courseName := tt.Course.Name
+		if models.IsSportsCourse(courseName) {
+			requiredRoomType = "体育馆"
+		} else if containsKeyword(courseName, "实验") {
+			requiredRoomType = "实验室"
+		} else if containsKeyword(courseName, "上机") {
+			requiredRoomType = "机房"
+		}
+
 		input.TeachingTasks = append(input.TeachingTasks, ORToolsTask{
-			ID: tt.ID, TeacherID: tt.TeacherID, CourseID: tt.CourseID, ClassIDs: classIDs,
+			ID:               tt.ID,
+			TeacherID:        tt.TeacherID,
+			CourseID:         tt.CourseID,
+			ClassIDs:         classIDs,
+			SessionsPerWeek:  0, // let solver.py compute from TotalHours
+			TotalHours:       tt.TotalHours,
+			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
+			RequiredRoomType: requiredRoomType,
 		})
 		taskMap[tt.ID] = tt
 	}
@@ -412,16 +466,22 @@ func (s *SchedulingService) tryORTools(
 		input.SportsCourseIDs = append(input.SportsCourseIDs, cid)
 	}
 
-	// Default constraint weights
+	// Constraint weights: use frontend-provided values, fallback to defaults
 	weightDefaults := map[string]int{
 		"teacher_preference": 50, "course_dispersed": 50,
 		"teacher_days_limit": 50, "low_floor_preference": 50,
 		"avoid_saturday": 30, "avoid_sunday": 30,
-		"pe_preferred_periods": 50,
+		"pe_preferred_periods": 50, "student_fatigue": 50,
 	}
 	for _, c := range config.Constraints {
 		if w, ok := weightDefaults[c]; ok {
 			input.ConstraintWeights[c] = w
+		}
+	}
+	// Override with frontend-provided weights (if any)
+	if config.ConstraintWeights != nil {
+		for k, v := range config.ConstraintWeights {
+			input.ConstraintWeights[k] = v
 		}
 	}
 
@@ -434,15 +494,34 @@ func (s *SchedulingService) tryORTools(
 
 	if output.Status == "error" || len(output.Entries) == 0 {
 		log(fmt.Sprintf("OR-Tools返回空解(status=%s)，降级到SA", output.Status))
+		if len(output.Conflicts) > 0 {
+			for _, c := range output.Conflicts {
+				log(fmt.Sprintf("  冲突诊断: %s", c))
+			}
+		}
+		return nil
+	}
+	if output.Status == "infeasible" {
+		log(fmt.Sprintf("OR-Tools不可满足(INFEASIBLE)，降级到SA"))
+		if len(output.Conflicts) > 0 {
+			for _, c := range output.Conflicts {
+				log(fmt.Sprintf("  冲突诊断: %s", c))
+			}
+		}
 		return nil
 	}
 
 	// Convert OR-Tools output to ScheduleEntry
+	// OR-Tools handles multi-session internally (each task can produce multiple entries)
 	var entries []models.ScheduleEntry
 	for _, e := range output.Entries {
 		tt, ok := taskMap[e.TaskID]
 		if !ok {
 			continue
+		}
+		weeks := fmt.Sprintf("%d-%d", tt.StartWeek, tt.EndWeek)
+		if tt.StartWeek <= 0 {
+			weeks = "1-16"
 		}
 		entry := models.ScheduleEntry{
 			CourseID:       tt.CourseID,
@@ -453,13 +532,13 @@ func (s *SchedulingService) tryORTools(
 			DayOfWeek:      models.DayOfWeek(e.DayOfWeek),
 			StartPeriod:    models.Period(e.StartPeriod),
 			Span:           e.Span,
-			Weeks:          "1-16",
+			Weeks:          weeks,
 		}
 		entries = append(entries, entry)
 	}
 
-	log(fmt.Sprintf("OR-Tools求解完成(status=%s): %d个条目, %.1fms, 分=%.1f",
-		output.Status, len(entries), float64(output.ElapsedMs), output.Score))
+	log(fmt.Sprintf("OR-Tools求解完成(status=%s): %d/%d会话, %.1fms, 分=%.1f",
+		output.Status, output.SessionsPlaced, output.SessionsExpected, float64(output.ElapsedMs), output.Score))
 
 	return &SAResult{
 		Entries:   entries,
@@ -469,26 +548,3 @@ func (s *SchedulingService) tryORTools(
 	}
 }
 
-// deptMap maps course dept codes to teacher dept names (Chinese)
-// Kept for scope filtering and backward compatibility.
-var deptMap = map[string]string{
-	"mech": "机械工程学院", "elec": "电气与电子工程学院",
-	"mate": "材料与化学工程学院", "bio": "生物工程与食品学院",
-	"civil": "土木建筑与环境学院", "cs": "计算机学院",
-	"art": "艺术设计学院", "design": "工业设计学院",
-	"econ": "经济与管理学院", "eng": "外国语学院",
-	"sci": "理学院", "marx": "马克思主义学院",
-	"voc": "职业技术师范学院", "intl": "国际学院",
-	"pe": "体育学院", "cont": "继续教育学院",
-	"innov": "创新创业学院", "engtech": "工程技术学院",
-	"detroit": "底特律绿色工业学院",
-}
-
-// reverseDeptMap maps Chinese names back to codes (for scope filtering)
-var reverseDeptMap = map[string]string{}
-
-func init() {
-	for k, v := range deptMap {
-		reverseDeptMap[v] = k
-	}
-}

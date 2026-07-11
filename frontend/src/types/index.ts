@@ -6,7 +6,7 @@ export interface Course {
   ID: number
   code: string
   name: string
-  dept: DeptCode
+  dept: string
   credit: number
   type: string
   hours: number
@@ -73,6 +73,10 @@ export interface TeachingTask {
   teacherId: number
   semesterId: number
   status: 'active' | 'inactive'
+  totalHours: number
+  startWeek: number
+  endWeek: number
+  maxHoursPerWeek: number
   course?: Course
   teacher?: Teacher
   semester?: Semester
@@ -103,14 +107,12 @@ export interface ScheduleEntry {
   teacher?: Teacher
   classroom?: Classroom
   classGroup?: ClassGroup
+  teachingTask?: TeachingTask
 }
-
-/** 院系代码 */
-export type DeptCode = 'mech' | 'elec' | 'mate' | 'bio' | 'civil' | 'cs' | 'art' | 'design' | 'econ' | 'eng' | 'sci' | 'marx' | 'voc' | 'intl' | 'pe' | 'cont' | 'innov' | 'engtech' | 'detroit'
 
 /** 院系信息 */
 export interface Department {
-  code: DeptCode
+  code: string
   name: string
 }
 
@@ -170,7 +172,7 @@ export const PERIODS: Period[] = [
 export const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 /** 页面标识 */
-export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settings'
+export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settings' | 'history' | 'system'
 
 /** 课表视图 */
 export type ScheduleView = 'week' | 'timeline' | 'month'
@@ -197,7 +199,11 @@ export interface LockedTimeSlot {
 export interface SchedulingResult {
   totalCourses: number
   scheduled: number
+  tasksScheduled: number
   conflicts: number
+  teacherConflicts: number
+  roomConflicts: number
+  classConflicts: number
   utilization: number
   score?: number
   scoreDetail?: ScoreBreakdown

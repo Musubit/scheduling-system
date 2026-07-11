@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"scheduling-system/backend/appenv"
 	"scheduling-system/backend/config"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/services"
@@ -16,18 +17,27 @@ import (
 
 // Run starts the Wails application with the given embedded frontend assets.
 func Run(assets embed.FS) {
-	// Resolve base directory (exe location, or project root in dev mode)
-	baseDir := resolveBaseDir()
+	// Ensure writable user-data directory exists (%LOCALAPPDATA%/scheduling-system)
+	if err := appenv.EnsureDataDir(); err != nil {
+		log.Fatalf("App: cannot initialize data directory: %v", err)
+	}
 
-	// Initialize logging to both console and logs/app.log
-	initLogging(baseDir)
+	// Migrate existing data from install dir to user data dir (first run only)
+	appenv.MigrateConfigIfNeeded()
+	appenv.MigrateDatabaseIfNeeded()
 
-	// Load config from config/app.json
-	cfg := config.Load(baseDir)
-	log.Printf("App: baseDir=%s, config=%+v", baseDir, *cfg)
+	// Resolve base directory for read-only assets (scheduler.exe, solver.py)
+	baseDir := appenv.BaseDir()
 
-	// Initialize database (resources/schedule.db)
-	db, err := database.InitDB(baseDir)
+	// Initialize logging to both console and logs/app.log (in data dir)
+	initLogging(appenv.LogDir())
+
+	// Load config from config/app.json (in data dir)
+	cfg := config.Load(appenv.ConfigDir())
+	log.Printf("App: baseDir=%s, dataDir=%s, config=%+v", baseDir, appenv.DataDir(), *cfg)
+
+	// Initialize database (resources/schedule.db in data dir)
+	db, err := database.InitDB(appenv.ResourcesDir())
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -35,7 +45,7 @@ func Run(assets embed.FS) {
 	// Create OR-Tools orchestrator
 	orchestrator := services.NewSolverOrchestrator()
 
-	// Try to start scheduler service
+	// Try to start scheduler service (looks in baseDir for scheduler.exe/solver.py)
 	startSchedulerIfAvailable(orchestrator, baseDir, cfg)
 
 	// Create services
@@ -86,30 +96,9 @@ func Run(assets embed.FS) {
 	}
 }
 
-// resolveBaseDir returns the executable directory, falling back to working directory.
-// Development mode (wails3 dev): cwd = project root → project root
-// Production mode: exe dir → installation directory
-func resolveBaseDir() string {
-	// In dev mode, os.Executable returns the temp build dir, not the project root.
-	// Check if cwd has go.mod / main.go to detect dev mode.
-	if wd, err := os.Getwd(); err == nil {
-		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
-			return wd
-		}
-		if _, err := os.Stat(filepath.Join(wd, "main.go")); err == nil {
-			return wd
-		}
-	}
-	// Production: use executable directory
-	if exe, err := os.Executable(); err == nil {
-		return filepath.Dir(exe)
-	}
-	return "."
-}
 
 // initLogging sets up dual output: console (stdout) + logs/app.log.
-func initLogging(baseDir string) {
-	logDir := filepath.Join(baseDir, "logs")
+func initLogging(logDir string) {
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		log.Printf("Warning: cannot create log directory: %v", err)
 		return
@@ -166,8 +155,8 @@ func startSchedulerIfAvailable(orchestrator *services.SolverOrchestrator, baseDi
 		return
 	}
 
-	// Check for scheduler.exe (production mode)
-	schedulerExe := filepath.Join(baseDir, "scheduler.exe")
+	// Check for scheduler.exe in scheduler/ subdirectory (production mode)
+	schedulerExe := filepath.Join(baseDir, "scheduler", "scheduler.exe")
 	if _, err := os.Stat(schedulerExe); err == nil {
 		log.Printf("Scheduler: found scheduler.exe")
 		// scheduler.exe accepts port as CLI arg

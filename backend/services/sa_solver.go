@@ -6,6 +6,7 @@ import (
 		"math"
 		"math/rand"
 		"scheduling-system/backend/models"
+		"strings"
 		"time"
 	)
 
@@ -51,6 +52,7 @@ type teachingTaskData struct {
 	Task           models.TeachingTask
 	ClassIDs       []uint // all ClassGroup IDs in this task
 	TotalStudents  int    // total students across all class groups (for capacity check)
+	CourseHours    int    // course total hours, used to calculate sessions per week
 }
 
 // schedulingContext holds all the data needed during solving.
@@ -130,10 +132,15 @@ func (s *SASolver) Solve(
 			classIDs[j] = c.ClassGroupID
 			totalStudents += classGroupStudents[c.ClassGroupID]
 		}
+		courseHours := tt.TotalHours
+		if courseHours <= 0 {
+			courseHours = tt.Course.Hours // fallback to course default
+		}
 		taskData[i] = teachingTaskData{
 			Task:          tt,
 			ClassIDs:      classIDs,
 			TotalStudents: totalStudents,
+			CourseHours:   courseHours,
 		}
 	}
 
@@ -394,4 +401,18 @@ func (ctx *schedulingContext) findTaskDataByEntry(e models.ScheduleEntry) *teach
 		}
 	}
 	return nil
+}
+
+// getRequiredRoomType determines the required room type from course name.
+func (ctx *schedulingContext) getRequiredRoomType(courseName string) string {
+	if models.IsSportsCourse(courseName) {
+		return "体育馆"
+	}
+	if strings.Contains(courseName, "实验") {
+		return "实验室"
+	}
+	if strings.Contains(courseName, "上机") {
+		return "机房"
+	}
+	return ""
 }

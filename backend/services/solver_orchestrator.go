@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"sync"
+	"time"
 )
 
 // SolverOrchestrator manages multiple solver engines (SA + OR-Tools) with automatic fallback.
 type SolverOrchestrator struct {
 	ortoolsClient *ORToolsClient
 	ortoolsCmd    *exec.Cmd
+	ortoolsReady  bool
+	mu            sync.Mutex
 }
 
 // NewSolverOrchestrator creates a new orchestrator.
@@ -38,8 +42,27 @@ func (o *SolverOrchestrator) StartORTools(pythonPath string, scriptPath string, 
 	}
 
 	o.ortoolsClient = NewORToolsClient(port)
-	log.Printf("OR-Tools service started on port %d (PID: %d)", port, o.ortoolsCmd.Process.Pid)
+	log.Printf("OR-Tools service starting on port %d (PID: %d)", port, o.ortoolsCmd.Process.Pid)
+	// 后台轮询就绪状态：Flask + ortools 导入需要几秒，避免首调健康检查失败而误降级 SA。
+	go o.waitForHealthy(port, 20*time.Second)
 	return nil
+}
+
+// waitForHealthy polls the OR-Tools /health endpoint until it responds 200
+// or the timeout elapses. Non-blocking: app startup is never delayed.
+func (o *SolverOrchestrator) waitForHealthy(port int, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if o.ortoolsClient != nil && o.ortoolsClient.HealthCheck() {
+			o.mu.Lock()
+			o.ortoolsReady = true
+			o.mu.Unlock()
+			log.Printf("OR-Tools service healthy on port %d", port)
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+		log.Printf("OR-Tools service not healthy within %v (will fall back to SA if unavailable)", timeout)
 }
 
 // StopORTools stops the OR-Tools microservice if running.
@@ -52,10 +75,9 @@ func (o *SolverOrchestrator) StopORTools() {
 
 // IsORToolsAvailable returns true if the OR-Tools service is running and healthy.
 func (o *SolverOrchestrator) IsORToolsAvailable() bool {
-	if o.ortoolsClient == nil {
-		return false
-	}
-	return o.ortoolsClient.HealthCheck()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.ortoolsReady
 }
 
 // GetORToolsClient returns the OR-Tools client, or nil if not available.

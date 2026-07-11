@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { SchedulingConfig, SchedulingResult, LockedTimeSlot } from '@/types'
 import { RunScheduling } from '../../bindings/scheduling-system/backend/services/schedulingservice'
-import { GetActiveSemester, SaveSetting } from '../../bindings/scheduling-system/backend/services/resourceservice'
+import { GetActiveSemester, GetSemesters, SaveSetting } from '../../bindings/scheduling-system/backend/services/resourceservice'
+import { useUiStore } from './ui'
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
 const DEFAULT_LOCKED: LockedTimeSlot[] = [
@@ -121,8 +122,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const engine = ref<string>('auto')
   const activeSemesterId = ref<number>(0)
   const activeSemesterName = ref<string>('')
+  const semesters = ref<Array<{ ID: number; name: string; isActive: boolean }>>([])
+  const selectedSemesterId = ref<number>(0)
 
-  // Load active semester on init
+  // Load semesters list + active semester on init
   async function loadActiveSemester() {
     try {
       const sem = await GetActiveSemester()
@@ -130,8 +133,16 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         activeSemesterId.value = sem.ID
         activeSemesterName.value = sem.name
         config.value.semester = sem.name
+        selectedSemesterId.value = sem.ID
       }
     } catch { /* no active semester */ }
+
+    try {
+      const list = await GetSemesters()
+      if (list) {
+        semesters.value = list.map(s => ({ ID: s.ID, name: s.name, isActive: s.isActive }))
+      }
+    } catch { /* backend unavailable */ }
   }
 
   // Apply preset weights
@@ -182,35 +193,67 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       } catch {}
 
       // Build config for Go backend
-      if (!activeSemesterName.value) {
+      const selectedSem = semesters.value.find(s => s.ID === selectedSemesterId.value)
+      const semesterName = selectedSem?.name || activeSemesterName.value
+      if (!semesterName) {
         logs.value.push('❌ 未设置当前学期，请在系统设置中激活一个学期')
-        result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['未设置当前学期'] }
+        result.value = { totalCourses: 0, scheduled: 0, tasksScheduled: 0, conflicts: 0, teacherConflicts: 0, roomConflicts: 0, classConflicts: 0, utilization: 0, logs: ['未设置当前学期'] }
         progress.value = 100
         isRunning.value = false
         return
       }
       const goConfig: any = {
         scope: config.value.scope,
-        semester: activeSemesterName.value,
+        semester: semesterName,
         strategy: 'auto',
         iterations: 5000,
         timeLimit: 60,
         constraints: config.value.constraints,
         lockedSlotsJson: lockedSlotsJson || undefined,
-        semesterId: activeSemesterId.value,
+        semesterId: selectedSemesterId.value || activeSemesterId.value,
+        constraintWeights: constraintWeights.value,
       }
       progress.value = 20
       logs.value.push('⚙️ 正在清空旧课表，准备排课...')
 
       const goResult = await RunScheduling(goConfig)
+      console.log('[DEBUG] RunScheduling result:', goResult)
+      console.log('[DEBUG] logs field:', goResult?.logs)
+      console.log('[DEBUG] error field:', goResult?.error)
       progress.value = 90
       logs.value.push(...(goResult?.logs || []))
+
+      // Check for backend-reported errors (no data, missing resources, etc.)
+      if (goResult?.error) {
+        logs.value.push('❌ ' + goResult.error)
+        result.value = {
+          totalCourses: goResult.totalCourses || 0,
+          scheduled: goResult.scheduled || 0,
+          tasksScheduled: goResult.tasksScheduled || 0,
+          conflicts: goResult.conflicts || 0,
+          teacherConflicts: goResult.teacherConflicts || 0,
+          roomConflicts: goResult.roomConflicts || 0,
+          classConflicts: goResult.classConflicts || 0,
+          utilization: goResult.utilization || 0,
+          logs: goResult.logs || [],
+        }
+        progress.value = 100
+        isRunning.value = false
+        // Trigger error dialog via uiStore (decoupled from app store)
+        const uiStore = useUiStore()
+        uiStore.pendingScheduleError = goResult.error
+        return
+      }
 
       if (goResult) {
         result.value = {
           totalCourses: goResult.totalCourses || 0,
           scheduled: goResult.scheduled || 0,
+          tasksScheduled: goResult.tasksScheduled || 0,
           conflicts: goResult.conflicts || 0,
+          teacherConflicts: goResult.teacherConflicts || 0,
+          roomConflicts: goResult.roomConflicts || 0,
+          classConflicts: goResult.classConflicts || 0,
           utilization: goResult.utilization || 0,
           score: goResult.score,
           scoreDetail: goResult.scoreDetail ? {
@@ -232,12 +275,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       const { useScheduleStore } = await import('./schedule')
       const { useAppStore } = await import('./app')
       const appStore = useAppStore()
+      const uiStore = useUiStore()
       await useScheduleStore().loadSchedule(appStore.semesterFilter)
-      // Show dialog via appStore
-      appStore.pendingScheduleNav = true
+      // Show dialog via uiStore (decoupled)
+      uiStore.pendingScheduleNav = true
     } catch (e) {
       console.warn('Go backend scheduling not available:', e)
-      result.value = { totalCourses: 0, scheduled: 0, conflicts: 0, utilization: 0, logs: ['后端调度服务不可用，请检查Go服务是否运行'] }
+      result.value = { totalCourses: 0, scheduled: 0, tasksScheduled: 0, conflicts: 0, teacherConflicts: 0, roomConflicts: 0, classConflicts: 0, utilization: 0, logs: ['后端调度服务不可用，请检查Go服务是否运行'] }
       progress.value = 100
     }
     isRunning.value = false
@@ -245,14 +289,18 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
   function stopScheduling() { isRunning.value = false }
 
-  // Initialize
-  ensureLockedSlots()
-  loadActiveSemester()
+  // Initialize — deferred to async to avoid blocking render
+  function init() {
+    ensureLockedSlots()
+    loadActiveSemester()
+  }
+  // Defer to next microtask
+  Promise.resolve().then(init)
 
   return {
     config, constraintOptions,
     constraintWeights, activePreset, showAdvanced, engine, engineOptions,
-    activeSemesterId, activeSemesterName,
+    activeSemesterId, activeSemesterName, semesters, selectedSemesterId,
     CONSTRAINT_PRESETS,
     isRunning, progress, result, logs, progressText,
     toggleConstraint, resetProgress, startScheduling, stopScheduling,

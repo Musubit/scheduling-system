@@ -91,22 +91,8 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 			return currentScore
 		}
 
-		// Check teacher preferences
-	if ctx.hasConstraint("teacher_preference") {
-		for _, t := range ctx.teachers {
-			if t.ID == entry.TeacherID {
-				if t.PreferNoEarly && start <= 1 {
-					ctx.restoreOccupancy(entry)
-					return currentScore
-				}
-				if t.PreferNoLate && start >= 6 {
-					ctx.restoreOccupancy(entry)
-					return currentScore
-				}
-				break
-			}
-		}
-	}
+		// Check teacher preferences (soft — allow placement, let score decide)
+	// Removed hard rejection: SA's Metropolis criterion handles preference via scoring
 
 	// Check teacher busy at new position
 	teacherBusy := false
@@ -135,6 +121,13 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 	for _, room := range rooms {
+		// Check room type
+		if td := ctx.findTaskDataByEntry(entry); td != nil {
+			requiredRoomType := ctx.getRequiredRoomType(td.Task.Course.Name)
+			if requiredRoomType != "" && room.Type != requiredRoomType {
+				continue
+			}
+		}
 		// Check room capacity
 		if td := ctx.findTaskDataByEntry(entry); td != nil && !ctx.canRoomFitCapacity(room, td) {
 			continue

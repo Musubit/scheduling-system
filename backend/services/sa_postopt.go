@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"scheduling-system/backend/models"
+	"strings"
 	"time"
 )
 
@@ -215,7 +216,16 @@ func (s *SASolver) PostOptimize(
 
 				// Try rooms
 				td, tdOk := taskMap[*e.TeachingTaskID]
+				// Determine required room type (same logic as sa_initial.go)
+				requiredRoomType := ""
+				if tdOk {
+					requiredRoomType = roomTypeForCourse(td.Task.Course.Name)
+				}
 				for _, room := range classrooms {
+					// Check room type
+					if requiredRoomType != "" && room.Type != requiredRoomType {
+						continue
+					}
 					// Check room capacity
 					if tdOk && !canRoomFit(room, td) {
 						continue
@@ -256,3 +266,18 @@ func (s *SASolver) PostOptimize(
 }
 
 // ---- Helpers ----
+
+// roomTypeForCourse determines the required room type from course name.
+// Same logic as schedulingContext.getRequiredRoomType in sa_solver.go.
+func roomTypeForCourse(courseName string) string {
+	if models.IsSportsCourse(courseName) {
+		return "体育馆"
+	}
+	if strings.Contains(courseName, "实验") {
+		return "实验室"
+	}
+	if strings.Contains(courseName, "上机") {
+		return "机房"
+	}
+	return ""
+}

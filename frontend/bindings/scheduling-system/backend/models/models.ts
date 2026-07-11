@@ -104,6 +104,26 @@ export enum DayOfWeek {
 };
 
 /**
+ * Department represents a college/faculty (e.g., 计算机学院, 材料科学与工程学院).
+ */
+export interface Department {
+    "ID": number;
+    "CreatedAt": string;
+    "UpdatedAt": string;
+    "DeletedAt": gorm$0.DeletedAt;
+
+    /**
+     * 院系代码，如 "cs"
+     */
+    "code": string;
+
+    /**
+     * 院系名称，如 "计算机学院"
+     */
+    "name": string;
+}
+
+/**
  * Period represents a teaching period slot (0-indexed internal, 1-indexed for display).
  * Period 0 = 第1节, Period 9 = 第10节, etc.
  */
@@ -344,6 +364,27 @@ export interface TeachingTask {
      * active, inactive
      */
     "status": string;
+
+    /**
+     * Time parameters for scheduling
+     * 总学时（必填）
+     */
+    "totalHours": number;
+
+    /**
+     * 起始周（默认1）
+     */
+    "startWeek": number;
+
+    /**
+     * 结束周（默认16）
+     */
+    "endWeek": number;
+
+    /**
+     * 周最大学时（0=不限）
+     */
+    "maxHoursPerWeek": number;
 
     /**
      * Associations
