@@ -1,0 +1,28 @@
+#include <windows.h>
+
+// Windows version info resource
+// Compiled with: windres -i build/windows/version.rc -o wails_windows_amd64.syso -O coff
+// Go linker embeds *.syso files automatically.
+
+1 VERSIONINFO
+FILEVERSION 0,3,2,0
+PRODUCTVERSION 0,3,2,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileVersion", "0.3.2"
+      VALUE "ProductName", "高校排课系统"
+      VALUE "FileDescription", "高校智能排课管理系统"
+      VALUE "CompanyName", "高校排课系统"
+      VALUE "ProductVersion", "0.3.2"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END
+
+1 ICON "build/windows/icon.ico"
