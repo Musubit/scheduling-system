@@ -318,7 +318,6 @@ function isHighlighted(e: ScheduleEntry): boolean {
 
 .tl-break-tick {
   position: absolute;
-  top: 14px;
   transform: translateX(-50%);
   z-index: 2;
 }
@@ -375,6 +374,7 @@ function isHighlighted(e: ScheduleEntry): boolean {
   opacity: 0.3;
   border-left: 1px dashed var(--b3-border-color);
   border-right: 1px dashed var(--b3-border-color);
+  box-sizing: border-box;
 }
 
 .tl-break-label {
