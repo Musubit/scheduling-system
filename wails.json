@@ -5,11 +5,11 @@
     "name": "高校排课系统",
     "email": ""
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "info": {
     "companyName": "高校排课系统",
     "productName": "高校排课系统",
-    "productVersion": "0.3.2",
+    "productVersion": "0.3.3",
     "copyright": "(c) 2026, Scheduling System",
     "comments": "高校智能排课管理系统"
   }

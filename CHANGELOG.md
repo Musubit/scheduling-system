@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.3] - 2026-07-11
+
+### Removed
+
+- **生产版移除种子数据**：`-tags production` 构建时 `SeedData` 为空操作，首次启动不再自动插入 19 教师/11 教室/35 课程/13 班级/35 教学任务/22 Demo 课表。Dev 模式种子数据照常保留。
+
+### Fixed
+
+- **构建系统**：修复 `go build` 裸编译缺少 Windows 资源嵌入（图标/版本信息），新增加 `build/windows/version.rc` + `windres` 构建链路
+
+---
+
 ## [0.3.2] - 2026-07-11 — Final Stabilization
 
 > v0.3 系列最终稳定版本。统一核心数据来源，建立 Stable Core 基线。
