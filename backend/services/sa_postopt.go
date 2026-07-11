@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"scheduling-system/backend/models"
-	"strings"
 	"time"
 )
 
@@ -294,10 +293,10 @@ func roomTypeForCourse(courseName string) string {
 	if models.IsSportsCourse(courseName) {
 		return "体育馆"
 	}
-	if strings.Contains(courseName, "实验") {
+	if IsLabCourse(courseName) {
 		return "实验室"
 	}
-	if strings.Contains(courseName, "上机") {
+	if IsComputerCourse(courseName) {
 		return "机房"
 	}
 	return ""

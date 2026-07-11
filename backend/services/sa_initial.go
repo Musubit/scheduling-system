@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 	"scheduling-system/backend/models"
-	"strings"
 )
 
 func (ctx *schedulingContext) buildInitial() {
@@ -46,9 +45,9 @@ func (ctx *schedulingContext) buildInitial() {
 		courseName := td.Task.Course.Name
 		if models.IsSportsCourse(courseName) {
 			requiredRoomType = "体育馆"
-		} else if strings.Contains(courseName, "实验") {
+		} else if IsLabCourse(courseName) {
 			requiredRoomType = "实验室"
-		} else if strings.Contains(courseName, "上机") {
+		} else if IsComputerCourse(courseName) {
 			requiredRoomType = "机房"
 		}
 

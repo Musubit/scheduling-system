@@ -1,13 +1,12 @@
 package services
 
 import (
-		"encoding/json"
-		"fmt"
-		"math"
-		"math/rand"
-		"scheduling-system/backend/models"
-		"strings"
-		"time"
+	"encoding/json"
+	"fmt"
+	"math"
+	"math/rand"
+	"scheduling-system/backend/models"
+	"time"
 	)
 
 // SASolver implements Simulated Annealing for course scheduling.
@@ -78,6 +77,9 @@ type schedulingContext struct {
 	classOcc   map[string]bool
 
 	rng *rand.Rand
+
+	// Per-step undo buffer (was package-level, now per-context for reentrancy)
+	lastNeighbor neighborOp
 }
 
 // Solve runs simulated annealing and returns the best schedule found.
@@ -424,10 +426,10 @@ func (ctx *schedulingContext) getRequiredRoomType(courseName string) string {
 	if models.IsSportsCourse(courseName) {
 		return "体育馆"
 	}
-	if strings.Contains(courseName, "实验") {
+	if IsLabCourse(courseName) {
 		return "实验室"
 	}
-	if strings.Contains(courseName, "上机") {
+	if IsComputerCourse(courseName) {
 		return "机房"
 	}
 	return ""

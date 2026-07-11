@@ -19,8 +19,6 @@ type neighborOp struct {
 	applied     bool
 }
 
-var lastNeighbor neighborOp
-
 // tryNeighbor attempts a random neighbor move and returns the new score.
 func (ctx *schedulingContext) tryNeighbor(currentScore float64) float64 {
 	if len(ctx.entries) == 0 {
@@ -28,7 +26,7 @@ func (ctx *schedulingContext) tryNeighbor(currentScore float64) float64 {
 	}
 
 	// Reset last operation
-	lastNeighbor = neighborOp{}
+	ctx.lastNeighbor = neighborOp{}
 
 	// Choose operation: 70% move, 30% swap
 	if ctx.rng.Float64() < 0.7 || len(ctx.entries) < 2 {
@@ -44,11 +42,11 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	entry := ctx.entries[idx]
 
 	// Save old state
-	lastNeighbor.kind = "move"
-	lastNeighbor.entryIdx = idx
-	lastNeighbor.oldDay = entry.DayOfWeek
-	lastNeighbor.oldStart = entry.StartPeriod
-	lastNeighbor.oldRoom = entry.ClassroomID
+	ctx.lastNeighbor.kind = "move"
+	ctx.lastNeighbor.entryIdx = idx
+	ctx.lastNeighbor.oldDay = entry.DayOfWeek
+	ctx.lastNeighbor.oldStart = entry.StartPeriod
+	ctx.lastNeighbor.oldRoom = entry.ClassroomID
 
 	// Remove old occupancy
 	ctx.removeOccupancy(entry)
@@ -157,10 +155,10 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 		ctx.entries[idx].StartPeriod = models.Period(start)
 		ctx.entries[idx].ClassroomID = room.ID
 
-		lastNeighbor.newDay = models.DayOfWeek(day)
-		lastNeighbor.newStart = models.Period(start)
-		lastNeighbor.newRoom = room.ID
-		lastNeighbor.applied = true
+		ctx.lastNeighbor.newDay = models.DayOfWeek(day)
+		ctx.lastNeighbor.newStart = models.Period(start)
+		ctx.lastNeighbor.newRoom = room.ID
+		ctx.lastNeighbor.applied = true
 
 		ctx.addOccupancy(ctx.entries[idx])
 		return ctx.computeScore()
@@ -197,21 +195,21 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 	}
 
 	// Save operation for undo
-	lastNeighbor.kind = "swap"
-	lastNeighbor.swapIdx1 = i1
-	lastNeighbor.swapIdx2 = i2
-	lastNeighbor.oldDay = e1.DayOfWeek
-	lastNeighbor.oldStart = e1.StartPeriod
-	lastNeighbor.oldRoom = e1.ClassroomID
-	lastNeighbor.newDay = e2.DayOfWeek
-	lastNeighbor.newStart = e2.StartPeriod
-	lastNeighbor.newRoom = e2.ClassroomID
+	ctx.lastNeighbor.kind = "swap"
+	ctx.lastNeighbor.swapIdx1 = i1
+	ctx.lastNeighbor.swapIdx2 = i2
+	ctx.lastNeighbor.oldDay = e1.DayOfWeek
+	ctx.lastNeighbor.oldStart = e1.StartPeriod
+	ctx.lastNeighbor.oldRoom = e1.ClassroomID
+	ctx.lastNeighbor.newDay = e2.DayOfWeek
+	ctx.lastNeighbor.newStart = e2.StartPeriod
+	ctx.lastNeighbor.newRoom = e2.ClassroomID
 
 	// Swap day/period (keep teacher, room, teaching task)
 	ctx.entries[i1].DayOfWeek, ctx.entries[i2].DayOfWeek = e2.DayOfWeek, e1.DayOfWeek
 	ctx.entries[i1].StartPeriod, ctx.entries[i2].StartPeriod = e2.StartPeriod, e1.StartPeriod
 
-	lastNeighbor.applied = true
+	ctx.lastNeighbor.applied = true
 	ctx.addOccupancy(ctx.entries[i1])
 	ctx.addOccupancy(ctx.entries[i2])
 	return ctx.computeScore()
@@ -286,34 +284,34 @@ func (ctx *schedulingContext) classGroupsBusy(e models.ScheduleEntry, day, start
 
 // undoNeighbor reverts the last neighbor operation.
 func (ctx *schedulingContext) undoNeighbor() {
-	if !lastNeighbor.applied {
+	if !ctx.lastNeighbor.applied {
 		return
 	}
 
-	switch lastNeighbor.kind {
+	switch ctx.lastNeighbor.kind {
 	case "move":
-		idx := lastNeighbor.entryIdx
+		idx := ctx.lastNeighbor.entryIdx
 		ctx.removeOccupancy(ctx.entries[idx])
-		ctx.entries[idx].DayOfWeek = lastNeighbor.oldDay
-		ctx.entries[idx].StartPeriod = lastNeighbor.oldStart
-		ctx.entries[idx].ClassroomID = lastNeighbor.oldRoom
+		ctx.entries[idx].DayOfWeek = ctx.lastNeighbor.oldDay
+		ctx.entries[idx].StartPeriod = ctx.lastNeighbor.oldStart
+		ctx.entries[idx].ClassroomID = ctx.lastNeighbor.oldRoom
 		ctx.addOccupancy(ctx.entries[idx])
 
 	case "swap":
-		i1, i2 := lastNeighbor.swapIdx1, lastNeighbor.swapIdx2
+		i1, i2 := ctx.lastNeighbor.swapIdx1, ctx.lastNeighbor.swapIdx2
 		ctx.removeOccupancy(ctx.entries[i1])
 		ctx.removeOccupancy(ctx.entries[i2])
-		ctx.entries[i1].DayOfWeek = lastNeighbor.oldDay
-		ctx.entries[i1].StartPeriod = lastNeighbor.oldStart
-		ctx.entries[i1].ClassroomID = lastNeighbor.oldRoom
-		ctx.entries[i2].DayOfWeek = lastNeighbor.newDay
-		ctx.entries[i2].StartPeriod = lastNeighbor.newStart
-		ctx.entries[i2].ClassroomID = lastNeighbor.newRoom
+		ctx.entries[i1].DayOfWeek = ctx.lastNeighbor.oldDay
+		ctx.entries[i1].StartPeriod = ctx.lastNeighbor.oldStart
+		ctx.entries[i1].ClassroomID = ctx.lastNeighbor.oldRoom
+		ctx.entries[i2].DayOfWeek = ctx.lastNeighbor.newDay
+		ctx.entries[i2].StartPeriod = ctx.lastNeighbor.newStart
+		ctx.entries[i2].ClassroomID = ctx.lastNeighbor.newRoom
 		ctx.addOccupancy(ctx.entries[i1])
 		ctx.addOccupancy(ctx.entries[i2])
 	}
 
-	lastNeighbor.applied = false
+	ctx.lastNeighbor.applied = false
 }
 
 // computeScore scores the current schedule using ScoringService.

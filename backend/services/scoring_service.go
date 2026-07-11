@@ -181,11 +181,11 @@ func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry,
 
 	// Average across preference teachers, scale to 0-maxScore
 	avgPenalty := totalPenalty / float64(prefTeacherCount)
-	score := maxScore * (1.0 - avgPenalty)
-	if score < 0 {
-		score = 0
-	}
-	return math.Round(score*100) / 100
+		score := maxScore * (1.0 - avgPenalty)
+		if score < 0 {
+			score = 0
+		}
+		return score
 }
 
 // scoreCourseSpacing evaluates how evenly each course's sessions are distributed
@@ -254,13 +254,25 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxS
 
 		// Same-day concentration penalty: extra sessions on same day reduce score
 		sameDayExcess := 0
+		maxDaily := 0
 		for _, cnt := range ci.dayCounts {
+			if cnt > maxDaily {
+				maxDaily = cnt
+			}
 			if cnt > 1 {
 				sameDayExcess += cnt - 1
 			}
 		}
 		concentrationPenalty := float64(sameDayExcess) * 0.3
-		courseScore := gapScore * (1.0 - concentrationPenalty)
+
+		// Daily balance penalty: max daily sessions exceeding ideal spread
+		idealMax := (totalSessions + len(days) - 1) / len(days) // ceil(total/occupied_days)
+		balancePenalty := 0.0
+		if maxDaily > idealMax {
+			balancePenalty = float64(maxDaily-idealMax) * 0.15
+		}
+
+		courseScore := gapScore * (1.0 - concentrationPenalty - balancePenalty)
 		if courseScore < 0 {
 			courseScore = 0
 		}
@@ -268,7 +280,7 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxS
 	}
 
 	avgScore := totalScore / float64(len(courses))
-	return math.Round(maxScore*avgScore*100) / 100
+	return maxScore * avgScore
 }
 
 // scoreTeacherDays evaluates how many distinct days each teacher comes to campus.
@@ -311,7 +323,7 @@ func (s *ScoringService) scoreTeacherDays(entries []models.ScheduleEntry, teache
 	}
 
 	avgScore := totalScore / float64(len(teacherDays))
-	return math.Round(maxScore*avgScore*100) / 100
+	return maxScore * avgScore
 }
 
 // scoreLowFloorPref evaluates whether teachers who prefer low floors
@@ -371,7 +383,7 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 	}
 
 	avgScore := totalScore / float64(len(stats))
-	return math.Round(maxScore*avgScore*100) / 100
+	return maxScore * avgScore
 }
 
 // scoreWeekendAvoid penalizes entries placed on Saturday and/or Sunday.
@@ -402,11 +414,11 @@ func (s *ScoringService) scoreWeekendAvoid(entries []models.ScheduleEntry, enabl
 
 	// Penalty: each weekend entry loses 1/N of the max score, where N is total entries
 	penalty := float64(totalWeekend) / float64(len(entries))
-	score := maxScore * (1.0 - penalty)
-	if score < 0 {
-		score = 0
-	}
-	return math.Round(score*100) / 100
+		score := maxScore * (1.0 - penalty)
+		if score < 0 {
+			score = 0
+		}
+		return score
 }
 
 // scorePePeriodPref evaluates whether sports courses are placed at preferred periods
@@ -432,7 +444,7 @@ func (s *ScoringService) scorePePeriodPref(entries []models.ScheduleEntry, sport
 	}
 
 	ratio := float64(preferredCount) / float64(sportsCount)
-		return math.Round(maxScore * ratio * 100) / 100
+	return maxScore * ratio
 	}
 
 	// scoreStudentFatigue evaluates whether students have excessive consecutive periods.
@@ -530,5 +542,5 @@ func (s *ScoringService) scorePePeriodPref(entries []models.ScheduleEntry, sport
 		if score < 0 {
 			score = 0
 		}
-		return math.Round(score*100) / 100
+		return score
 	}

@@ -448,6 +448,30 @@ def solve_scheduling(data):
                 model.AddBoolOr([any_on_day_vars[d].Not(), any_on_day_vars[d + 1].Not()]).OnlyEnforceIf(consecutive.Not())
                 objective_terms.append(consecutive * (-w_consec))
 
+            # Daily balance: penalize max daily sessions exceeding ideal spread
+            w_balance = int(w * 0.2)  # 20% of course_dispersed weight
+            ideal_max = max(1, (len(all_sessions) + DAYS - 1) // DAYS)  # ceil(total/DAYS)
+            # Count sessions placed on each day
+            day_session_counts = []  # IntVars: number of placed sessions per day
+            for d in range(DAYS):
+                day_count = model.NewIntVar(0, len(all_sessions), f"c_{cid}_dcnt_d{d}")
+                day_vars = []
+                for (i, s) in all_sessions:
+                    is_d = model.NewBoolVar(f"c_{cid}_bal_i{i}_s{s}_d{d}")
+                    model.Add(day[(i, s)] == d).OnlyEnforceIf(is_d)
+                    model.Add(day[(i, s)] != d).OnlyEnforceIf(is_d.Not())
+                    active_d = model.NewBoolVar(f"c_{cid}_bal_a{i}_s{s}_d{d}")
+                    model.AddBoolAnd([placed[(i, s)], is_d]).OnlyEnforceIf(active_d)
+                    model.AddBoolOr([placed[(i, s)].Not(), is_d.Not()]).OnlyEnforceIf(active_d.Not())
+                    day_vars.append(active_d)
+                model.Add(day_count == sum(day_vars))
+                day_session_counts.append(day_count)
+            max_daily = model.NewIntVar(0, len(all_sessions), f"c_{cid}_maxday")
+            model.AddMaxEquality(max_daily, day_session_counts)
+            excess = model.NewIntVar(0, len(all_sessions), f"c_{cid}_bexcess")
+            model.Add(excess >= max_daily - ideal_max)
+            objective_terms.append(excess * (-w_balance))
+
     # SC5 — Low floor preference
     if "low_floor_preference" in constraints:
         w = weights.get("low_floor_preference", 50)
