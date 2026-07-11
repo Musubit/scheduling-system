@@ -96,6 +96,37 @@ async function generateManualReport() {
   }
 }
 
+async function deleteSnapshot(snapshot: any) {
+  try {
+    const { DeleteSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
+    await DeleteSnapshot(snapshot.ID)
+    if (selectedSnapshot.value?.ID === snapshot.ID) {
+      selectedSnapshot.value = null
+    }
+    await loadSnapshots()
+  } catch (e: any) {
+    console.warn('Failed to delete snapshot:', e)
+  }
+}
+
+async function deleteAllSnapshots() {
+  if (!snapshots.value.length) return
+  if (!confirm(`确定要删除全部 ${snapshots.value.length} 条验证报告吗？此操作不可撤销。`)) return
+  try {
+    loading.value = true
+    const { DeleteSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
+    for (const snap of snapshots.value) {
+      await DeleteSnapshot(snap.ID)
+    }
+    selectedSnapshot.value = null
+    await loadSnapshots()
+  } catch (e: any) {
+    console.warn('Failed to delete all snapshots:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
 function exportPDF() {
   window.print()
 }
@@ -157,6 +188,9 @@ onMounted(() => {
         <n-button @click="exportPDF" :disabled="!selectedSnapshot">
           导出 PDF
         </n-button>
+        <n-button type="error" @click="deleteAllSnapshots" :disabled="snapshots.length === 0" secondary>
+          一键清除
+        </n-button>
       </div>
     </div>
 
@@ -179,6 +213,7 @@ onMounted(() => {
             :class="{ active: selectedSnapshot?.ID === snap.ID }"
             @click="selectSnapshot(snap)"
           >
+            <button class="snap-delete-btn" @click.stop="deleteSnapshot(snap)" title="删除此快照">×</button>
             <div class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</div>
             <div class="snap-meta">
               <n-tag :type="snap.trigger === 'auto' ? 'info' : 'warning'" size="small">
@@ -385,6 +420,36 @@ onMounted(() => {
   border: 1px solid var(--b3-border-color);
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
+}
+
+.snap-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--b3-text-color-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.snapshot-card:hover .snap-delete-btn {
+  opacity: 1;
+}
+
+.snap-delete-btn:hover {
+  color: #d03050;
+  background: rgba(208, 48, 80, 0.1);
 }
 
 .snapshot-card:hover {

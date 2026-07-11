@@ -45,8 +45,8 @@ func (s *TeachingTaskService) UpdateTeachingTask(id uint, task models.TeachingTa
 		if err := tx.Save(&task).Error(); err != nil {
 			return err
 		}
-		// Delete old class associations
-		if err := tx.Delete(&models.TeachingTaskClass{}, "teaching_task_id = ?", id).Error(); err != nil {
+		// Delete old class associations (hard delete to avoid UNIQUE constraint)
+		if err := tx.Unscoped().Delete(&models.TeachingTaskClass{}, "teaching_task_id = ?", id).Error(); err != nil {
 			return err
 		}
 		// Create new class associations
@@ -184,20 +184,24 @@ func (s *TeachingTaskService) DetectMergeableTasks(semesterID uint) ([]Mergeable
 
 // ImportTeachingTask represents one row of the Excel import template.
 type ImportTeachingTask struct {
-	CourseCode    string `json:"courseCode"`
-	TeacherCode   string `json:"teacherCode"`
-	ClassGroupIDs string `json:"classGroupIDs"` // comma-separated class group codes
+	CourseCode      string `json:"courseCode"`
+	TeacherCode     string `json:"teacherCode"`
+	ClassGroupIDs   string `json:"classGroupIDs"`   // comma-separated class group codes
+	TotalHours      int    `json:"totalHours"`       // optional, 0 = use course default
+	StartWeek       int    `json:"startWeek"`        // optional, default 1
+	EndWeek         int    `json:"endWeek"`          // optional, default 16
+	MaxHoursPerWeek int    `json:"maxHoursPerWeek"`  // optional, 0 = no limit
 }
 
 // ImportTeachingTasks imports teaching tasks from a 2D string array.
-// Expected columns: [课程编号, 教师编号, 班级编号列表(逗号分隔)]
+// Columns: [课程代码, 教师编号, 班级编号, 总学时?, 起始周?, 结束周?, 周最大学时?]
 func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]string) (int, []string, error) {
 	var errors []string
 	imported := 0
 
 	for i, row := range rows {
 		if len(row) < 3 {
-			errors = append(errors, fmt.Sprintf("第%d行: 列数不足（需要3列）", i+2))
+			errors = append(errors, fmt.Sprintf("第%d行: 列数不足（至少需要3列：课程代码、工号、班级代码）", i+2))
 			continue
 		}
 		courseCode := strings.TrimSpace(row[0])
@@ -207,14 +211,14 @@ func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]stri
 		// Find course by code
 		var course models.Course
 		if err := s.db.Where("code = ?", courseCode).First(&course).Error(); err != nil {
-			errors = append(errors, fmt.Sprintf("第%d行: 课程编号 %s 未找到", i+2, courseCode))
+			errors = append(errors, fmt.Sprintf("第%d行: 课程代码 %s 未找到", i+2, courseCode))
 			continue
 		}
 
 		// Find teacher by code
 		var teacher models.Teacher
 		if err := s.db.Where("code = ?", teacherCode).First(&teacher).Error(); err != nil {
-			errors = append(errors, fmt.Sprintf("第%d行: 教师编号 %s 未找到", i+2, teacherCode))
+			errors = append(errors, fmt.Sprintf("第%d行: 工号 %s 未找到", i+2, teacherCode))
 			continue
 		}
 
@@ -228,7 +232,7 @@ func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]stri
 			}
 			var cg models.ClassGroup
 			if err := s.db.Where("code = ?", cc).First(&cg).Error(); err != nil {
-				errors = append(errors, fmt.Sprintf("第%d行: 班级编号 %s 未找到", i+2, cc))
+				errors = append(errors, fmt.Sprintf("第%d行: 班级代码 %s 未找到", i+2, cc))
 				continue
 			}
 			classGroupIDs = append(classGroupIDs, cg.ID)
@@ -239,11 +243,47 @@ func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]stri
 			continue
 		}
 
+		// Parse optional time fields
+		totalHours := 0
+		startWeek := 1
+		endWeek := 16
+		maxHoursPerWeek := 0
+
+		if len(row) > 3 {
+			if v := strings.TrimSpace(row[3]); v != "" {
+				fmt.Sscanf(v, "%d", &totalHours)
+			}
+		}
+		if totalHours == 0 {
+			totalHours = course.Hours // fallback to course default
+		}
+		if len(row) > 4 {
+			if v := strings.TrimSpace(row[4]); v != "" {
+				fmt.Sscanf(v, "%d", &startWeek)
+			}
+		}
+		if len(row) > 5 {
+			if v := strings.TrimSpace(row[5]); v != "" {
+				fmt.Sscanf(v, "%d", &endWeek)
+			}
+		}
+		if len(row) > 6 {
+			if v := strings.TrimSpace(row[6]); v != "" {
+				fmt.Sscanf(v, "%d", &maxHoursPerWeek)
+			}
+		}
+		if startWeek < 1 { startWeek = 1 }
+		if endWeek < startWeek { endWeek = startWeek }
+
 		task := models.TeachingTask{
-			CourseID:   course.ID,
-			TeacherID:  teacher.ID,
-			SemesterID: semesterID,
-			Status:     "active",
+			CourseID:        course.ID,
+			TeacherID:       teacher.ID,
+			SemesterID:      semesterID,
+			Status:          "active",
+			TotalHours:      totalHours,
+			StartWeek:       startWeek,
+			EndWeek:         endWeek,
+			MaxHoursPerWeek: maxHoursPerWeek,
 		}
 
 		if err := s.CreateTeachingTask(task, classGroupIDs); err != nil {
@@ -264,7 +304,7 @@ func (s *TeachingTaskService) ExportTeachingTasks(semesterID uint) ([][]string, 
 	}
 
 	rows := [][]string{
-		{"课程编号", "教师编号", "班级编号列表"},
+		{"课程代码", "工号", "班级代码", "总学时", "起始周", "结束周", "周最大学时"},
 	}
 	for _, t := range tasks {
 		// Load course and teacher
@@ -281,8 +321,90 @@ func (s *TeachingTaskService) ExportTeachingTasks(semesterID uint) ([][]string, 
 			course.Code,
 			teacher.Code,
 			strings.Join(classCodes, ","),
+			fmt.Sprintf("%d", t.TotalHours),
+			fmt.Sprintf("%d", t.StartWeek),
+			fmt.Sprintf("%d", t.EndWeek),
+			fmt.Sprintf("%d", t.MaxHoursPerWeek),
 		}
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// SplitMergedTeachingTask splits a merged teaching task (one task covering
+// multiple class groups) into individual single-class teaching tasks.
+// Existing schedule entries are reassigned to the new task whose single class
+// matches the entry's ClassGroupID (entries without a class match are attached
+// to the first new task). The original merged task is then removed.
+// Returns the number of new single-class tasks created.
+func (s *TeachingTaskService) SplitMergedTeachingTask(taskID uint) (int, error) {
+	var task models.TeachingTask
+	if err := s.db.Preload("Classes").Preload("Classes.ClassGroup").First(&task, taskID).Error(); err != nil {
+		return 0, fmt.Errorf("教学任务不存在: %w", err)
+	}
+	if len(task.Classes) < 2 {
+		return 0, fmt.Errorf("该教学任务仅含 %d 个班级，无需拆班", len(task.Classes))
+	}
+
+	// Existing schedule entries that reference this merged task.
+	var entries []models.ScheduleEntry
+	s.db.Where("teaching_task_id = ?", taskID).Find(&entries)
+
+	created := 0
+	err := s.db.Transaction(func(tx database.DB) error {
+		newTaskByClass := make(map[uint]uint)
+		firstNewTaskID := uint(0)
+		for _, tc := range task.Classes {
+			cgID := tc.ClassGroupID
+			newTask := models.TeachingTask{
+				CourseID:        task.CourseID,
+				TeacherID:       task.TeacherID,
+				SemesterID:      task.SemesterID,
+				Status:          task.Status,
+				TotalHours:      task.TotalHours,
+				StartWeek:       task.StartWeek,
+				EndWeek:         task.EndWeek,
+				MaxHoursPerWeek: task.MaxHoursPerWeek,
+			}
+			if err := tx.Create(&newTask).Error(); err != nil {
+				return err
+			}
+			if err := tx.Create(&models.TeachingTaskClass{TeachingTaskID: newTask.ID, ClassGroupID: cgID}).Error(); err != nil {
+				return err
+			}
+			newTaskByClass[cgID] = newTask.ID
+			if firstNewTaskID == 0 {
+				firstNewTaskID = newTask.ID
+			}
+			created++
+		}
+
+		// Reassign each existing entry to the matching new single-class task.
+		for i := range entries {
+			e := entries[i]
+			targetID := firstNewTaskID
+			if e.ClassGroupID != nil {
+				if id, ok := newTaskByClass[*e.ClassGroupID]; ok {
+					targetID = id
+				}
+			}
+			e.TeachingTaskID = &targetID
+			if err := tx.Save(&e).Error(); err != nil {
+				return err
+			}
+		}
+
+		// Remove the original merged task and its class associations.
+		if err := tx.Delete(&models.TeachingTaskClass{}, "teaching_task_id = ?", taskID).Error(); err != nil {
+			return err
+		}
+		if err := tx.Delete(&models.TeachingTask{}, taskID).Error(); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return created, nil
 }

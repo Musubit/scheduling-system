@@ -28,24 +28,24 @@ var (
 	mu sync.RWMutex
 )
 
-// Filename returns the config file path relative to the given base directory.
-func Filename(baseDir string) string {
-	return filepath.Join(baseDir, "config", "app.json")
+// Filename returns the config file path relative to the given config directory.
+func Filename(configDir string) string {
+	return filepath.Join(configDir, "app.json")
 }
 
-// Load reads config from config/app.json in the given base directory.
+// Load reads config from app.json in the given config directory.
 // If the file doesn't exist, returns defaults and writes the defaults to disk.
-func Load(baseDir string) *AppConfig {
+func Load(configDir string) *AppConfig {
 	mu.RLock()
 	cfg := defaultConfig
 	mu.RUnlock()
 
-	path := Filename(baseDir)
+	path := Filename(configDir)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Write defaults on first run
-			if writeErr := Save(baseDir, &cfg); writeErr != nil {
+			if writeErr := Save(configDir, &cfg); writeErr != nil {
 				log.Printf("Config: cannot write default config: %v", writeErr)
 			}
 		}
@@ -70,17 +70,17 @@ func Load(baseDir string) *AppConfig {
 	return &loaded
 }
 
-// Save writes the config to config/app.json, creating the directory if needed.
-func Save(baseDir string, cfg *AppConfig) error {
+// Save writes the config to app.json in the given config directory,
+// creating the directory if needed.
+func Save(configDir string, cfg *AppConfig) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	dir := filepath.Join(baseDir, "config")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return err
 	}
 
-	path := filepath.Join(dir, "app.json")
+	path := filepath.Join(configDir, "app.json")
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err

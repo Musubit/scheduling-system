@@ -50,6 +50,8 @@ type ORToolsTask struct {
 	TotalHours        int    `json:"totalHours,omitempty"`
 	MaxHoursPerWeek   int    `json:"maxHoursPerWeek,omitempty"`
 	RequiredRoomType  string `json:"requiredRoomType,omitempty"`
+	StartWeek         int    `json:"startWeek"`
+	EndWeek           int    `json:"endWeek"`
 }
 
 type ORToolsTeacher struct {

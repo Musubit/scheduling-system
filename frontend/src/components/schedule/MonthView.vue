@@ -2,10 +2,22 @@
 import { computed } from 'vue'
 import { useScheduleStore } from '../../stores/schedule'
 import { DAY_NAMES } from '../../types'
+import { courseColorStyle } from '../../utils/courseColor'
 
 const scheduleStore = useScheduleStore()
 
 const dayNames = ['一', '二', '三', '四', '五', '六', '日']
+
+// Pre-index entries by dayOfWeek for O(1) lookup
+const entriesByDow = computed(() => {
+  const map = new Map<number, typeof scheduleStore.displayEntries>()
+  for (const e of scheduleStore.displayEntries) {
+    const arr = map.get(e.dayOfWeek)
+    if (arr) arr.push(e)
+    else map.set(e.dayOfWeek, [e])
+  }
+  return map
+})
 
 const year = computed(() => scheduleStore.currentYear)
 const month = computed(() => scheduleStore.currentMonth)
@@ -16,7 +28,7 @@ const firstDayOfWeek = computed(() => {
 })
 
 	const calendarDays = computed(() => {
-	  const days: { date: number; isCurrentMonth: boolean; isToday: boolean; dow: number; courses: { name: string; dept: string }[] }[] = []
+	  const days: { date: number; isCurrentMonth: boolean; isToday: boolean; dow: number; courses: { name: string; dept: string; courseId: number }[] }[] = []
 	  const prevMonthDays = new Date(year.value, month.value - 1, 0).getDate()
 	  for (let i = firstDayOfWeek.value - 1; i >= 0; i--) {
 	    days.push({ date: prevMonthDays - i, isCurrentMonth: false, isToday: false, dow: -1, courses: [] })
@@ -25,12 +37,12 @@ const firstDayOfWeek = computed(() => {
 	  for (let d = 1; d <= daysInMonth.value; d++) {
 	    const dow = (firstDayOfWeek.value + d - 1) % 7
 	    const dt = new Date(year.value, month.value - 1, d)
-	    const dayEntries = scheduleStore.displayEntries.filter(e => e.dayOfWeek === dow)
+	    const dayEntries = entriesByDow.value.get(dow) || []
 	    days.push({
 	      date: d, isCurrentMonth: true,
 	      isToday: dt.toDateString() === today.toDateString(),
 	      dow,
-	      courses: dayEntries.slice(0, 3).map(e => ({ name: e.course?.name || '', dept: e.course?.dept || 'cs' })),
+	      courses: dayEntries.slice(0, 3).map(e => ({ name: e.course?.name || '', dept: e.course?.dept || 'cs', courseId: e.course?.ID ?? 0 })),
 	    })
 	  }
   const remaining = 7 - (days.length % 7)
@@ -50,7 +62,7 @@ const firstDayOfWeek = computed(() => {
       <div v-for="(day, idx) in calendarDays" :key="idx" class="month-cell" :class="{ 'other-month': !day.isCurrentMonth, 'is-today': day.isToday }">
         <div class="date-num">{{ day.date }}</div>
         <div v-if="day.isCurrentMonth" class="month-events">
-          <div v-for="(c, ci) in day.courses" :key="ci" class="month-event" :class="'mo-' + c.dept">{{ c.name }}</div>
+          <div v-for="(c, ci) in day.courses" :key="ci" class="month-event" :style="courseColorStyle(c.courseId)">{{ c.name }}</div>
         </div>
       </div>
     </div>

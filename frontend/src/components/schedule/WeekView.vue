@@ -4,6 +4,7 @@ import { PERIODS, DAY_NAMES } from '../../types'
 import type { ScheduleEntry, LockedTimeSlot } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
 import { useMessage } from 'naive-ui'
+import { courseColorStyle } from '../../utils/courseColor'
 
 const scheduleStore = useScheduleStore()
 const drawerRef = inject<any>('drawerRef')
@@ -131,17 +132,42 @@ function togglePopover(day: number, period: number) {
 }
 
 // Drag handlers
+const dragSourceEl = ref<HTMLElement | null>(null)
+
 function onDragStart(e: DragEvent, entry: ScheduleEntry) {
   if (editMode.value) return
   dragEntry.value = entry
   popoverCell.value = null
+
+  // Add dragging class to source element for visual feedback
+  const el = e.target as HTMLElement
+  dragSourceEl.value = (el.closest('.course-card') || el.closest('.overflow-item')) as HTMLElement
+  if (dragSourceEl.value) {
+    dragSourceEl.value.classList.add('dragging-source')
+  }
+
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', String(entry.ID))
+    // Create a semi-transparent drag preview image
+    const ghost = (el.closest('.course-card') as HTMLElement)?.cloneNode(true) as HTMLElement
+    if (ghost) {
+      ghost.style.opacity = '0.7'
+      ghost.style.position = 'absolute'
+      ghost.style.top = '-9999px'
+      ghost.style.width = '160px'
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, 80, 20)
+      requestAnimationFrame(() => document.body.removeChild(ghost))
+    }
   }
 }
 
 function onDragEnd() {
+  if (dragSourceEl.value) {
+    dragSourceEl.value.classList.remove('dragging-source')
+    dragSourceEl.value = null
+  }
   dragEntry.value = null
   dragOverDay.value = -1
   dragOverPeriod.value = -1
@@ -149,13 +175,19 @@ function onDragEnd() {
 
 function onDragOver(e: DragEvent, day: number, period: number) {
   if (editMode.value) return
-  if (!isDropTarget(day, period)) return
   e.preventDefault()
   if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = isDropAllowed(day, period) ? 'move' : 'none'
   }
   dragOverDay.value = day
   dragOverPeriod.value = period
+}
+
+function isDropAllowed(day: number, period: number): boolean {
+  if (!dragEntry.value) return false
+  // Block if locked
+  if (isDropBlockedByLock(day, period, dragEntry.value.span)) return false
+  return true
 }
 
 function onDragLeave() {
@@ -195,11 +227,11 @@ async function onDrop(e: DragEvent, day: number, period: number) {
       newDay: day,
       newPeriod: period,
       newSpan: entry.span,
-    })
+    } as any)
 
-    if (!result.valid) {
+    if (!result?.valid) {
       conflictFlash.value = { day, period }
-      const conflictDesc = result.conflicts?.[0]?.description || '冲突'
+      const conflictDesc = result?.conflicts?.[0]?.description || '冲突'
       message.error(`无法移动：${conflictDesc}`)
       setTimeout(() => { conflictFlash.value = null }, 1500)
       dragEntry.value = null
@@ -212,7 +244,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
       newDay: day,
       newPeriod: period,
       newSpan: entry.span,
-    })
+    } as any)
 
     message.success('课表已调整')
     await scheduleStore.loadSchedule('')
@@ -239,8 +271,10 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 <template>
   <div class="week-view">
     <div class="week-toolbar" v-if="displayEntries.length > 0 || editMode">
-      <span class="mode-label" v-if="editMode">🔒 锁定时段编辑模式</span>
-      <span class="mode-label" v-else>📋 课表查看模式</span>
+      <div class="toolbar-left">
+        <span class="mode-label" v-if="editMode">🔒 锁定时段编辑模式 — 点击格子锁定/解锁时段</span>
+        <span class="mode-label" v-else>💡 拖拽课程卡片即可调整课表位置</span>
+      </div>
       <button class="mode-toggle-btn" @click="editMode = !editMode">
         {{ editMode ? '返回查看' : '编辑锁定时段' }}
       </button>
@@ -267,9 +301,10 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             'cell-locked': isLocked(di, pi),
             'cell-edit-locked': editMode && isLocked(di, pi),
             'cell-edit-free': editMode && !isLocked(di, pi),
-            'drag-over': !editMode && dragOverDay === di && dragOverPeriod === pi,
+            'drag-over': !editMode && dragOverDay === di && dragOverPeriod === pi && isDropAllowed(di, pi),
+            'drag-blocked': !editMode && dragOverDay === di && dragOverPeriod === pi && !isDropAllowed(di, pi),
             'conflict-flash': !editMode && conflictFlash?.day === di && conflictFlash?.period === pi,
-            'drop-target': !editMode && dragEntry,
+            'drop-target': !editMode && dragEntry && isDropAllowed(di, pi),
             'has-overflow': !editMode && getCoursesAt(di, pi).length > 1,
           }"
           @click="editMode ? toggleLockCell(di, pi) : togglePopover(di, pi)"
@@ -288,7 +323,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
           <template v-if="!editMode && getCourseAt(di, pi) && isFirstCell(getCourseAt(di, pi)!, pi)">
             <div
               class="course-card"
-              :class="['course-' + (getCourseAt(di, pi)!.course?.dept || 'cs')]"
+              :style="courseColorStyle(getCourseAt(di, pi)!.course?.ID ?? 0)"
               draggable="true"
               @dragstart="onDragStart($event, getCourseAt(di, pi)!)"
               @dragend="onDragEnd"
@@ -322,7 +357,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             v-for="e in getCoursesAt(popoverCell.day, popoverCell.period)"
             :key="e.ID"
             class="overflow-item"
-            :class="'course-' + (e.course?.dept || 'cs')"
+            :style="courseColorStyle(e.course?.ID ?? 0)"
             draggable="true"
             @dragstart="onDragStart($event, e)"
             @click="openCourseDetail(e); popoverCell = null"
@@ -345,6 +380,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
   background: var(--b3-theme-surface); border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius-s);
 }
+.toolbar-left { display: flex; align-items: center; gap: 8px; }
 .mode-label { font-size: 13px; font-weight: 500; color: var(--b3-theme-on-surface); }
 .mode-toggle-btn {
   font-size: 12px; padding: 4px 12px; border: 1px solid var(--b3-theme-primary);
@@ -375,8 +411,9 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 .cell-edit-free:hover { background: var(--b3-theme-primary-lightest); }
 .lock-icon { font-size: 14px; opacity: 0.7; pointer-events: none; }
 
-.grid-cell.drop-target { background: var(--b3-theme-primary-lightest); opacity: 0.85; }
-.grid-cell.drag-over { background: var(--b3-theme-primary-light); outline: 2px dashed var(--b3-theme-primary); outline-offset: -2px; z-index: 1; }
+.grid-cell.drop-target { background: var(--b3-theme-primary-lightest); opacity: 0.85; transition: background 0.12s; }
+.grid-cell.drag-over { background: var(--b3-theme-primary-light); outline: 2px dashed var(--b3-theme-primary); outline-offset: -2px; z-index: 1; box-shadow: inset 0 0 12px rgba(24, 160, 88, 0.15); }
+.grid-cell.drag-blocked { background: rgba(244, 67, 54, 0.12) !important; outline: 2px dashed #f44336; outline-offset: -2px; z-index: 1; cursor: not-allowed; }
 .grid-cell.conflict-flash { animation: conflictPulse 0.3s ease 3; background: var(--b3-theme-error-lightest) !important; }
 @keyframes conflictPulse {
   0%, 100% { background: var(--b3-theme-error-lightest); }
@@ -414,12 +451,14 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
 .overflow-item:last-child { margin-bottom: 0; }
 .overflow-item:active { cursor: grabbing; }
 .overflow-item:hover { filter: brightness(0.95); }
+.overflow-item.dragging-source { opacity: 0.35; }
 .oi-name { font-weight: 600; color: var(--b3-theme-on-background); }
 .oi-meta { font-size: 11px; color: var(--b3-theme-on-surface-light); margin-top: 2px; }
 
-.course-card { height: 100%; padding: 4px 6px; font-size: 11px; cursor: grab; transition: box-shadow 0.15s, opacity 0.15s; border-left: 3px solid; overflow: hidden; display: flex; flex-direction: column; }
+.course-card { height: 100%; padding: 4px 6px; font-size: 11px; cursor: grab; transition: box-shadow 0.15s, opacity 0.15s; border-left: 3px solid; overflow: hidden; display: flex; flex-direction: column; user-select: none; }
 .course-card:active { cursor: grabbing; }
 .course-card:hover { box-shadow: var(--b3-point-shadow); }
+.course-card.dragging-source { opacity: 0.35; box-shadow: none; }
 .course-name { font-weight: 600; color: var(--b3-theme-on-background); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .course-detail { font-size: 10px; color: var(--b3-theme-on-surface-light); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

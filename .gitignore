@@ -23,6 +23,12 @@ bin/
 # Python solver venv (recreated by `uv sync` during build)
 scheduler/.venv/
 
+# Python build artifacts
+__pycache__/
+*.spec
+scheduler/build/
+build/scheduler/
+
 # Runtime data (created automatically on first run)
 config/
 logs/

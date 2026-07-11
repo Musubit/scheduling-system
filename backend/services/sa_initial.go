@@ -24,10 +24,15 @@ func (ctx *schedulingContext) buildInitial() {
 	for _, ti := range taskOrder {
 		td := ctx.teachingTasks[ti]
 
-		// Calculate sessions per week: ceil(CourseHours / 32), capped 1-4
+		// Calculate sessions per week based on task's actual week span
 		sessionsPerWeek := 1
 		if td.CourseHours > 0 {
-			sessionsPerWeek = (td.CourseHours + 31) / 32
+			weeks := td.Task.EndWeek - td.Task.StartWeek + 1
+			if weeks < 1 {
+				weeks = 1
+			}
+			periodsPerWeek := weeks * 2 // 2 periods per day
+			sessionsPerWeek = (td.CourseHours + periodsPerWeek - 1) / periodsPerWeek
 			if sessionsPerWeek < 1 {
 				sessionsPerWeek = 1
 			}

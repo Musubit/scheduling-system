@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"sort"
+
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
 )
@@ -235,4 +237,132 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 // DeleteSnapshot removes a snapshot and its details.
 func (s *SnapshotService) DeleteSnapshot(id uint) error {
 	return s.db.Delete(&models.ScheduleSnapshot{}, id).Error()
+}
+
+// SnapshotCompareResult holds the diff between two schedule snapshots.
+type SnapshotCompareResult struct {
+	A             *models.ScheduleSnapshot `json:"a"`
+	B             *models.ScheduleSnapshot `json:"b"`
+	ScoreDelta    float64                  `json:"scoreDelta"`
+	ConflictDelta int                     `json:"conflictDelta"` // +1: fail->pass, -1: pass->fail, 0: unchanged
+	EntryDelta    int                     `json:"entryDelta"`
+	TeacherDiffs  []TeacherSnapshotDiff    `json:"teacherDiffs"`
+}
+
+// TeacherSnapshotDiff summarizes per-teacher changes between two snapshots.
+type TeacherSnapshotDiff struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	EntryDelta    int     `json:"entryDelta"`
+	EarlyDelta    float64 `json:"earlyDelta"`
+	LateDelta     float64 `json:"lateDelta"`
+	DaysActualA   int     `json:"daysActualA"`
+	DaysActualB   int     `json:"daysActualB"`
+	DaysTarget    int     `json:"daysTarget"`
+	AvgFloorDelta float64 `json:"avgFloorDelta"`
+	Status        string  `json:"status"` // improved / regressed / unchanged / added / removed
+}
+
+// teacherDetailPenalty derives a single "badness" score from a teacher detail
+// (lower is better) so we can judge improvement/regression.
+func teacherDetailPenalty(d models.SnapshotDetail) float64 {
+	penalty := d.EarlyPenalty + d.LatePenalty
+	if d.DaysActual > d.DaysTarget {
+		penalty += float64(d.DaysActual - d.DaysTarget)
+	}
+	penalty += d.AvgFloor * 0.1
+	return penalty
+}
+
+// CompareSnapshots returns a structured diff between two snapshots
+// (A = baseline, B = comparison target).
+func (s *SnapshotService) CompareSnapshots(aID, bID uint) (*SnapshotCompareResult, error) {
+	a, err := s.GetSnapshotWithDetails(aID)
+	if err != nil {
+		return nil, fmt.Errorf("加载快照A失败: %w", err)
+	}
+	b, err := s.GetSnapshotWithDetails(bID)
+	if err != nil {
+		return nil, fmt.Errorf("加载快照B失败: %w", err)
+	}
+
+	res := &SnapshotCompareResult{
+		A:          a,
+		B:          b,
+		ScoreDelta: b.TotalScore - a.TotalScore,
+		EntryDelta: b.TotalEntries - a.TotalEntries,
+	}
+	switch {
+	case a.HardPassed && !b.HardPassed:
+		res.ConflictDelta = -1
+	case !a.HardPassed && b.HardPassed:
+		res.ConflictDelta = 1
+	}
+
+	aMap := map[string]models.SnapshotDetail{}
+	for _, d := range a.Details {
+		if d.EntityType == "teacher" {
+			aMap[d.EntityCode] = d
+		}
+	}
+	bMap := map[string]models.SnapshotDetail{}
+	for _, d := range b.Details {
+		if d.EntityType == "teacher" {
+			bMap[d.EntityCode] = d
+		}
+	}
+
+	seen := map[string]bool{}
+	var codes []string
+	for c := range aMap {
+		if !seen[c] {
+			seen[c] = true
+			codes = append(codes, c)
+		}
+	}
+	for c := range bMap {
+		if !seen[c] {
+			seen[c] = true
+			codes = append(codes, c)
+		}
+	}
+	sort.Strings(codes)
+
+	for _, code := range codes {
+		ad, aok := aMap[code]
+		bd, bok := bMap[code]
+		diff := TeacherSnapshotDiff{Code: code}
+		if aok {
+			diff.Name = ad.EntityName
+			diff.DaysActualA = ad.DaysActual
+			diff.DaysTarget = ad.DaysTarget
+			diff.EarlyDelta -= ad.EarlyPenalty
+			diff.LateDelta -= ad.LatePenalty
+			diff.AvgFloorDelta -= ad.AvgFloor
+			diff.EntryDelta -= ad.EntryCount
+		}
+		if bok {
+			diff.Name = bd.EntityName
+			diff.DaysActualB = bd.DaysActual
+			diff.DaysTarget = bd.DaysTarget
+			diff.EarlyDelta += bd.EarlyPenalty
+			diff.LateDelta += bd.LatePenalty
+			diff.AvgFloorDelta += bd.AvgFloor
+			diff.EntryDelta += bd.EntryCount
+		}
+		switch {
+		case !aok:
+			diff.Status = "added"
+		case !bok:
+			diff.Status = "removed"
+		case teacherDetailPenalty(bd) < teacherDetailPenalty(ad):
+			diff.Status = "improved"
+		case teacherDetailPenalty(bd) > teacherDetailPenalty(ad):
+			diff.Status = "regressed"
+		default:
+			diff.Status = "unchanged"
+		}
+		res.TeacherDiffs = append(res.TeacherDiffs, diff)
+	}
+	return res, nil
 }

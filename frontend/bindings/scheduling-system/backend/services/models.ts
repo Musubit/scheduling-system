@@ -104,12 +104,21 @@ export interface SchedulingConfig {
      * active semester ID
      */
     "semesterId"?: number;
+
+    /**
+     * per-constraint weights (0-100)
+     */
+    "constraintWeights"?: { [_ in string]?: number } | null;
 }
 
 export interface SchedulingResult {
     "totalCourses": number;
     "scheduled": number;
+    "tasksScheduled": number;
     "conflicts": number;
+    "teacherConflicts": number;
+    "roomConflicts": number;
+    "classConflicts": number;
     "utilization": number;
     "score": number;
     "scoreDetail"?: ScoreBreakdown | null;
@@ -157,4 +166,40 @@ export interface ScoreBreakdown {
      * 学生连续疲劳度
      */
     "studentFatigue": number;
+}
+
+/**
+ * SnapshotCompareResult holds the diff between two schedule snapshots.
+ */
+export interface SnapshotCompareResult {
+    "a": models$0.ScheduleSnapshot | null;
+    "b": models$0.ScheduleSnapshot | null;
+    "scoreDelta": number;
+
+    /**
+     * +1: fail->pass, -1: pass->fail, 0: unchanged
+     */
+    "conflictDelta": number;
+    "entryDelta": number;
+    "teacherDiffs": TeacherSnapshotDiff[] | null;
+}
+
+/**
+ * TeacherSnapshotDiff summarizes per-teacher changes between two snapshots.
+ */
+export interface TeacherSnapshotDiff {
+    "code": string;
+    "name": string;
+    "entryDelta": number;
+    "earlyDelta": number;
+    "lateDelta": number;
+    "daysActualA": number;
+    "daysActualB": number;
+    "daysTarget": number;
+    "avgFloorDelta": number;
+
+    /**
+     * improved / regressed / unchanged / added / removed
+     */
+    "status": string;
 }

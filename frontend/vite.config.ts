@@ -4,7 +4,15 @@ import { fileURLToPath, URL } from 'node:url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      script: {
+        babelOptions: {
+          plugins: ['@vue/babel-plugin-jsx'],
+        },
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -14,6 +22,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'pinia', 'naive-ui'],
+          'vendor-export': ['xlsx', 'jspdf', 'html2canvas'],
+        },
+      },
+    },
   },
   server: {
     host: '127.0.0.1',

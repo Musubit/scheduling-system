@@ -60,13 +60,15 @@ def periods_overlap(s1, span1, s2, span2):
     return s1 < s2 + span2 and s2 < s1 + span1
 
 
-def calc_sessions_per_week(total_hours, max_per_week=0):
-    """Calculate weekly sessions from total course hours."""
+def calc_sessions_per_week(total_hours, num_weeks, max_per_week=0):
+    """Calculate weekly sessions from total course hours and actual week span."""
     if total_hours <= 0:
         return 1
-    # Each session = 2 periods = 2学时. Total weeks typically 16.
-    # Weekly hours = total_hours / 16, sessions = ceil(weekly_hours / 2)
-    weekly_hours = total_hours / 16.0
+    if num_weeks <= 0:
+        num_weeks = 16
+    # Each session = 2 periods = 2学时.
+    # Weekly hours = total_hours / num_weeks, sessions = ceil(weekly_hours / 2)
+    weekly_hours = total_hours / float(num_weeks)
     sessions = int(weekly_hours / 2.0 + 0.999)  # ceil
     if sessions < 1:
         sessions = 1
@@ -105,13 +107,17 @@ def solve_scheduling(data):
     task_teacher_ids = [t["teacherId"] for t in tasks]
     task_course_ids = [t["courseId"] for t in tasks]
 
-    # Sessions per task (from input or computed from totalHours)
+    # Sessions per task (from input or computed from totalHours with actual week span)
     task_sessions = []
     for t in tasks:
         spw = t.get("sessionsPerWeek", 0)
         if spw <= 0:
+            start_week = t.get("startWeek", 1)
+            end_week = t.get("endWeek", 16)
+            num_weeks = end_week - start_week + 1
             spw = calc_sessions_per_week(
                 t.get("totalHours", 0),
+                num_weeks,
                 t.get("maxHoursPerWeek", 0)
             )
         task_sessions.append(max(1, min(spw, 4)))
@@ -176,6 +182,7 @@ def solve_scheduling(data):
     # day[i][s], start[i][s], position[i][s] for each session
     day = {}
     start = {}
+    position = {}
     for i in range(n_tasks):
         for s in range(task_sessions[i]):
             day[(i, s)] = model.NewIntVar(0, DAYS - 1, f"day_{i}_{s}")

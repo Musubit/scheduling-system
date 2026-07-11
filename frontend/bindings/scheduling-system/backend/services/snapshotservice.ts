@@ -14,6 +14,18 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * CompareSnapshots returns a structured diff between two snapshots
+ * (A = baseline, B = comparison target).
+ */
+export function CompareSnapshots(aID: number, bID: number): $CancellablePromise<$models.SnapshotCompareResult | null> {
+    return $Call.ByID(4235514270, aID, bID);
+}
+
 /**
  * CreateManualSnapshot generates a snapshot from the current schedule in the database.
  */

@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { NButton, NSelect } from 'naive-ui'
+import { NSelect } from 'naive-ui'
 import { useAppStore } from '../../stores/app'
+import { OpenDownloads } from '../../../bindings/scheduling-system/backend/services/resourceservice'
 
 const appStore = useAppStore()
+
+async function handleOpenDownloads() {
+  try { await OpenDownloads() } catch { /* ignore */ }
+}
 </script>
 
 <template>
@@ -23,15 +28,42 @@ const appStore = useAppStore()
       style="width: 170px"
     />
 
+    <!-- 打开下载目录 -->
+    <button
+      class="toolbar-btn"
+      @click="handleOpenDownloads()"
+      title="打开下载目录"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11Z"/>
+        <line x1="12" y1="11" x2="12" y2="17"/>
+        <polyline points="9 14 12 17 15 14"/>
+      </svg>
+    </button>
+
     <!-- 主题切换 -->
-    <n-button
-      size="small"
-      circle
+    <button
+      class="toolbar-btn"
       @click="appStore.toggleTheme()"
       :title="appStore.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
     >
-      {{ appStore.theme === 'dark' ? '☀️' : '🌙' }}
-    </n-button>
+      <!-- 太阳图标（浅色模式下显示，点击切换到深色） -->
+      <svg v-if="appStore.theme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <!-- 月亮图标（深色模式下显示，点击切换到浅色） -->
+      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
   </header>
 </template>
 
@@ -65,4 +97,30 @@ const appStore = useAppStore()
 }
 
 .toolbar-spacer { flex: 1; }
+
+.toolbar-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.toolbar-btn:hover {
+  background: var(--b3-theme-surface-lighter);
+  color: var(--b3-theme-on-background);
+}
+
+.toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
 </style>

@@ -21,5 +21,7 @@ export type {
     MoveConflict,
     SchedulingConfig,
     SchedulingResult,
-    ScoreBreakdown
+    ScoreBreakdown,
+    SnapshotCompareResult,
+    TeacherSnapshotDiff
 } from "./models.js";

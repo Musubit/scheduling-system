@@ -8,16 +8,25 @@ import { GetActiveSemester, GetSemesters } from '../../bindings/scheduling-syste
  */
 export const useAppStore = defineStore('app', () => {
   // ===== 主题 =====
-  const theme = ref<'light' | 'dark'>('light')
+  const theme = ref<'light' | 'dark'>(
+    (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
+  )
+
+  // Apply theme on load
+  if (theme.value === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark')
+  }
 
   function toggleTheme() {
     theme.value = theme.value === 'light' ? 'dark' : 'light'
     document.documentElement.setAttribute('data-theme', theme.value)
+    localStorage.setItem('theme', theme.value)
   }
 
   function setTheme(t: 'light' | 'dark') {
     theme.value = t
     document.documentElement.setAttribute('data-theme', t)
+    localStorage.setItem('theme', t)
   }
 
   // ===== 导航 =====
@@ -31,6 +40,8 @@ export const useAppStore = defineStore('app', () => {
       scheduling: '自动排课',
       report: '验证报告',
       settings: '系统设置',
+      history: '历史课表对比',
+      system: '系统管理',
     }
     return titles[currentPage.value]
   })
@@ -67,6 +78,7 @@ export const useAppStore = defineStore('app', () => {
       children: [
         { label: '自动排课', page: 'scheduling' },
         { label: '验证报告', page: 'report' },
+        { label: '历史课表对比', page: 'history' },
       ],
     },
     {
@@ -74,7 +86,7 @@ export const useAppStore = defineStore('app', () => {
       icon: 'sun',
       children: [
         { label: '基本设置', page: 'settings' },
-        { label: '学期管理', page: 'settings' },
+        { label: '系统管理', page: 'system' },
       ],
     },
   ])
@@ -107,7 +119,6 @@ export const useAppStore = defineStore('app', () => {
   const semesterFilter = ref('')  // loaded from active semester
   const semesters = ref<Array<{ ID: number; name: string }>>([])  // all semesters from DB
   const semesterOptions = ref<Array<{ label: string; value: string }>>([])  // stable ref for n-select
-  const pendingScheduleNav = ref(false) // trigger confirmation dialog after scheduling
 
   // Init: load active semester and all semesters
   async function initSemester() {
@@ -153,7 +164,6 @@ export const useAppStore = defineStore('app', () => {
     semesterFilter,
     semesters,
     semesterOptions,
-    pendingScheduleNav,
     loadSemesters,
   }
 })

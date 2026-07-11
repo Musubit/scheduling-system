@@ -26,6 +26,26 @@ tasks:
     cmds:
       - task: "{{.GOOS}}:package"
 
+  build:scheduler:
+    summary: 用 PyInstaller 将 OR-Tools 微服务打包为 scheduler.exe
+    deps:
+      - task: setup:scheduler
+    cmds:
+      - scheduler/.venv/Scripts/pyinstaller.exe --onefile --name scheduler --distpath scheduler/dist --add-binary "scheduler/.venv/Lib/site-packages/ortools/.libs/*.dll;ortools/.libs" --hidden-import=ortools.sat.python.cp_model --hidden-import=flask scheduler/solver.py
+    generates:
+      - scheduler/dist/scheduler.exe
+    sources:
+      - scheduler/solver.py
+      - scheduler/pyproject.toml
+
+  package:portable:
+    summary: 打包便携版 ZIP（解压即用，无需安装）
+    deps:
+      - task: build:scheduler
+    cmds:
+      - task: windows:build
+      - powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -BinDir {{.BIN_DIR}} -AppName {{.APP_NAME}}
+
   run:
     summary: Runs the application
     cmds:

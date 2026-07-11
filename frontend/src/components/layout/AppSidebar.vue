@@ -14,7 +14,7 @@ interface NavChild {
   label: string
   page: PageId
   scheduleView?: ScheduleView
-  resourceTab?: 'teacher' | 'classroom' | 'course' | 'class'
+  resourceTab?: 'teacher' | 'classroom' | 'course' | 'class' | 'teachingTask'
 }
 
 interface NavGroup {
@@ -42,6 +42,7 @@ const navGroups: NavGroup[] = [
       { label: '教室管理', page: 'resource', resourceTab: 'classroom' },
       { label: '课程管理', page: 'resource', resourceTab: 'course' },
       { label: '班级管理', page: 'resource', resourceTab: 'class' },
+      { label: '教学任务管理', page: 'resource', resourceTab: 'teachingTask' },
     ],
   },
   {
@@ -50,6 +51,7 @@ const navGroups: NavGroup[] = [
     children: [
       { label: '自动排课', page: 'scheduling' },
       { label: '验证报告', page: 'report' },
+      { label: '历史课表对比', page: 'history' },
     ],
   },
   {
@@ -57,6 +59,7 @@ const navGroups: NavGroup[] = [
     icon: 'M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
     children: [
       { label: '基本设置', page: 'settings' },
+      { label: '系统管理', page: 'system' },
     ],
   },
 ]

@@ -24,15 +24,18 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   const entries = ref<ScheduleEntry[]>([])
 
-  // Perspective filtering
-  const perspective = ref<'all' | 'teacher' | 'class'>('all')
+  // Perspective filtering — three dimensions: teacher, classroom, class
+  const perspective = ref<'teacher' | 'classroom' | 'class'>('teacher')
   const selectedTeacherId = ref<number | null>(null)
+  const selectedClassroomId = ref<number | null>(null)
   const selectedClassId = ref<number | null>(null)
 
   const displayEntries = computed(() => {
-    if (perspective.value === 'all') return entries.value
     if (perspective.value === 'teacher' && selectedTeacherId.value) {
       return entries.value.filter(e => e.teacherId === selectedTeacherId.value)
+    }
+    if (perspective.value === 'classroom' && selectedClassroomId.value) {
+      return entries.value.filter(e => e.classroomId === selectedClassroomId.value)
     }
     if (perspective.value === 'class' && selectedClassId.value) {
       return entries.value.filter(e => {
@@ -49,9 +52,10 @@ export const useScheduleStore = defineStore('schedule', () => {
     return []
   })
 
-  function setPerspective(p: 'all' | 'teacher' | 'class') {
+  function setPerspective(p: 'teacher' | 'classroom' | 'class') {
     perspective.value = p
     selectedTeacherId.value = null
+    selectedClassroomId.value = null
     selectedClassId.value = null
   }
 
@@ -66,7 +70,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     isLoading.value = true
     try {
       const data = await GetScheduleEntries(semester)
-      entries.value = data || []
+      entries.value = (data || []) as ScheduleEntry[]
     } catch (e) {
       console.warn('Failed to load schedule from Go backend:', e)
       entries.value = []
@@ -79,7 +83,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
     entries, displayEntries, totalCourses, filteredCount, isLoading,
-    perspective, selectedTeacherId, selectedClassId,
+    perspective, selectedTeacherId, selectedClassroomId, selectedClassId,
     setPerspective,
     getEntryAt, loadSchedule,
   }

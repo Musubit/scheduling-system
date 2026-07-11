@@ -63,7 +63,7 @@ async function saveSemester() {
       name: semesterForm.name,
       isActive: semesterForm.isActive,
       startDate: semesterForm.startDate,
-    }
+    } as any
     if (editingSemester.value) {
       await UpdateSemester(data)
     } else {

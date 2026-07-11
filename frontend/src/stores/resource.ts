@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Teacher, Classroom, Course, ClassGroup, TeachingTask } from '@/types'
-import { DEPT_NAME_MAP, DEPT_CODE_MAP } from '@/types'
 import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups, GetActiveSemester } from '../../bindings/scheduling-system/backend/services/resourceservice'
 import { ListTeachingTasks } from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
 import { useAppStore } from './app'
@@ -14,12 +13,10 @@ export const useResourceStore = defineStore('resource', () => {
   const isLoading = ref(false)
   const appStore = useAppStore()
 
-  // Match dept against filter (handles both code like "cs" and Chinese like "计算机学院")
+  // Match dept against filter (all depts are now Chinese names)
   function deptMatch(itemDept: string): boolean {
     if (appStore.deptFilter === '全部院系') return true
-    return itemDept === appStore.deptFilter ||
-      DEPT_NAME_MAP[itemDept] === appStore.deptFilter ||
-      DEPT_CODE_MAP[itemDept] === appStore.deptFilter
+    return itemDept === appStore.deptFilter
   }
 
 	function switchTab(tab: 'teacher' | 'classroom' | 'course' | 'class' | 'teachingTask') {
@@ -99,10 +96,10 @@ export const useResourceStore = defineStore('resource', () => {
 	        GetCourses(),
 	        GetClassGroups(),
 	      ])
-	      teachers.value = t || []
-	      classrooms.value = c || []
-	      courses.value = co || []
-	      classGroups.value = cg || []
+	      teachers.value = (t || []) as Teacher[]
+	      classrooms.value = (c || []) as Classroom[]
+	      courses.value = (co || []) as Course[]
+	      classGroups.value = (cg || []) as ClassGroup[]
 	    } catch (e) {
 	      console.warn('Failed to load resources from Go backend, using empty data:', e)
 	    } finally {
@@ -112,7 +109,7 @@ export const useResourceStore = defineStore('resource', () => {
 
 	  async function loadTeachingTasks(semesterID: number) {
 	    try {
-	      teachingTasks.value = await ListTeachingTasks(semesterID) || []
+	      teachingTasks.value = (await ListTeachingTasks(semesterID) || []) as TeachingTask[]
 	    } catch (e) {
 	      console.warn('Failed to load teaching tasks:', e)
 	    }

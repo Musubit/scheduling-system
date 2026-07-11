@@ -2,11 +2,16 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 import { NButton, NSelect, NCheckbox, NProgress, NTag, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
+import { fuzzyFilter } from '../utils/fuzzyFilter'
+
+const fuzzyFilterFn = fuzzyFilter as any
 
 const store = useSchedulingStore()
 const appStore = useAppStore()
+const uiStore = useUiStore()
 const dialog = useDialog()
 const showAdvanced = ref(false)
 
@@ -40,10 +45,14 @@ const categoryMax = computed(() => {
 
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
 
+const totalConflicts = computed(() => {
+  if (!store.result) return 0
+  return store.result.teacherConflicts + store.result.roomConflicts + store.result.classConflicts
+})
+
 // Watch for pending navigation after scheduling completes
-const pendingScheduleNav = ref(false)
 onMounted(() => {
-  watch(() => appStore.pendingScheduleNav, (val) => {
+  watch(() => uiStore.pendingScheduleNav, (val) => {
     if (val) {
       dialog.info({
         title: '排课完成',
@@ -51,14 +60,30 @@ onMounted(() => {
         positiveText: '查看课表',
         negativeText: '留在本页',
         onPositiveClick: () => {
-          appStore.pendingScheduleNav = false
+          uiStore.clearScheduleNav()
           appStore.navigateTo('schedule', '周视图课表')
         },
         onNegativeClick: () => {
-          appStore.pendingScheduleNav = false
+          uiStore.clearScheduleNav()
         },
         onClose: () => {
-          appStore.pendingScheduleNav = false
+          uiStore.clearScheduleNav()
+        },
+      })
+    }
+  })
+
+  watch(() => uiStore.pendingScheduleError, (msg) => {
+    if (msg) {
+      dialog.error({
+        title: '排课失败',
+        content: msg,
+        positiveText: '知道了',
+        onPositiveClick: () => {
+          uiStore.clearScheduleError()
+        },
+        onClose: () => {
+          uiStore.clearScheduleError()
         },
       })
     }
@@ -89,15 +114,24 @@ const weightLabels: Record<string, string> = {
       <div class="config-panel">
         <h3 class="panel-title">排课参数配置</h3>
 
-        <!-- 当前学期显示 -->
-        <div class="form-group" v-if="store.activeSemesterName">
-          <label class="form-label">当前学期</label>
-          <div class="semester-badge">{{ store.activeSemesterName }}</div>
+        <!-- 学期选择 -->
+        <div class="form-group">
+          <label class="form-label">排课学期</label>
+          <n-select
+            v-model:value="store.selectedSemesterId"
+            :options="store.semesters.map(s => ({
+              label: s.name + (s.isActive ? '（当前）' : ''),
+              value: s.ID
+            }))"
+            size="small"
+            :consistent-menu-width="true"
+          />
+          <span class="form-hint">选择要排课的学期，教学任务按学期隔离</span>
         </div>
 
         <div class="form-group">
           <label class="form-label">排课范围</label>
-          <n-select v-model:value="store.config.scope" :options="scopeOptions" size="small" />
+          <n-select v-model:value="store.config.scope" :options="scopeOptions" filterable :filter="fuzzyFilterFn" size="small" />
         </div>
 
         <!-- 约束预设 -->
@@ -192,19 +226,29 @@ const weightLabels: Record<string, string> = {
 
         <div class="stats-row">
           <div class="stat-card">
+            <div class="stat-value">
+              <template v-if="store.result">{{ store.result.tasksScheduled }}<span class="stat-sub"> / {{ store.result.totalCourses }}</span></template>
+              <template v-else>-</template>
+            </div>
+            <div class="stat-label">已排任务 / 总任务</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ store.result?.scheduled || '-' }}</div>
-            <div class="stat-label">已排教学任务</div>
+            <div class="stat-label">排课条目总数</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ store.result?.utilization ? (store.result.utilization * 100).toFixed(1) + '%' : '-' }}</div>
-            <div class="stat-label">完成率</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" style="color: var(--b3-theme-error)">{{ store.result?.conflicts ?? '-' }}</div>
+            <div class="stat-value" :style="{ color: totalConflicts > 0 ? 'var(--b3-theme-error)' : 'var(--b3-theme-success)' }">
+              {{ store.result ? totalConflicts : '-' }}
+            </div>
             <div class="stat-label">待处理冲突</div>
+            <div class="stat-detail" v-if="store.result && totalConflicts > 0">
+              <span>教师 {{ store.result.teacherConflicts }}</span>
+              <span>教室 {{ store.result.roomConflicts }}</span>
+              <span>班级 {{ store.result.classConflicts }}</span>
+            </div>
           </div>
           <div class="stat-card">
-            <div class="stat-value" :style="{ color: scoreColor }">{{ store.result?.score != null ? store.result.score + '分' : '-' }}</div>
+            <div class="stat-value" :style="{ color: scoreColor }">{{ store.result?.score != null ? store.result.score.toFixed(1) + '分' : '-' }}</div>
             <div class="stat-label">综合评分</div>
           </div>
         </div>
@@ -215,38 +259,38 @@ const weightLabels: Record<string, string> = {
           <div class="breakdown-items">
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_preference')">
               <span class="breakdown-label">教师偏好满足度</span>
-              <n-progress :percentage="store.result.scoreDetail.teacherPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref.toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('course_dispersed')">
               <span class="breakdown-label">课程间隔均匀度</span>
-              <n-progress :percentage="store.result.scoreDetail.courseSpacing / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.courseSpacing / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing.toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_days_limit')">
               <span class="breakdown-label">教师到校天数</span>
-              <n-progress :percentage="store.result.scoreDetail.teacherDays / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherDays / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays.toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('low_floor_preference')">
               <span class="breakdown-label">优先低楼层</span>
-              <n-progress :percentage="store.result.scoreDetail.lowFloorPref / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.lowFloorPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref.toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('avoid_saturday') || isConstraintEnabled('avoid_sunday')">
               <span class="breakdown-label">周末避让</span>
-              <n-progress :percentage="(store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(0) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('pe_preferred_periods')">
               <span class="breakdown-label">体育课时段</span>
-              <n-progress :percentage="(store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(0) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(1) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('student_fatigue')">
               <span class="breakdown-label">学生疲劳度</span>
-              <n-progress :percentage="(store.result.scoreDetail.studentFatigue || 0) / categoryMax * 100" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(0) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.studentFatigue || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(1) }}/{{ categoryMax }}</span>
             </div>
           </div>
         </div>
@@ -406,6 +450,24 @@ const weightLabels: Record<string, string> = {
   font-size: 11px;
   color: var(--b3-theme-on-surface-light);
   margin-top: 4px;
+}
+
+.stat-sub {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.5;
+}
+
+.stat-detail {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.stat-detail span {
+  white-space: nowrap;
 }
 
 .log-section {

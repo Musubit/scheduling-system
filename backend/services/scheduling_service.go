@@ -457,6 +457,8 @@ func (s *SchedulingService) tryORTools(
 			TotalHours:       tt.TotalHours,
 			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
 			RequiredRoomType: requiredRoomType,
+			StartWeek:        tt.StartWeek,
+			EndWeek:          tt.EndWeek,
 		})
 		taskMap[tt.ID] = tt
 	}

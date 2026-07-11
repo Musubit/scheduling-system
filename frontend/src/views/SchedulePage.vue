@@ -7,37 +7,48 @@ import TimelineView from '../components/schedule/TimelineView.vue'
 import MonthView from '../components/schedule/MonthView.vue'
 import { NButton, NDropdown, NSelect } from 'naive-ui'
 import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { DAY_NAMES, DEPARTMENTS } from '../types'
 
 const scheduleStore = useScheduleStore()
 const resourceStore = useResourceStore()
 const exporting = ref(false)
 
-// Perspective state
+// Perspective state — three dimensions
 const perspectives = [
-  { label: '全部', value: 'all' as const },
   { label: '教师', value: 'teacher' as const },
+  { label: '教室', value: 'classroom' as const },
   { label: '班级', value: 'class' as const },
 ]
 const filterDept = ref<string | null>(null)
 const filterTeacherId = ref<number | null>(null)
+const filterClassroomId = ref<number | null>(null)
 const filterClassId = ref<number | null>(null)
 
 // Sync to store
-function selectPerspective(p: 'all' | 'teacher' | 'class') {
+function selectPerspective(p: 'teacher' | 'classroom' | 'class') {
   scheduleStore.setPerspective(p)
   filterDept.value = null
   filterTeacherId.value = null
+  filterClassroomId.value = null
   filterClassId.value = null
 }
 
 function syncTeacher() {
   scheduleStore.selectedTeacherId = filterTeacherId.value
+  scheduleStore.selectedClassroomId = null
+  scheduleStore.selectedClassId = null
+}
+function syncClassroom() {
+  scheduleStore.selectedClassroomId = filterClassroomId.value
+  scheduleStore.selectedTeacherId = null
   scheduleStore.selectedClassId = null
 }
 function syncClass() {
   scheduleStore.selectedClassId = filterClassId.value
   scheduleStore.selectedTeacherId = null
+  scheduleStore.selectedClassroomId = null
 }
 
 // Department options
@@ -58,25 +69,22 @@ const classOptions = computed(() => {
   if (filterDept.value) {
     list = list.filter(c => c.dept === filterDept.value)
   }
-	return list.map(c => ({ label: c.name, value: c.ID }))
+  return list.map(c => ({ label: c.name, value: c.ID }))
 })
 
-// Subsequence fuzzy match for Chinese — 搜"职师"能匹配"职业技术师范学院"
-function fuzzyFilter(pattern: string, option: { label: string; value: any }) {
-  if (!pattern) return true
-  const p = pattern.toLowerCase()
-  const l = option.label.toLowerCase()
-  let pi = 0
-  for (let li = 0; li < l.length && pi < p.length; li++) {
-    if (l[li] === p[pi]) pi++
-  }
-  return pi === p.length
-}
+// Classroom options
+const classroomOptions = computed(() => {
+  return resourceStore.classrooms.map(c => ({ label: `${c.name} (${c.building})`, value: c.ID }))
+})
+
+import { fuzzyFilter } from '../utils/fuzzyFilter'
+
+const fuzzyFilterFn = fuzzyFilter as any
 
 // Whether to show the schedule
 const showSchedule = computed(() => {
-  if (scheduleStore.perspective === 'all') return true
   if (scheduleStore.perspective === 'teacher' && scheduleStore.selectedTeacherId) return true
+  if (scheduleStore.perspective === 'classroom' && scheduleStore.selectedClassroomId) return true
   if (scheduleStore.perspective === 'class' && scheduleStore.selectedClassId) return true
   return false
 })
@@ -85,45 +93,151 @@ const hintText = computed(() => {
   if (scheduleStore.perspective === 'teacher' && !scheduleStore.selectedTeacherId) {
     return '请选择学院和教师查看课表'
   }
+  if (scheduleStore.perspective === 'classroom' && !scheduleStore.selectedClassroomId) {
+    return '请选择教室查看课表'
+  }
   if (scheduleStore.perspective === 'class' && !scheduleStore.selectedClassId) {
     return '请选择学院和班级查看课表'
   }
   return ''
 })
 
-function exportSchedule(mode: 'teacher' | 'class' | 'dept') {
+function entryClassNames(e: any): string[] {
+  if (e.teachingTask?.classes?.length) {
+    return e.teachingTask.classes.map((c: any) => c.classGroup?.name || '').filter(Boolean)
+  }
+  if (e.classGroup?.name) return [e.classGroup.name]
+  return []
+}
+
+async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
   exporting.value = true
   try {
-    const entries = scheduleStore.displayEntries
-    if (!entries.length) return
-
+    // Export the FULL timetable (all currently loaded entries), grouped by the
+    // chosen dimension — independent of the current perspective filter.
+    // Use a temporary load so we don't clobber the store's current entries.
+    const { GetScheduleEntries } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
+    let all: any[]
+    try {
+      all = (await GetScheduleEntries('')) || []
+    } catch {
+      all = scheduleStore.entries
+    }
+    if (!all.length) {
+      window.alert('暂无排课数据，请先运行自动排课')
+      return
+    }
+    const labelMap = { teacher: '按教师', classroom: '按教室', class: '按班级' } as const
     const rows: any[] = []
-    entries.forEach(e => {
-      let groupKey = ''
-      if (mode === 'teacher') groupKey = e.teacher?.name || '未知教师'
-      else if (mode === 'class') groupKey = e.classGroup?.name || e.course?.name || '未知'
-      else groupKey = e.course?.dept || '未知系所'
-
-      rows.push({
-        '分组': groupKey,
-        '课程名称': e.course?.name || '',
-        '课程编号': e.course?.code || '',
-        '教师': e.teacher?.name || '',
-        '教室': e.classroom?.name || '',
-        '星期': DAY_NAMES[e.dayOfWeek] || '',
-        '节次': `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
-        '教学周': e.weeks || '',
-        '班级': e.classGroup?.name || '',
-        '学分': e.course?.credit || '',
-      })
-    })
-
-    rows.sort((a, b) => a['分组'].localeCompare(b['分组']))
+    for (const e of all) {
+      const classNames = entryClassNames(e)
+      const classLabel = classNames.join('、')
+      let groups: string[]
+      if (mode === 'teacher') groups = [e.teacher?.name || '未知教师']
+      else if (mode === 'classroom') groups = [e.classroom?.name || '未知教室']
+      else groups = classNames.length ? classNames : ['未知班级']
+      for (const g of groups) {
+        rows.push({
+          '分组': g,
+          '课程名称': e.course?.name || '',
+          '课程编号': e.course?.code || '',
+          '教师': e.teacher?.name || '',
+          '教室': e.classroom?.name || '',
+          '星期': DAY_NAMES[e.dayOfWeek] || '',
+          '节次': `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
+          '教学周': e.weeks || '',
+          '班级': classLabel,
+          '学分': e.course?.credit ?? '',
+        })
+      }
+    }
+    rows.sort((a, b) => String(a['分组']).localeCompare(String(b['分组'])))
 
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '课表')
-    XLSX.writeFile(wb, `排课表_${mode === 'teacher' ? '按教师' : mode === 'class' ? '按班级' : '按系所'}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    XLSX.writeFile(wb, `排课表_${labelMap[mode]}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (err: any) {
+    window.alert('导出失败：' + (err?.message || err))
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function exportSchedulePDF(mode: 'teacher' | 'classroom' | 'class') {
+  exporting.value = true
+  try {
+    // Use a temporary load so we don't clobber the store's current entries.
+    const { GetScheduleEntries } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
+    let all: any[]
+    try {
+      all = (await GetScheduleEntries('')) || []
+    } catch {
+      all = scheduleStore.entries
+    }
+    if (!all.length) {
+      window.alert('暂无排课数据，请先运行自动排课')
+      return
+    }
+    const labelMap = { teacher: '按教师', classroom: '按教室', class: '按班级' } as const
+    const headers = ['分组', '课程名称', '课程编号', '教师', '教室', '星期', '节次', '教学周', '班级', '学分']
+    const rows: string[][] = []
+    for (const e of all) {
+      const classNames = entryClassNames(e)
+      const classLabel = classNames.join('、')
+      let groups: string[]
+      if (mode === 'teacher') groups = [e.teacher?.name || '未知教师']
+      else if (mode === 'classroom') groups = [e.classroom?.name || '未知教室']
+      else groups = classNames.length ? classNames : ['未知班级']
+      for (const g of groups) {
+        rows.push([
+          g,
+          e.course?.name || '',
+          e.course?.code || '',
+          e.teacher?.name || '',
+          e.classroom?.name || '',
+          DAY_NAMES[e.dayOfWeek] || '',
+          `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
+          e.weeks || '',
+          classLabel,
+          String(e.course?.credit ?? ''),
+        ])
+      }
+    }
+    rows.sort((a, b) => a[0].localeCompare(b[0]))
+
+    // Render an offscreen HTML table (Chinese-safe via browser fonts),
+    // rasterize with html2canvas, then paginate into a PDF.
+    const container = document.createElement('div')
+    container.style.cssText = 'position:fixed;left:-10000px;top:0;background:#fff;padding:16px;width:1120px;font-family:"Microsoft YaHei",sans-serif;color:#000;'
+    const escapeHtml = (s: string) => s.replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+    const bodyRows = rows.map((r) => '<tr>' + r.map((c) => `<td style="border:1px solid #ccc;padding:4px 6px;font-size:12px;white-space:nowrap;">${escapeHtml(c)}</td>`).join('') + '</tr>').join('')
+    const headRow = '<tr>' + headers.map((hh) => `<th style="border:1px solid #333;padding:4px 6px;font-size:12px;background:#f0f0f0;">${hh}</th>`).join('') + '</tr>'
+    container.innerHTML = `<h3 style="font-family:inherit;margin:0 0 8px;">排课表（${labelMap[mode]}）　生成时间：${new Date().toLocaleString()}</h3><table style="border-collapse:collapse;width:100%;"><thead>${headRow}</thead><tbody>${bodyRows}</tbody></table>`
+    document.body.appendChild(container)
+    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff' })
+    document.body.removeChild(container)
+
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const imgW = pageW
+    const imgH = (canvas.height * imgW) / canvas.width
+    const imgData = canvas.toDataURL('image/png')
+    let heightLeft = imgH
+    let position = 0
+    pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH)
+    heightLeft -= pageH
+    while (heightLeft > 0) {
+      position -= pageH
+      pdf.addPage()
+      pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH)
+      heightLeft -= pageH
+    }
+    const dateStr = new Date().toISOString().slice(0, 10)
+    pdf.save(`排课表_${labelMap[mode]}_${dateStr}.pdf`)
+  } catch (err: any) {
+    window.alert('导出PDF失败：' + (err?.message || err))
   } finally {
     exporting.value = false
   }
@@ -131,8 +245,14 @@ function exportSchedule(mode: 'teacher' | 'class' | 'dept') {
 
 const exportOptions = [
   { label: '按教师导出', key: 'teacher' as const },
+  { label: '按教室导出', key: 'classroom' as const },
   { label: '按班级导出', key: 'class' as const },
-  { label: '按系所导出', key: 'dept' as const },
+]
+
+const exportPdfOptions = [
+  { label: '按教师导出', key: 'teacher' as const },
+  { label: '按教室导出', key: 'classroom' as const },
+  { label: '按班级导出', key: 'class' as const },
 ]
 </script>
 
@@ -166,6 +286,9 @@ const exportOptions = [
         <n-dropdown trigger="click" :options="exportOptions" @select="exportSchedule">
           <n-button size="small" :loading="exporting">导出课表</n-button>
         </n-dropdown>
+        <n-dropdown trigger="click" :options="exportPdfOptions" @select="exportSchedulePDF">
+          <n-button size="small">导出PDF</n-button>
+        </n-dropdown>
       </div>
     </div>
 
@@ -179,15 +302,17 @@ const exportOptions = [
           @click="selectPerspective(p.value)"
         >{{ p.label }}</button>
       </div>
-      <div class="perspective-filters" v-if="scheduleStore.perspective !== 'all'">
+      <div class="perspective-filters">
         <n-select
           v-model:value="filterDept"
           :options="deptOptions"
           placeholder="选择学院"
+          filterable
+          :filter="fuzzyFilterFn"
           clearable
           size="small"
           style="width: 150px"
-          @update:value="syncTeacher(); syncClass()"
+          @update:value="syncTeacher(); syncClassroom(); syncClass()"
         />
         <n-select
           v-if="scheduleStore.perspective === 'teacher'"
@@ -195,11 +320,23 @@ const exportOptions = [
           :options="teacherOptions"
           placeholder="选择教师"
           filterable
-          :filter="fuzzyFilter"
+          :filter="fuzzyFilterFn"
           clearable
           size="small"
           style="width: 120px"
           @update:value="syncTeacher()"
+        />
+        <n-select
+          v-if="scheduleStore.perspective === 'classroom'"
+          v-model:value="filterClassroomId"
+          :options="classroomOptions"
+          placeholder="选择教室"
+          filterable
+          :filter="fuzzyFilterFn"
+          clearable
+          size="small"
+          style="width: 160px"
+          @update:value="syncClassroom()"
         />
         <n-select
           v-if="scheduleStore.perspective === 'class'"
@@ -207,7 +344,7 @@ const exportOptions = [
           :options="classOptions"
           placeholder="选择班级"
           filterable
-          :filter="fuzzyFilter"
+          :filter="fuzzyFilterFn"
           clearable
           size="small"
           style="width: 140px"

@@ -9,6 +9,7 @@ export type {
     ClassGroup,
     Classroom,
     Course,
+    Department,
     Period,
     ScheduleEntry,
     ScheduleSnapshot,

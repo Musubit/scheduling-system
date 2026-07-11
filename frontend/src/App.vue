@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, provide, watch, onMounted } from 'vue'
+import { computed, ref, provide, watch, onMounted, defineAsyncComponent } from 'vue'
 import { NConfigProvider, NDialogProvider, NMessageProvider, darkTheme } from 'naive-ui'
 import { useAppStore } from './stores/app'
 import { useScheduleStore } from './stores/schedule'
@@ -11,8 +11,12 @@ import AppDrawer from './components/layout/AppDrawer.vue'
 import SchedulePage from './views/SchedulePage.vue'
 import ResourcePage from './views/ResourcePage.vue'
 import SchedulingPage from './views/SchedulingPage.vue'
-import ReportPage from './views/ReportPage.vue'
-import SettingsPage from './views/SettingsPage.vue'
+
+// Lazy-load non-primary pages for smaller initial bundle
+const ReportPage = defineAsyncComponent(() => import('./views/ReportPage.vue'))
+const SettingsPage = defineAsyncComponent(() => import('./views/SettingsPage.vue'))
+const HistoryComparePage = defineAsyncComponent(() => import('./views/HistoryComparePage.vue'))
+const SystemManagementPage = defineAsyncComponent(() => import('./views/SystemManagementPage.vue'))
 
 import type { PageId } from './types'
 
@@ -20,15 +24,22 @@ const appStore = useAppStore()
 const scheduleStore = useScheduleStore()
 const resourceStore = useResourceStore()
 
-// Load data from Go backend on startup
+const appLoading = ref(true)
+
+// Load data from Go backend on startup — sequential to avoid semester race
 onMounted(async () => {
-  await appStore.loadSemesters()  // must load before schedule — initSemester may have raced
-  // Ensure semesterFilter is set (initSemester may have failed silently)
+  // 1. Load semesters first (initSemester may have raced with Wails backend)
+  await appStore.loadSemesters()
+  // 2. Ensure semesterFilter is set
   if (!appStore.semesterFilter && appStore.semesterOptions.length > 0) {
     appStore.semesterFilter = appStore.semesterOptions[0].value
   }
-  resourceStore.loadAll()
-  scheduleStore.loadSchedule(appStore.semesterFilter)
+  // 3. Now load resources and schedule with the correct semester
+  await Promise.all([
+    resourceStore.loadAll(),
+    scheduleStore.loadSchedule(appStore.semesterFilter),
+  ])
+  appLoading.value = false
 })
 
 // Watch semester changes → reload schedule
@@ -74,6 +85,8 @@ const themeOverrides = computed(() => ({
 	  scheduling: SchedulingPage,
 	  report: ReportPage,
 	  settings: SettingsPage,
+	  history: HistoryComparePage,
+	  system: SystemManagementPage,
 	}
 
 const currentPageComponent = computed(() => pageComponents[appStore.currentPage])
@@ -97,6 +110,11 @@ watch(() => appStore.theme, (val) => {
         </div>
       </main>
       <AppDrawer ref="drawerRef" />
+      <!-- Global loading overlay for initial data fetch -->
+      <div v-if="appLoading" class="app-loading-overlay">
+        <div class="app-loading-spinner"></div>
+        <div class="app-loading-text">加载中...</div>
+      </div>
     </div>
     </n-message-provider>
     </n-dialog-provider>
@@ -119,5 +137,27 @@ watch(() => appStore.theme, (val) => {
   min-height: 0;
   padding: 20px;
   background: var(--b3-body-background);
+}
+
+/* Global loading overlay */
+.app-loading-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: var(--b3-body-background);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+}
+.app-loading-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--b3-border-color);
+  border-top-color: var(--b3-theme-primary);
+  border-radius: 50%;
+  animation: appLoadingSpin 0.8s linear infinite;
+}
+@keyframes appLoadingSpin {
+  to { transform: rotate(360deg); }
+}
+.app-loading-text {
+  font-size: 14px; color: var(--b3-theme-on-surface);
 }
 </style>

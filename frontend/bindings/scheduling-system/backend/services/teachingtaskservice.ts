@@ -57,7 +57,7 @@ export function GetTeachingTask(id: number): $CancellablePromise<models$0.Teachi
 
 /**
  * ImportTeachingTasks imports teaching tasks from a 2D string array.
- * Expected columns: [课程编号, 教师编号, 班级编号列表(逗号分隔)]
+ * Columns: [课程代码, 教师编号, 班级编号, 总学时?, 起始周?, 结束周?, 周最大学时?]
  */
 export function ImportTeachingTasks(semesterID: number, rows: (string[] | null)[] | null): $CancellablePromise<[number, string[] | null]> {
     return $Call.ByID(2540860548, semesterID, rows);
@@ -68,6 +68,18 @@ export function ImportTeachingTasks(semesterID: number, rows: (string[] | null)[
  */
 export function ListTeachingTasks(semesterID: number): $CancellablePromise<models$0.TeachingTask[] | null> {
     return $Call.ByID(4246079887, semesterID);
+}
+
+/**
+ * SplitMergedTeachingTask splits a merged teaching task (one task covering
+ * multiple class groups) into individual single-class teaching tasks.
+ * Existing schedule entries are reassigned to the new task whose single class
+ * matches the entry's ClassGroupID (entries without a class match are attached
+ * to the first new task). The original merged task is then removed.
+ * Returns the number of new single-class tasks created.
+ */
+export function SplitMergedTeachingTask(taskID: number): $CancellablePromise<number> {
+    return $Call.ByID(824537766, taskID);
 }
 
 /**
