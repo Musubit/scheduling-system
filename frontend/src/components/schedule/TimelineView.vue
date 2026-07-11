@@ -23,55 +23,77 @@ const P_INFOS: PInfo[] = PERIODS.map((p, i) => {
   return { idx: i, startAbs: sh * 60 + sm, endAbs: eh * 60 + em }
 })
 
-const BREAK_GAP_THRESHOLD = 30 // 分钟
-const BREAK_PCT = 3.4           // 每段休息带在轨道上的视觉宽度（%）
+// =============================================================================
+// 教学时间轴视觉权重系统
+// 每节课 = 基本单元(1.0)，各类间隙按相对视觉权重压缩
+// =============================================================================
 
-interface Seg { id: string; type: 'class' | 'break'; absStart: number; absEnd: number; lo: number; hi: number; label?: string }
+const PERIOD_WEIGHT      = 1.00 // 课时基本单元
+const GAP_SHORT_WEIGHT   = 0.10 // ≤10 分钟短课间
+const GAP_LONG_WEIGHT    = 0.30 // >10, ≤30 分钟长课间
+const BREAK_LUNCH_WEIGHT = 0.60 // 午休
+const BREAK_DINNER_WEIGHT = 0.40 // 晚饭
 
-const CLASS_BLOCKS: { absStart: number; absEnd: number }[] = []
-const BREAK_DEFS: { absStart: number; absEnd: number; label: string }[] = []
+const GAP_SHORT_MAX = 10  // 短课间上限（分钟）
+const GAP_LONG_MAX  = 30  // 长课间上限（分钟）
 
-{
-  const breakLabels = ['午休', '晚饭']
-  let blockStart = P_INFOS[0].startAbs
-  let prevEnd = P_INFOS[0].endAbs
-  let bi = 0
-  for (let i = 1; i < P_INFOS.length; i++) {
-    const gap = P_INFOS[i].startAbs - prevEnd
-    if (gap >= BREAK_GAP_THRESHOLD) {
-      CLASS_BLOCKS.push({ absStart: blockStart, absEnd: prevEnd })
-      BREAK_DEFS.push({ absStart: prevEnd, absEnd: P_INFOS[i].startAbs, label: breakLabels[bi] ?? '休息' })
-      bi++
-      blockStart = P_INFOS[i].startAbs
+interface Seg { id: string; type: 'class' | 'break' | 'gap'; absStart: number; absEnd: number; lo: number; hi: number; label?: string }
+
+function buildSegments(): Seg[] {
+  interface FlatItem { absStart: number; absEnd: number; type: Seg['type']; weight: number; label?: string }
+  
+  const items: FlatItem[] = []
+
+  for (let i = 0; i < PERIODS.length; i++) {
+    const p = P_INFOS[i]
+    // 课时
+    items.push({ absStart: p.startAbs, absEnd: p.endAbs, type: 'class', weight: PERIOD_WEIGHT })
+
+    if (i >= PERIODS.length - 1) break
+
+    const gapStart = p.endAbs
+    const gapEnd   = P_INFOS[i + 1].startAbs
+    const dur      = gapEnd - gapStart
+
+    if (dur <= GAP_SHORT_MAX) {
+      items.push({ absStart: gapStart, absEnd: gapEnd, type: 'gap', weight: GAP_SHORT_WEIGHT })
+    } else if (dur <= GAP_LONG_MAX) {
+      items.push({ absStart: gapStart, absEnd: gapEnd, type: 'gap', weight: GAP_LONG_WEIGHT })
+    } else if (gapStart < 14 * 60) {
+      // 午休（14:00 之前的大间隙）
+      items.push({ absStart: gapStart, absEnd: gapEnd, type: 'break', weight: BREAK_LUNCH_WEIGHT, label: '午休' })
+    } else {
+      // 晚饭
+      items.push({ absStart: gapStart, absEnd: gapEnd, type: 'break', weight: BREAK_DINNER_WEIGHT, label: '晚饭' })
     }
-    prevEnd = P_INFOS[i].endAbs
   }
-  CLASS_BLOCKS.push({ absStart: blockStart, absEnd: prevEnd })
-}
 
-const TOTAL_CLASS_MIN = CLASS_BLOCKS.reduce((a, b) => a + (b.absEnd - b.absStart), 0)
-const CLASS_PCT_TOTAL = 100 - BREAK_DEFS.length * BREAK_PCT
-
-const SEGMENTS: Seg[] = []
-{
+  const totalWeight = items.reduce((sum, it) => sum + it.weight, 0)
+  const segments: Seg[] = []
   let cursor = 0
-  for (let i = 0; i < CLASS_BLOCKS.length; i++) {
-    const b = CLASS_BLOCKS[i]
-    const w = (b.absEnd - b.absStart) / TOTAL_CLASS_MIN * CLASS_PCT_TOTAL
-    SEGMENTS.push({ id: 'c' + i, type: 'class', absStart: b.absStart, absEnd: b.absEnd, lo: cursor, hi: cursor + w })
+  let classIdx = 0, breakIdx = 0, gapIdx = 0
+
+  for (const it of items) {
+    const w = (it.weight / totalWeight) * 100
+    const id = it.type === 'class' ? `c${classIdx++}` : it.type === 'break' ? `b${breakIdx++}` : `g${gapIdx++}`
+    segments.push({
+      id, type: it.type,
+      absStart: it.absStart, absEnd: it.absEnd,
+      lo: cursor, hi: cursor + w,
+      label: it.label,
+    })
     cursor += w
-    if (i < BREAK_DEFS.length) {
-      const d = BREAK_DEFS[i]
-      SEGMENTS.push({ id: 'b' + i, type: 'break', absStart: d.absStart, absEnd: d.absEnd, lo: cursor, hi: cursor + BREAK_PCT, label: d.label })
-      cursor += BREAK_PCT
-    }
   }
+
+  return segments
 }
+
+const SEGMENTS: Seg[] = buildSegments()
 
 // Header 只渲染课程段背景（不渲染 break 段，避免色条侵入节次标签区）
 const CLASS_SEGMENTS = SEGMENTS.filter(s => s.type === 'class')
 
-// 真实时钟分钟 -> 轨道百分比（缓存 + 防御性检查）
+// 真实时钟分钟 -> 轨道百分比（缓存，所有 segment 统一线性插值）
 const ABS_TO_PCT_CACHE = new Map<number, number>()
 
 function absToPct(absMin: number): number {
@@ -79,11 +101,8 @@ function absToPct(absMin: number): number {
   if (cached !== undefined) return cached
 
   for (const s of SEGMENTS) {
-    const inRange = s.type === 'break'
-      ? (absMin >= s.absStart && absMin < s.absEnd)
-      : (absMin >= s.absStart && absMin <= s.absEnd)
-    if (inRange) {
-      const result = s.type === 'break' ? s.lo : s.lo + ((absMin - s.absStart) / (s.absEnd - s.absStart || 1)) * (s.hi - s.lo)
+    if (absMin >= s.absStart && absMin <= s.absEnd) {
+      const result = s.lo + ((absMin - s.absStart) / (s.absEnd - s.absStart || 1)) * (s.hi - s.lo)
       ABS_TO_PCT_CACHE.set(absMin, result)
       return result
     }
@@ -100,18 +119,18 @@ const AXIS_TICKS = P_INFOS.map((p, i) => ({
   idx: i + 1,
 }))
 
-// 统一时间轴刻度：节次起点 + 午休/晚饭标记（12:00 / 17:30）
+// 统一时间轴刻度：节次起点 + 午休/晚饭标记 + 最后节次结束时间
 const HEADER_TICKS = [
   ...AXIS_TICKS.map(t => ({ label: t.label, pct: t.pct })),
   { label: '11:50', pct: absToPct(11 * 60 + 50) },
   { label: '17:30', pct: absToPct(17 * 60 + 30) },
+  { label: PERIODS[PERIODS.length - 1].time.split('\n')[1], pct: absToPct(P_INFOS[P_INFOS.length - 1].endAbs) },
 ].sort((a, b) => a.pct - b.pct)
 
-// Track 休息带边界虚线（位置纯数组，不含文本标签）
-const BREAK_LINES = BREAK_DEFS.flatMap(d => [
-  absToPct(d.absStart),
-  absToPct(d.absEnd),
-])
+// Track 休息带边界虚线（从 break 类型 segment 的视觉边界推导）
+const BREAK_LINES = SEGMENTS
+  .filter(s => s.type === 'break')
+  .flatMap(s => [s.lo, s.hi])
 
 // =============================================================================
 // 响应式数据
@@ -287,7 +306,6 @@ function isHighlighted(e: ScheduleEntry): boolean {
   display: flex;
   margin-bottom: 4px;
   flex-shrink: 0;
-  min-width: 600px;
 }
 
 .tl-day-label {
@@ -334,7 +352,6 @@ function isHighlighted(e: ScheduleEntry): boolean {
   align-items: stretch;
   flex: 1;
   min-height: 0;
-  min-width: 600px;
 }
 
 .tl-day-name {

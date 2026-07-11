@@ -49,3 +49,34 @@ body {
   padding: 20px;
   background: var(--b3-body-background);
 }
+
+/* ===== 打印样式 ===== */
+@media print {
+  /* 隐藏全局应用框架 */
+  .sidebar,
+  .toolbar {
+    display: none !important;
+  }
+
+  /* 移除主布局约束，使报表内容占满打印区域 */
+  .app-layout {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .page-container {
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 强制打印背景色和课程块颜色 */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

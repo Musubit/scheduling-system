@@ -29,6 +29,16 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem('theme', t)
   }
 
+  // ===== 侧边栏折叠 =====
+  const sidebarCollapsed = ref(
+    localStorage.getItem('sidebar-collapsed') === 'true'
+  )
+
+  function toggleSidebar() {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+    localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed.value))
+  }
+
   // ===== 导航 =====
   const currentPage = ref<PageId>('schedule')
   const breadcrumbPath = ref<string[]>(['课表中心', '周视图课表'])
@@ -150,6 +160,9 @@ export const useAppStore = defineStore('app', () => {
     theme,
     toggleTheme,
     setTheme,
+    // sidebar
+    sidebarCollapsed,
+    toggleSidebar,
     // nav
     currentPage,
     breadcrumbPath,

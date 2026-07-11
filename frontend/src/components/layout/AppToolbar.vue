@@ -12,6 +12,17 @@ async function handleOpenDownloads() {
 
 <template>
   <header class="toolbar">
+    <!-- 折叠侧边栏 -->
+    <button
+      class="toolbar-btn"
+      @click="appStore.toggleSidebar()"
+      title="折叠侧边栏"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M3 12h18M3 18h18"/>
+      </svg>
+    </button>
+
     <div class="breadcrumb">
       <span>{{ appStore.pageTitle }}</span>
       <span class="breadcrumb-sep">›</span>

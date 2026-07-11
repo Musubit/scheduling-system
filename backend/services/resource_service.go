@@ -190,7 +190,7 @@ func (s *ResourceService) GetScheduleEntries(semester string) ([]models.Schedule
 	// resolve entries by class group (auto-scheduled entries carry TeachingTaskID,
 	// not the legacy single ClassGroupID; 合班 tasks have multiple classes).
 	query := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
-		Preload("TeachingTask").Preload("TeachingTask.Classes")
+			Preload("TeachingTask.Classes.ClassGroup")
 	if semester != "" {
 		query = query.Where("semester = ?", semester)
 	}

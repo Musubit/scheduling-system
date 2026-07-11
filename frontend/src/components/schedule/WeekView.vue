@@ -246,8 +246,8 @@ async function onDrop(e: DragEvent, day: number, period: number) {
       newSpan: entry.span,
     } as any)
 
-    message.success('课表已调整')
-    await scheduleStore.loadSchedule('')
+	    // 成功无需提示（课程已移动，用户能看到结果）
+	    await scheduleStore.loadSchedule('')
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))
   }

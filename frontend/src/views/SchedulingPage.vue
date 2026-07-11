@@ -520,7 +520,7 @@ const weightLabels: Record<string, string> = {
 
 .breakdown-item {
   display: grid;
-  grid-template-columns: 120px 1fr 50px;
+  grid-template-columns: 120px 1fr 56px;
   align-items: center;
   gap: 8px;
 }
@@ -535,6 +535,9 @@ const weightLabels: Record<string, string> = {
   font-weight: 600;
   color: var(--b3-theme-primary);
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .verify-items {

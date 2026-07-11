@@ -142,7 +142,7 @@ async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
           '课程名称': e.course?.name || '',
           '课程编号': e.course?.code || '',
           '教师': e.teacher?.name || '',
-          '教室': e.classroom?.name || '',
+          '教室': e.classroom ? `${e.classroom.building} ${e.classroom.name}` : '',
           '星期': DAY_NAMES[e.dayOfWeek] || '',
           '节次': `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
           '教学周': e.weeks || '',
@@ -151,12 +151,42 @@ async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
         })
       }
     }
-    rows.sort((a, b) => String(a['分组']).localeCompare(String(b['分组'])))
+    // 按模式去除冗余列
+    const dropCol = mode === 'teacher' ? '教师' : null
+    const filteredRows = dropCol
+      ? rows.map(r => { const { [dropCol]: _, ...rest } = r; return rest })
+      : rows
+    filteredRows.sort((a, b) => {
+      const g = String(a['分组']).localeCompare(String(b['分组']))
+      if (g !== 0) return g
+      const dow = DAY_NAMES.indexOf(a['星期']) - DAY_NAMES.indexOf(b['星期'])
+      if (dow !== 0) return dow
+      return String(a['节次']).localeCompare(String(b['节次']))
+    })
 
-    const ws = XLSX.utils.json_to_sheet(rows)
+    const ws = XLSX.utils.json_to_sheet(filteredRows)
+    // 基础格式
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_col(C) + '1'
+      if (ws[addr]) ws[addr].s = { font: { bold: true } }
+    }
+    ws['!autofilter'] = { ref: ws['!ref'] || 'A1' }
+    // 自动列宽（估算）
+    const colWidths: { wch: number }[] = []
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      let maxLen = 8
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })]
+        if (cell?.v != null) maxLen = Math.max(maxLen, String(cell.v).length)
+      }
+      colWidths.push({ wch: Math.min(maxLen + 4, 40) })
+    }
+    ws['!cols'] = colWidths
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '课表')
-    XLSX.writeFile(wb, `排课表_${labelMap[mode]}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    XLSX.writeFile(wb, `排课表_${labelMap[mode]}_${new Date().toISOString().slice(0, 10)}_${Math.random().toString(16).slice(2, 8)}.xlsx`)
   } catch (err: any) {
     window.alert('导出失败：' + (err?.message || err))
   } finally {
@@ -164,78 +194,104 @@ async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
   }
 }
 
-async function exportSchedulePDF(mode: 'teacher' | 'classroom' | 'class') {
+async function exportSchedulePDF() {
   exporting.value = true
   try {
-    // Use a temporary load so we don't clobber the store's current entries.
-    const { GetScheduleEntries } = await import('../../bindings/scheduling-system/backend/services/resourceservice')
-    let all: any[]
-    try {
-      all = (await GetScheduleEntries('')) || []
-    } catch {
-      all = scheduleStore.entries
-    }
-    if (!all.length) {
-      window.alert('暂无排课数据，请先运行自动排课')
+    // 空数据保护：检查是否有可导出的课程
+    if (scheduleStore.displayEntries.length === 0) {
+      const hasSelection = scheduleStore.selectedTeacherId || scheduleStore.selectedClassroomId || scheduleStore.selectedClassId
+      window.alert(hasSelection ? '当前对象暂无课程' : '当前没有可导出的课表，请先选择教师、班级或教室')
       return
     }
-    const labelMap = { teacher: '按教师', classroom: '按教室', class: '按班级' } as const
-    const headers = ['分组', '课程名称', '课程编号', '教师', '教室', '星期', '节次', '教学周', '班级', '学分']
-    const rows: string[][] = []
-    for (const e of all) {
-      const classNames = entryClassNames(e)
-      const classLabel = classNames.join('、')
-      let groups: string[]
-      if (mode === 'teacher') groups = [e.teacher?.name || '未知教师']
-      else if (mode === 'classroom') groups = [e.classroom?.name || '未知教室']
-      else groups = classNames.length ? classNames : ['未知班级']
-      for (const g of groups) {
-        rows.push([
-          g,
-          e.course?.name || '',
-          e.course?.code || '',
-          e.teacher?.name || '',
-          e.classroom?.name || '',
-          DAY_NAMES[e.dayOfWeek] || '',
-          `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
-          e.weeks || '',
-          classLabel,
-          String(e.course?.credit ?? ''),
-        ])
-      }
-    }
-    rows.sort((a, b) => a[0].localeCompare(b[0]))
 
-    // Render an offscreen HTML table (Chinese-safe via browser fonts),
-    // rasterize with html2canvas, then paginate into a PDF.
+    // 截图当前课表视图（非数据表格）
+    const scheduleEl = document.querySelector('.schedule-content') as HTMLElement
+    if (!scheduleEl) {
+      window.alert('课表视图未加载，请刷新后重试')
+      return
+    }
+
+    // 确定标题信息：当前视图 + 选中的对象
+    let title = '课表'
+    if (scheduleStore.perspective === 'teacher' && scheduleStore.selectedTeacherId) {
+      const t = scheduleStore.displayEntries[0]?.teacher
+      title = `${t?.name || '教师'} 课表`
+    } else if (scheduleStore.perspective === 'classroom' && scheduleStore.selectedClassroomId) {
+      const c = scheduleStore.displayEntries[0]?.classroom
+      title = `${c?.name || '教室'} 课表`
+    } else if (scheduleStore.perspective === 'class' && scheduleStore.selectedClassId) {
+      title = '班级课表'
+    }
+
+    // 构建专用导出容器：克隆课表网格 + DOM标题（避免jsPDF中文乱码）
+    const grid = document.querySelector('.schedule-grid') as HTMLElement
+    if (!grid) {
+      window.alert('课表网格未加载，请刷新后重试')
+      return
+    }
+
+    const EXPORT_W = 1400
     const container = document.createElement('div')
-    container.style.cssText = 'position:fixed;left:-10000px;top:0;background:#fff;padding:16px;width:1120px;font-family:"Microsoft YaHei",sans-serif;color:#000;'
-    const escapeHtml = (s: string) => s.replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
-    const bodyRows = rows.map((r) => '<tr>' + r.map((c) => `<td style="border:1px solid #ccc;padding:4px 6px;font-size:12px;white-space:nowrap;">${escapeHtml(c)}</td>`).join('') + '</tr>').join('')
-    const headRow = '<tr>' + headers.map((hh) => `<th style="border:1px solid #333;padding:4px 6px;font-size:12px;background:#f0f0f0;">${hh}</th>`).join('') + '</tr>'
-    container.innerHTML = `<h3 style="font-family:inherit;margin:0 0 8px;">排课表（${labelMap[mode]}）　生成时间：${new Date().toLocaleString()}</h3><table style="border-collapse:collapse;width:100%;"><thead>${headRow}</thead><tbody>${bodyRows}</tbody></table>`
-    document.body.appendChild(container)
-    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff' })
-    document.body.removeChild(container)
-
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const imgW = pageW
-    const imgH = (canvas.height * imgW) / canvas.width
-    const imgData = canvas.toDataURL('image/png')
-    let heightLeft = imgH
-    let position = 0
-    pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH)
-    heightLeft -= pageH
-    while (heightLeft > 0) {
-      position -= pageH
-      pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH)
-      heightLeft -= pageH
+    // B3 主题变量（保证克隆grid的样式继承）
+    const b3Vars: Record<string, string> = {
+      '--b3-theme-background': '#ffffff',
+      '--b3-theme-surface': '#f6f6f6',
+      '--b3-theme-on-surface': '#333333',
+      '--b3-theme-on-background': '#222222',
+      '--b3-theme-on-surface-light': '#999999',
+      '--b3-border-color': '#e0e0e0',
+      '--b3-border-radius': '6px',
+      '--b3-border-radius-s': '4px',
+      '--b3-theme-primary': '#3575f0',
+      '--b3-theme-primary-light': '#5b8af7',
+      '--b3-theme-primary-lightest': '#e8f0fe',
+      '--b3-theme-error': '#e53935',
     }
-    const dateStr = new Date().toISOString().slice(0, 10)
-    pdf.save(`排课表_${labelMap[mode]}_${dateStr}.pdf`)
+    container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
+    for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
+
+    // 标题（DOM渲染，中文由浏览器字体处理）
+    const dateStr = new Date().toLocaleString()
+    const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">${title}</div><div style="font-size:12px;color:#888;margin-bottom:12px;">第${scheduleStore.currentWeek}周　生成时间：${dateStr}</div>`
+    container.innerHTML = headerHtml
+
+    // 克隆课表网格
+    const gridClone = grid.cloneNode(true) as HTMLElement
+    gridClone.style.setProperty('overflow', 'visible')
+    gridClone.style.setProperty('height', 'auto')
+    gridClone.style.setProperty('flex', 'none')
+    // 移除工具栏（如果被clone进来了——WeekView的工具栏是grid的兄弟，cloneNode只clone grid本身所以不会带）
+    gridClone.querySelector('.week-toolbar')?.remove()
+    container.appendChild(gridClone)
+    document.body.appendChild(container)
+
+    try {
+      const canvas = await html2canvas(container, { scale: 3, backgroundColor: '#ffffff' })
+
+      const pdf = new jsPDF('l', 'mm', 'a4')
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const imgW = pageW - 14
+      const imgH = (canvas.height * imgW) / canvas.width
+      const imgData = canvas.toDataURL('image/png')
+
+      let heightLeft = imgH
+      let position = 7
+      pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+      heightLeft -= (pageH - position)
+      while (heightLeft > 0) {
+        position -= pageH
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+        heightLeft -= pageH
+      }
+
+      const fileDate = new Date().toISOString().slice(0, 10)
+      const hash6 = Math.random().toString(16).slice(2, 8)
+      pdf.save(`${title}_${fileDate}_${hash6}.pdf`)
+    } finally {
+      document.body.removeChild(container)
+    }
   } catch (err: any) {
     window.alert('导出PDF失败：' + (err?.message || err))
   } finally {
@@ -249,11 +305,21 @@ const exportOptions = [
   { label: '按班级导出', key: 'class' as const },
 ]
 
-const exportPdfOptions = [
-  { label: '按教师导出', key: 'teacher' as const },
-  { label: '按教室导出', key: 'classroom' as const },
-  { label: '按班级导出', key: 'class' as const },
+// 合并导出菜单：Excel数据 + PDF打印
+const combinedExportOptions: any[] = [
+  { type: 'group', key: 'excel-header', label: 'Excel（数据）' },
+  ...exportOptions.map(o => ({ key: 'excel:' + o.key, label: '　' + o.label })),
+  { type: 'divider', key: 'div1' },
+  { key: 'pdf', label: 'PDF（当前课表）' },
 ]
+
+function handleExportSelect(key: string) {
+  if (key === 'pdf') {
+    exportSchedulePDF()
+  } else if (key.startsWith('excel:')) {
+    exportSchedule(key.slice(6) as 'teacher' | 'classroom' | 'class')
+  }
+}
 </script>
 
 <template>
@@ -283,11 +349,8 @@ const exportPdfOptions = [
           </button>
         </div>
         <span class="stat-badge">已排 {{ scheduleStore.filteredCount }} 门课</span>
-        <n-dropdown trigger="click" :options="exportOptions" @select="exportSchedule">
-          <n-button size="small" :loading="exporting">导出课表</n-button>
-        </n-dropdown>
-        <n-dropdown trigger="click" :options="exportPdfOptions" @select="exportSchedulePDF">
-          <n-button size="small">导出PDF</n-button>
+        <n-dropdown trigger="click" :options="combinedExportOptions" @select="handleExportSelect">
+          <n-button size="small" :loading="exporting">导出</n-button>
         </n-dropdown>
       </div>
     </div>

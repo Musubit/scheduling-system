@@ -4,6 +4,7 @@ import { useAppStore } from '../../stores/app'
 import { useScheduleStore } from '../../stores/schedule'
 import { useResourceStore } from '../../stores/resource'
 import type { PageId, ScheduleView } from '../../types'
+import { NTooltip, NPopover } from 'naive-ui'
 
 const appStore = useAppStore()
 const scheduleStore = useScheduleStore()
@@ -80,7 +81,7 @@ function handleNavClick(child: NavChild) {
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :class="{ collapsed: appStore.sidebarCollapsed }">
     <div class="sidebar-header">
       <svg class="sidebar-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
         <!-- 外框圆角矩形 -->
@@ -105,29 +106,60 @@ function handleNavClick(child: NavChild) {
         v-for="group in navGroups"
         :key="group.label"
         class="nav-group"
-        :class="{ open: isGroupOpen(group.label) }"
+        :class="{ open: isGroupOpen(group.label) && !appStore.sidebarCollapsed }"
       >
-        <div class="nav-group-label" @click="appStore.toggleNavGroup(group.label)">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path :d="group.icon" />
-          </svg>
-          {{ group.label }}
-          <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </div>
-        <div class="nav-children">
-          <div
-            v-for="child in group.children"
-            :key="child.label"
-            class="nav-child"
-            :class="{ active: activeChild === child.label }"
-            @click="handleNavClick(child)"
-          >
-            <span class="dot"></span>
-            {{ child.label }}
+        <!-- 展开态 -->
+        <template v-if="!appStore.sidebarCollapsed">
+          <div class="nav-group-label" @click="appStore.toggleNavGroup(group.label)">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path :d="group.icon" />
+            </svg>
+            {{ group.label }}
+            <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
           </div>
-        </div>
+          <div class="nav-children">
+            <div
+              v-for="child in group.children"
+              :key="child.label"
+              class="nav-child"
+              :class="{ active: activeChild === child.label }"
+              @click="handleNavClick(child)"
+            >
+              <span class="dot"></span>
+              {{ child.label }}
+            </div>
+          </div>
+        </template>
+
+        <!-- 折叠态：Tooltip + Popover -->
+        <template v-else>
+          <n-tooltip placement="right" :delay="500">
+            <template #trigger>
+              <n-popover trigger="click" placement="right-start">
+                <template #trigger>
+                  <div class="nav-group-label collapsed-nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path :d="group.icon" />
+                    </svg>
+                  </div>
+                </template>
+                <div class="collapse-submenu">
+                  <div
+                    v-for="child in group.children"
+                    :key="child.label"
+                    class="collapse-submenu-item"
+                    @click="handleNavClick(child)"
+                  >
+                    {{ child.label }}
+                  </div>
+                </div>
+              </n-popover>
+            </template>
+            {{ group.label }}
+          </n-tooltip>
+        </template>
       </div>
 	    </nav>
 	  </aside>
@@ -141,8 +173,54 @@ function handleNavClick(child: NavChild) {
   border-right: 1px solid var(--b3-border-color);
   display: flex;
   flex-direction: column;
-  transition: var(--b3-transition);
+  transition: width 0.25s ease, min-width 0.25s ease;
   z-index: 10;
+}
+
+/* 折叠状态 */
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
+}
+
+.sidebar.collapsed .sidebar-title {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0 10px;
+}
+
+/* 折叠态导航项：仅图标居中 */
+.collapsed-nav-item {
+  justify-content: center !important;
+  padding: 12px 8px !important;
+}
+
+.collapsed-nav-item .nav-icon {
+  margin: 0 !important;
+  opacity: 0.65;
+}
+
+/* 折叠态弹出子菜单 */
+.collapse-submenu {
+  min-width: 140px;
+  padding: 4px 0;
+}
+
+.collapse-submenu-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.collapse-submenu-item:hover {
+  background: var(--b3-list-hover);
+  color: var(--b3-theme-primary);
 }
 
 .sidebar-header {

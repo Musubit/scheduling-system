@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
-import { DEPARTMENTS, DAY_NAMES } from '../types'
+import { DEPARTMENTS, DAY_NAMES, PERIODS } from '../types'
 import type { TeachingTask } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/backend/services/resourceservice'
@@ -276,8 +276,8 @@ const formFields = computed(() => {
       { key: 'code', label: '工号（选填）' },
       { key: 'name', label: '姓名' },
       { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
-      { key: 'preferNoEarly', label: '尽量不安排早课', type: 'switch' },
-      { key: 'preferNoLate', label: '尽量不安排晚课', type: 'switch' },
+      { key: 'preferNoEarly', label: '尽量避免1-2节', type: 'switch' },
+      { key: 'preferNoLate', label: '尽量避免9-11节', type: 'switch' },
       { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number', min: 1, max: 7 },
       { key: 'preferLowFloor', label: '优先安排低楼层教室', type: 'switch' },
       { key: 'unavailableSlots', label: '不可用时间', type: 'timegrid' },
@@ -319,52 +319,46 @@ const formFields = computed(() => {
 })
 
 // ===== 不可用时间网格 =====
-const VALID_STARTS = [0, 2, 4, 6, 8] // 对应第1-2、3-4、5-6、7-8、9-10节
-const timeGridRows = [
-  { label: '1-2节', start: 0 },
-  { label: '3-4节', start: 2 },
-  { label: '5-6节', start: 4 },
-  { label: '7-8节', start: 6 },
-  { label: '9-10节', start: 8 },
-]
+// 时段块定义：startPeriod → span（晚间为3节，其余2节）
+const PERIOD_BLOCK_SPANS: Record<number, number> = { 0: 2, 2: 2, 4: 2, 6: 2, 8: 3 }
 
-function parseSlots(json: string): Set<string> {
-  if (!json) return new Set()
-  try {
-    const arr = JSON.parse(json)
-    if (!Array.isArray(arr)) return new Set()
-    const keys = new Set<string>()
-    for (const slot of arr) {
-      const d = (slot as any).dayOfWeek ?? -1
-      const s = (slot as any).startPeriod ?? -1
-      if (d >= 0 && d <= 6 && VALID_STARTS.includes(s)) {
-        keys.add(`${d}-${s}`)
-      }
-    }
-    return keys
-  } catch { return new Set() }
-}
-
-function serializeSlots(keys: Set<string>): string {
-  const arr: { dayOfWeek: number; startPeriod: number; span: number }[] = []
-  for (const k of keys) {
-    const [d, s] = k.split('-').map(Number)
-    arr.push({ dayOfWeek: d, startPeriod: s, span: 2 })
+// 从 PERIODS 动态生成行数据（标签、起始节、跨度、时间范围）
+const timeGridRows = Object.entries(PERIOD_BLOCK_SPANS).map(([startStr, span]) => {
+  const start = Number(startStr)
+  const first = PERIODS[start]
+  const last = PERIODS[start + span - 1]
+  const startTime = first.time.split('\n')[0]
+  const endTime = last.time.split('\n')[1] || last.time.split('\n')[0]
+  return {
+    label: `${first.num}-${last.num}节`,
+    start,
+    span,
+    time: `${startTime}-${endTime}`,
   }
-  return arr.length > 0 ? JSON.stringify(arr) : ''
+})
+
+interface UnavailableSlot { dayOfWeek: number; startPeriod: number; span: number }
+
+function getSlots(): UnavailableSlot[] {
+  try {
+    const json = formData.value.unavailableSlots || ''
+    if (!json) return []
+    const arr = JSON.parse(json)
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
 }
 
 function isSlotUnavailable(day: number, start: number): boolean {
   if (resourceStore.activeTab !== 'teacher') return false
-  const slots = parseSlots(formData.value.unavailableSlots || '')
-  return slots.has(`${day}-${start}`)
+  return getSlots().some(s => s.dayOfWeek === day && s.startPeriod === start)
 }
 
-function toggleSlot(day: number, start: number) {
-  const slots = parseSlots(formData.value.unavailableSlots || '')
-  const key = `${day}-${start}`
-  if (slots.has(key)) { slots.delete(key) } else { slots.add(key) }
-  formData.value.unavailableSlots = serializeSlots(slots)
+function toggleSlot(day: number, start: number, span: number) {
+  const slots = getSlots()
+  const idx = slots.findIndex(s => s.dayOfWeek === day && s.startPeriod === start)
+  if (idx >= 0) { slots.splice(idx, 1) }
+  else { slots.push({ dayOfWeek: day, startPeriod: start, span }) }
+  formData.value.unavailableSlots = slots.length > 0 ? JSON.stringify(slots) : ''
 }
 
 // actionRender - shared by all tabs
@@ -741,11 +735,14 @@ function downloadTemplate() {
               <span v-for="d in 7" :key="d" class="tg-day">{{ DAY_NAMES[d-1] }}</span>
             </div>
             <div v-for="row in timeGridRows" :key="row.start" class="tg-row">
-              <span class="tg-label">{{ row.label }}</span>
+              <span class="tg-label">
+                <span class="tg-period">{{ row.label }}</span>
+                <span class="tg-time">{{ row.time }}</span>
+              </span>
               <span v-for="d in 7" :key="d"
                 class="tg-cell"
                 :class="{ active: isSlotUnavailable(d-1, row.start) }"
-                @click="toggleSlot(d-1, row.start)"
+                @click="toggleSlot(d-1, row.start, row.span)"
               ></span>
             </div>
           </div>
@@ -841,12 +838,24 @@ function downloadTemplate() {
   margin-bottom: 2px;
 }
 .tg-label {
-  width: 52px;
+  width: 68px;
   font-size: 12px;
   color: var(--n-text-color-2, #666);
   text-align: right;
   padding-right: 6px;
   flex-shrink: 0;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.tg-period {
+  color: var(--n-text-color, #333);
+}
+.tg-time {
+  font-size: 10px;
+  color: var(--n-text-color-3, #999);
+  white-space: nowrap;
 }
 .tg-day {
   flex: 1;

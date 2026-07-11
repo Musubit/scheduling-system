@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { NTag, NButton, NEmpty, NSpin, NProgress, NCard } from 'naive-ui'
 import { useAppStore } from '../stores/app'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const appStore = useAppStore()
 
@@ -127,8 +129,113 @@ async function deleteAllSnapshots() {
   }
 }
 
-function exportPDF() {
-  window.print()
+async function exportPDF() {
+  // (1) 数据检查
+  if (!selectedSnapshot.value) {
+    window.alert('请先生成或选择一份验证报告')
+    return
+  }
+
+  const reportEl = document.querySelector('.report-content') as HTMLElement
+  if (!reportEl) {
+    window.alert('报告内容未加载，请刷新后重试')
+    return
+  }
+
+  const snap = selectedSnapshot.value
+  const EXPORT_W = 1200
+
+  // (2) 创建离屏导出容器 + (3) 注入打印环境 CSS 变量
+  const container = document.createElement('div')
+  const b3Vars: Record<string, string> = {
+    '--b3-theme-background': '#ffffff',
+    '--b3-theme-surface': '#f6f6f6',
+    '--b3-theme-on-surface': '#333333',
+    '--b3-theme-on-background': '#222222',
+    '--b3-theme-on-surface-light': '#999999',
+    '--b3-border-color': '#e0e0e0',
+    '--b3-border-radius': '6px',
+    '--b3-border-radius-s': '4px',
+    '--b3-theme-primary': '#3575f0',
+    '--b3-theme-primary-light': '#5b8af7',
+    '--b3-theme-primary-lightest': '#e8f0fe',
+    '--b3-theme-error': '#e53935',
+    '--b3-body-background': '#ffffff',
+    '--b3-font-family': '"Microsoft YaHei","PingFang SC",sans-serif',
+  }
+  container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
+  for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
+
+  // DOM 渲染的标题头（避免 jsPDF 中文乱码）
+  const dateStr = formatDate(snap.CreatedAt || snap.createdAt)
+  const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">排课验证报告</div><div style="font-size:12px;color:#888;margin-bottom:12px;">学期：${snap.semester || ''} · 院系：${snap.dept || '全校'}　|　生成时间：${dateStr}　|　${triggerLabel(snap.trigger)}</div>`
+  container.innerHTML = headerHtml
+
+  // (4) 克隆报告主体
+  const clone = reportEl.cloneNode(true) as HTMLElement
+
+  // 移除 UI 元素
+  clone.querySelector('.snapshot-list')?.remove()
+  clone.querySelectorAll('.no-print').forEach(el => el.remove())
+
+  // 强制显示 print-only 元素（scoped CSS 会隐藏它们）
+  clone.querySelectorAll('.print-only').forEach(el => {
+    (el as HTMLElement).style.display = 'block'
+  })
+
+  // 解除布局约束
+  clone.style.setProperty('overflow', 'visible')
+  clone.style.setProperty('height', 'auto')
+  clone.style.setProperty('display', 'block')
+
+  const detailArea = clone.querySelector('.detail-area') as HTMLElement
+  if (detailArea) {
+    detailArea.style.setProperty('overflow', 'visible')
+    detailArea.style.setProperty('height', 'auto')
+    detailArea.style.setProperty('flex', 'none')
+    detailArea.style.setProperty('width', '100%')
+  }
+
+  container.appendChild(clone)
+  document.body.appendChild(container)
+
+  try {
+    // (5) html2canvas 截图
+    const canvas = await html2canvas(container, {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    })
+
+    // (6) jsPDF 输出（横向 A4，支持分页）
+    const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const imgW = pageW - 14
+    const imgH = (canvas.height * imgW) / canvas.width
+    const imgData = canvas.toDataURL('image/png')
+
+    let heightLeft = imgH
+    let position = 7
+    pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+    heightLeft -= (pageH - position)
+    while (heightLeft > 0) {
+      position -= pageH
+      pdf.addPage()
+      pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+      heightLeft -= pageH
+    }
+
+    const fileDate = new Date().toISOString().slice(0, 10)
+    const hash6 = Math.random().toString(16).slice(2, 8)
+    pdf.save(`验证报告_${fileDate}_${hash6}.pdf`)
+  } catch (err: any) {
+    // (8) 异常处理
+    window.alert('PDF 导出失败：' + (err?.message || err))
+  } finally {
+    // (7) 清理离屏容器
+    document.body.removeChild(container)
+  }
 }
 
 // Compute perCategoryMax from the snapshot scores
@@ -522,11 +629,20 @@ onMounted(() => {
   flex: 1;
 }
 
+/* 修复 n-progress 内部百分比文本换行 */
+.score-bar-item :deep(.n-progress-icon--as-text) {
+  white-space: nowrap;
+}
+
 .bar-value {
-  width: 40px;
+  min-width: 48px;
   text-align: right;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .check-items {
