@@ -68,6 +68,9 @@ const SEGMENTS: Seg[] = []
   }
 }
 
+// Header 只渲染课程段背景（不渲染 break 段，避免色条侵入节次标签区）
+const CLASS_SEGMENTS = SEGMENTS.filter(s => s.type === 'class')
+
 // 真实时钟分钟 -> 轨道百分比（缓存 + 防御性检查）
 const ABS_TO_PCT_CACHE = new Map<number, number>()
 
@@ -90,25 +93,25 @@ function absToPct(absMin: number): number {
   return result
 }
 
-// 时间轴刻度：每节课起点
+// 节次起始刻度（track 网格线也用）
 const AXIS_TICKS = P_INFOS.map((p, i) => ({
   label: PERIODS[i].time.split('\n')[0],
   pct: absToPct(p.startAbs),
   idx: i + 1,
 }))
 
-// 休息带边界刻度（过滤掉与 AXIS_TICKS 重复的标签，如 14:00 / 18:30）
-const AXIS_LABEL_SET = new Set(AXIS_TICKS.map(t => t.label))
-const BREAK_TICKS = BREAK_DEFS.flatMap(d => [
-  { label: formatAbs(d.absStart), pct: absToPct(d.absStart), type: 'break-start' as const },
-  { label: formatAbs(d.absEnd), pct: absToPct(d.absEnd), type: 'break-end' as const },
-]).filter(bt => !AXIS_LABEL_SET.has(bt.label))
+// 统一时间轴刻度：节次起点 + 午休/晚饭标记（12:00 / 17:30）
+const HEADER_TICKS = [
+  ...AXIS_TICKS.map(t => ({ label: t.label, pct: t.pct })),
+  { label: '12:00', pct: absToPct(12 * 60) },
+  { label: '17:30', pct: absToPct(17 * 60 + 30) },
+].sort((a, b) => a.pct - b.pct)
 
-function formatAbs(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${h}:${m.toString().padStart(2, '0')}`
-}
+// Track 休息带边界虚线（位置纯数组，不含文本标签）
+const BREAK_LINES = BREAK_DEFS.flatMap(d => [
+  absToPct(d.absStart),
+  absToPct(d.absEnd),
+])
 
 // =============================================================================
 // 响应式数据
@@ -205,16 +208,13 @@ function isHighlighted(e: ScheduleEntry): boolean {
         <div class="tl-day-label">节次</div>
         <div class="tl-hours">
           <div
-            v-for="seg in SEGMENTS"
+            v-for="seg in CLASS_SEGMENTS"
             :key="seg.id"
             class="tl-seg"
             :class="seg.type"
             :style="{ left: seg.lo + '%', width: (seg.hi - seg.lo) + '%' }"
           ></div>
-          <div v-for="t in AXIS_TICKS" :key="t.idx" class="tl-hour" :style="{ left: t.pct + '%' }">{{ t.label }}</div>
-          <div v-for="(bt, bi) in BREAK_TICKS" :key="'bt-' + bi" class="tl-break-tick" :style="{ left: bt.pct + '%' }">
-            <span class="tl-break-tick-label">{{ bt.label }}</span>
-          </div>
+          <div v-for="(t, ti) in HEADER_TICKS" :key="ti" class="tl-hour" :style="{ left: t.pct + '%' }">{{ t.label }}</div>
         </div>
       </div>
 
@@ -234,7 +234,7 @@ function isHighlighted(e: ScheduleEntry): boolean {
           </div>
           <!-- 网格线 -->
           <div v-for="t in AXIS_TICKS" :key="t.idx" class="tl-gridline" :style="{ left: t.pct + '%' }"></div>
-          <div v-for="(bt, bi) in BREAK_TICKS" :key="'btl-' + bi" class="tl-break-line" :style="{ left: bt.pct + '%' }"></div>
+          <div v-for="(bp, bi) in BREAK_LINES" :key="'btl-' + bi" class="tl-break-line" :style="{ left: bp + '%' }"></div>
           <!-- 当前时间红线 -->
           <div v-if="nowLinePct != null" class="tl-now-line" :style="{ left: nowLinePct + '%' }">
             <span class="tl-now-dot"></span>
