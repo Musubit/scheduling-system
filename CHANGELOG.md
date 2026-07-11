@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0] - 2026-07-11
+
+### Added
+
+- **排课质量报告增强**：总评等级（A+/A/B/C/D）、分项星级评分（★★★★★半星支持）、低于阈值的自动改善建议
+- **教师负载分析**：ReportPage 新增教师负载分析卡片，展示每日分布、均衡评分、优化建议（纯后处理，不影响求解器）
+- **排课过程阶段反馈**：求解过程可视化（初始化→加载任务→求解→冲突分析→保存→完成），NSteps 动态阶段列表
+- **course_dispersed 周内均衡**：SC4 软约束新增日间均衡惩罚项（OR-Tools `AddMaxEquality` + SA `balancePenalty`），鼓励课程均匀分布
+
+### Changed
+
+- **求解器稳定性**：`lastNeighbor` 从包级变量迁移到 `schedulingContext` 字段，消除不可重入风险
+- **教室类型判断统一**：新建 `roomtype.go`（`IsLabCourse` / `IsComputerCourse`），4 处大小写不一致的判断统一为公共函数
+- **ReportPage 重构**：硬编码分项进度条改为 `categoryDefs` 数据驱动，支持动态扩展新约束分类
+
+### Removed
+
+- 移除 `containsKeyword` 死函数、`strings` 无用导入（3 个 SA 文件 + `scheduling_service.go`）
+- 移除 SchedulingPage 硬编码 5 步骤和 `currentStep` 死代码
+
+---
+
 ## [0.2.0] - 2026-07-11
 
 ### Fixed
