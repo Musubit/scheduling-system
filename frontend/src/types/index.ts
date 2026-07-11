@@ -210,6 +210,19 @@ export interface ScheduleProgress {
   stage: string     // 阶段名称
 }
 
+/** 教师负载分析 */
+export interface TeacherWorkloadInfo {
+  teacherId: number
+  teacherName: string
+  totalSessions: number
+  dailyDistribution: number[]  // 7 elements
+  busyDays: number
+  maxDaily: number
+  minDaily: number
+  balanceScore: number  // 0-100
+  suggestion: string
+}
+
 /** 评分明细 */
 export interface ScoreBreakdown {
   total: number

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"math"
 	"scheduling-system/backend/models"
 	"sort"
@@ -544,3 +545,114 @@ func (s *ScoringService) scorePePeriodPref(entries []models.ScheduleEntry, sport
 		}
 		return score
 	}
+
+// TeacherWorkloadInfo holds per-teacher workload analysis (post-hoc, does not affect scoring).
+type TeacherWorkloadInfo struct {
+	TeacherID         uint    `json:"teacherId"`
+	TeacherName       string  `json:"teacherName"`
+	TotalSessions     int     `json:"totalSessions"`
+	DailyDistribution []int   `json:"dailyDistribution"` // 7 elements, sessions per day Mon-Sun
+	BusyDays          int     `json:"busyDays"`
+	MaxDaily          int     `json:"maxDaily"`
+	MinDaily          int     `json:"minDaily"` // min across all 7 days (may be 0)
+	BalanceScore      float64 `json:"balanceScore"` // 0-100
+	Suggestion        string  `json:"suggestion"`
+}
+
+// AnalyzeTeacherWorkload computes per-teacher workload balance from schedule entries.
+// Pure analysis — does not affect scoring or solver output.
+func (s *ScoringService) AnalyzeTeacherWorkload(entries []models.ScheduleEntry, teachers []models.Teacher) []TeacherWorkloadInfo {
+	teacherMap := make(map[uint]string) // ID -> Name
+	for _, t := range teachers {
+		teacherMap[t.ID] = t.Name
+	}
+
+	// Build per-teacher per-day session counts
+	type teacherData struct {
+		name     string
+		dayCount [7]int
+	}
+	data := make(map[uint]*teacherData)
+
+	for _, e := range entries {
+		td, ok := data[e.TeacherID]
+		if !ok {
+			name := teacherMap[e.TeacherID]
+			if name == "" {
+				name = fmt.Sprintf("教师#%d", e.TeacherID)
+			}
+			td = &teacherData{name: name}
+			data[e.TeacherID] = td
+		}
+		td.dayCount[int(e.DayOfWeek)]++
+	}
+
+	result := make([]TeacherWorkloadInfo, 0, len(data))
+	for tid, td := range data {
+		total := 0
+		maxD, minD := 0, 999
+		busy := 0
+		dist := make([]int, 7)
+		for d := 0; d < 7; d++ {
+			cnt := td.dayCount[d]
+			dist[d] = cnt
+			total += cnt
+			if cnt > maxD {
+				maxD = cnt
+			}
+			if cnt < minD {
+				minD = cnt
+			}
+			if cnt > 0 {
+				busy++
+			}
+		}
+		if total == 0 {
+			continue
+		}
+
+		// Balance score: penalize excess beyond ceil(total/7) on any day
+		ideal := (total + 6) / 7 // ceil(total / 7)
+		excess := 0
+		for _, cnt := range dist {
+			if cnt > ideal {
+				excess += cnt - ideal
+			}
+		}
+		balanceScore := math.Round((1.0-float64(excess)/math.Max(float64(total), 1))*10000) / 100
+		if balanceScore < 0 {
+			balanceScore = 0
+		}
+		if balanceScore > 100 {
+			balanceScore = 100
+		}
+
+		// Generate suggestion
+		suggestion := ""
+		if maxD >= 5 {
+			suggestion = fmt.Sprintf("单日课时过多(%d节)，建议控制在4节以内", maxD)
+		} else if balanceScore < 50 {
+			suggestion = "课程分布不均，建议分散到更多日期"
+		} else if busy == 1 && total > 2 {
+			suggestion = "所有课时集中在同一天"
+		}
+
+		result = append(result, TeacherWorkloadInfo{
+			TeacherID:         tid,
+			TeacherName:       td.name,
+			TotalSessions:     total,
+			DailyDistribution: dist,
+			BusyDays:          busy,
+			MaxDaily:          maxD,
+			MinDaily:          minD,
+			BalanceScore:      balanceScore,
+			Suggestion:        suggestion,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].BalanceScore < result[j].BalanceScore
+	})
+
+	return result
+}

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { NTag, NButton, NEmpty, NSpin, NProgress, NCard } from 'naive-ui'
 import { useAppStore } from '../stores/app'
+import type { TeacherWorkloadInfo } from '../types'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 
@@ -11,6 +12,7 @@ const appStore = useAppStore()
 const loading = ref(false)
 const snapshots = ref<any[]>([])
 const selectedSnapshot = ref<any | null>(null)
+const workloadData = ref<TeacherWorkloadInfo[]>([])
 
 // ---- Data ----
 interface Snapshot {
@@ -82,6 +84,17 @@ function selectSnapshot(snapshot: any) {
     selectedSnapshot.value = snapshot
   } else {
     loadSnapshotDetail(snapshot)
+  }
+  loadWorkload()
+}
+
+async function loadWorkload() {
+  try {
+    const { AnalyzeTeacherWorkload } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
+    const data = await AnalyzeTeacherWorkload(appStore.semesterFilter)
+    workloadData.value = data || []
+  } catch {
+    workloadData.value = []
   }
 }
 
@@ -428,6 +441,40 @@ onMounted(() => {
             </div>
           </n-card>
 
+          <!-- Teacher workload analysis -->
+          <n-card title="教师负载分析" size="small" class="workload-card" v-if="workloadData.length > 0">
+            <div class="workload-table">
+              <div class="wl-header">
+                <span class="wl-name">教师</span>
+                <span class="wl-num">总课时</span>
+                <span class="wl-dist">每日分布</span>
+                <span class="wl-num">最多/日</span>
+                <span class="wl-score">均衡</span>
+                <span class="wl-tip">建议</span>
+              </div>
+              <div
+                v-for="w in workloadData"
+                :key="w.teacherId"
+                class="wl-row"
+                :class="{ 'wl-warn': w.balanceScore < 50 }"
+              >
+                <span class="wl-name">{{ w.teacherName }}</span>
+                <span class="wl-num">{{ w.totalSessions }}</span>
+                <span class="wl-dist">
+                  <span v-for="(c, d) in w.dailyDistribution" :key="d"
+                    class="wl-dot" :class="{ active: c > 0 }"
+                    :title="'周' + ['一','二','三','四','五','六','日'][d] + ': ' + c + '节'"
+                  >{{ c || '·' }}</span>
+                </span>
+                <span class="wl-num" :class="{ warn: w.maxDaily >= 5 }">{{ w.maxDaily }}</span>
+                <span class="wl-score" :style="{ color: w.balanceScore >= 80 ? '#18a058' : w.balanceScore >= 50 ? '#f0a020' : '#d03050' }">
+                  {{ w.balanceScore.toFixed(0) }}
+                </span>
+                <span class="wl-tip">{{ w.suggestion || '—' }}</span>
+              </div>
+            </div>
+          </n-card>
+
           <!-- Hard constraint status -->
           <n-card title="硬约束合规" size="small" class="check-card">
             <div class="check-items">
@@ -708,6 +755,38 @@ onMounted(() => {
   color: var(--b3-text-color-1);
   line-height: 1.5;
 }
+
+/* Workload analysis */
+.workload-table {
+  font-size: 13px;
+}
+
+.wl-header, .wl-row {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--b3-border-color);
+  align-items: center;
+}
+
+.wl-header {
+  font-weight: 600;
+  color: var(--b3-text-color-2);
+  font-size: 12px;
+}
+
+.wl-row.wl-warn {
+  background: rgba(208, 48, 80, 0.04);
+}
+
+.wl-name { width: 70px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-num  { width: 42px; text-align: center; flex-shrink: 0; }
+.wl-dist { width: 120px; flex-shrink: 0; display: flex; gap: 4px; justify-content: center; }
+.wl-dot  { font-size: 11px; color: var(--b3-text-color-3); min-width: 12px; text-align: center; }
+.wl-dot.active { color: var(--b3-theme-primary); font-weight: 700; }
+.wl-score { width: 38px; text-align: center; font-weight: 700; flex-shrink: 0; }
+.wl-tip  { flex: 1; font-size: 12px; color: var(--b3-text-color-2); }
+.wl-num.warn { color: #d03050; font-weight: 700; }
 
 .check-items {
   display: flex;

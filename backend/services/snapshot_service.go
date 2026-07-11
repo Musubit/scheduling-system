@@ -366,3 +366,19 @@ func (s *SnapshotService) CompareSnapshots(aID, bID uint) (*SnapshotCompareResul
 	}
 	return res, nil
 }
+
+// AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
+// Pure post-hoc analysis — does not affect scoring or solver behaviour.
+func (s *SnapshotService) AnalyzeTeacherWorkload(semester string) ([]TeacherWorkloadInfo, error) {
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester = ?", semester).
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("load entries: %w", err)
+	}
+
+	var teachers []models.Teacher
+	s.db.Find(&teachers)
+
+	scorer := NewScoringService()
+	return scorer.AnalyzeTeacherWorkload(entries, teachers), nil
+}
