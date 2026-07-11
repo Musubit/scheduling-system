@@ -71,7 +71,6 @@ export const useScheduleStore = defineStore('schedule', () => {
     selectedClassId.value = null
   }
 
-  const totalCourses = computed(() => entries.value.length)
   const filteredCount = computed(() => displayEntries.value.length)
 
   function getEntryAt(day: number, period: number): ScheduleEntry | undefined {
@@ -94,7 +93,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   return {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
-    entries, displayEntries, totalCourses, filteredCount, isLoading,
+    entries, displayEntries, filteredCount, isLoading,
     perspective, selectedTeacherId, selectedClassroomId, selectedClassId,
     setPerspective,
     getEntryAt, loadSchedule,

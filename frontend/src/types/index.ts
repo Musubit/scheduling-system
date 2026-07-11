@@ -83,13 +83,6 @@ export interface TeachingTask {
   classes?: TeachingTaskClass[]
 }
 
-/** 可合班建议组 */
-export interface MergeableGroup {
-  courseName: string
-  teacherName: string
-  tasks: TeachingTask[]
-  classGroups: ClassGroup[]
-}
 
 /** 排课条目 */
 export interface ScheduleEntry {
@@ -220,13 +213,4 @@ export interface ScoreBreakdown {
   weekendAvoid: number
   pePeriodPref?: number
   studentFatigue?: number
-}
-
-/** 冲突 */
-export interface Conflict {
-  id: number
-  type: string
-  description: string
-  severity: 'error' | 'warning'
-  details: Record<string, any>
 }

@@ -2,7 +2,6 @@
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS, DAY_NAMES, PERIODS } from '../types'
-import type { TeachingTask } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/backend/services/resourceservice'
 import * as TS from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
@@ -783,14 +782,6 @@ function downloadTemplate() {
   overflow: auto;
 }
 
-.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: var(--b3-theme-on-surface);
-  font-size: 14px;
-}
 
 .teaching-task-area {
   display: flex;

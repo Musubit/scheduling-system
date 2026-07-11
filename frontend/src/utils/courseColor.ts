@@ -16,12 +16,3 @@ export function courseColorStyle(courseId?: number): Record<string, string> {
     backgroundColor: `hsl(${hue.toFixed(1)}, 60%, 93%)`,
   }
 }
-
-/**
- * Returns just the solid base color (for legends, dots, etc.).
- */
-export function courseColor(courseId?: number): string {
-  const id = courseId && courseId > 0 ? courseId : 0
-  const hue = (((id * 137.508) % 360) + 360) % 360
-  return `hsl(${hue.toFixed(1)}, 58%, 42%)`
-}

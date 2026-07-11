@@ -118,7 +118,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   // Constraint weights (0-100 per constraint)
   const constraintWeights = ref<Record<string, number>>({ ...CONSTRAINT_PRESETS[0].weights })
   const activePreset = ref<string>('balanced')
-  const showAdvanced = ref(false)
   const engine = ref<string>('auto')
   const activeSemesterId = ref<number>(0)
   const activeSemesterName = ref<string>('')
@@ -287,8 +286,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     isRunning.value = false
   }
 
-  function stopScheduling() { isRunning.value = false }
-
   // Initialize — deferred to async to avoid blocking render
   function init() {
     ensureLockedSlots()
@@ -299,11 +296,11 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
   return {
     config, constraintOptions,
-    constraintWeights, activePreset, showAdvanced, engine, engineOptions,
+    constraintWeights, activePreset, engine, engineOptions,
     activeSemesterId, activeSemesterName, semesters, selectedSemesterId,
     CONSTRAINT_PRESETS,
     isRunning, progress, result, logs, progressText,
-    toggleConstraint, resetProgress, startScheduling, stopScheduling,
+    toggleConstraint, resetProgress, startScheduling,
     applyPreset,
   }
 })

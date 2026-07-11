@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { NSwitch, NButton, NInput, NInputNumber, NModal, NForm, NFormItem, NSelect, NSpace, NDatePicker } from 'naive-ui'
+import { NSwitch, NButton, NInput, NModal, NForm, NFormItem, NSpace } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 
 const appStore = useAppStore()

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Teacher, Classroom, Course, ClassGroup, TeachingTask } from '@/types'
-import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups, GetActiveSemester } from '../../bindings/scheduling-system/backend/services/resourceservice'
+import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups } from '../../bindings/scheduling-system/backend/services/resourceservice'
 import { ListTeachingTasks } from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
 import { useAppStore } from './app'
 

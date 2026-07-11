@@ -334,18 +334,6 @@ function isHighlighted(e: ScheduleEntry): boolean {
   z-index: 2;
 }
 
-.tl-break-tick {
-  position: absolute;
-  transform: translateX(-50%);
-  z-index: 2;
-}
-
-.tl-break-tick-label {
-  font-size: 9px;
-  color: var(--b3-theme-on-surface-light);
-  opacity: 0.7;
-}
-
 /* 行 */
 .tl-row {
   display: flex;

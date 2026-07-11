@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, h } from 'vue'
+import { ref, computed } from 'vue'
 import { useScheduleStore } from '../stores/schedule'
 import { useResourceStore } from '../stores/resource'
 import WeekView from '../components/schedule/WeekView.vue'

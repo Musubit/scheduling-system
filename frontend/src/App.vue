@@ -28,18 +28,23 @@ const appLoading = ref(true)
 
 // Load data from Go backend on startup — sequential to avoid semester race
 onMounted(async () => {
-  // 1. Load semesters first (initSemester may have raced with Wails backend)
-  await appStore.loadSemesters()
-  // 2. Ensure semesterFilter is set
-  if (!appStore.semesterFilter && appStore.semesterOptions.length > 0) {
-    appStore.semesterFilter = appStore.semesterOptions[0].value
+  try {
+    // 1. Load semesters first (initSemester may have raced with Wails backend)
+    await appStore.loadSemesters()
+    // 2. Ensure semesterFilter is set
+    if (!appStore.semesterFilter && appStore.semesterOptions.length > 0) {
+      appStore.semesterFilter = appStore.semesterOptions[0].value
+    }
+    // 3. Now load resources and schedule with the correct semester
+    await Promise.all([
+      resourceStore.loadAll(),
+      scheduleStore.loadSchedule(appStore.semesterFilter),
+    ])
+  } catch (err) {
+    console.error('App init failed:', err)
+  } finally {
+    appLoading.value = false
   }
-  // 3. Now load resources and schedule with the correct semester
-  await Promise.all([
-    resourceStore.loadAll(),
-    scheduleStore.loadSchedule(appStore.semesterFilter),
-  ])
-  appLoading.value = false
 })
 
 // Watch semester changes → reload schedule
@@ -60,7 +65,7 @@ const themeOverrides = computed(() => ({
     primaryColor: '#3575f0',
     primaryColorHover: '#5b8af7',
     primaryColorPressed: '#2b62d0',
-    primaryColorSuppl: '#ff9200',
+    primaryColorSuppl: '#8ab4f8',
     bodyColor: isDark.value ? '#1e1e1e' : '#ffffff',
     cardColor: isDark.value ? '#262626' : '#f6f6f6',
     modalColor: isDark.value ? '#1e1e1e' : '#ffffff',

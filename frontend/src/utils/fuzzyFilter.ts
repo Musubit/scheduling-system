@@ -12,5 +12,3 @@ export function fuzzyFilter(pattern: string, option: { label: string; value: any
   }
   return pi === p.length
 }
-
-export type { SelectFilter } from 'naive-ui'

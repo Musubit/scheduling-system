@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onUnmounted, watch } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
-import { NButton, NSelect, NCheckbox, NProgress, NTag, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
+import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { fuzzyFilter } from '../utils/fuzzyFilter'
 
@@ -13,7 +13,6 @@ const store = useSchedulingStore()
 const appStore = useAppStore()
 const uiStore = useUiStore()
 const dialog = useDialog()
-const showAdvanced = ref(false)
 
 // Step indicator
 const currentStep = computed(() => {
@@ -51,43 +50,46 @@ const totalConflicts = computed(() => {
 })
 
 // Watch for pending navigation after scheduling completes
-onMounted(() => {
-  watch(() => uiStore.pendingScheduleNav, (val) => {
-    if (val) {
-      dialog.info({
-        title: '排课完成',
-        content: '排课已完成，是否跳转到课表查看结果？',
-        positiveText: '查看课表',
-        negativeText: '留在本页',
-        onPositiveClick: () => {
-          uiStore.clearScheduleNav()
-          appStore.navigateTo('schedule', '周视图课表')
-        },
-        onNegativeClick: () => {
-          uiStore.clearScheduleNav()
-        },
-        onClose: () => {
-          uiStore.clearScheduleNav()
-        },
-      })
-    }
-  })
+const stopWatchNav = watch(() => uiStore.pendingScheduleNav, (val) => {
+  if (val) {
+    dialog.info({
+      title: '排课完成',
+      content: '排课已完成，是否跳转到课表查看结果？',
+      positiveText: '查看课表',
+      negativeText: '留在本页',
+      onPositiveClick: () => {
+        uiStore.clearScheduleNav()
+        appStore.navigateTo('schedule', '周视图课表')
+      },
+      onNegativeClick: () => {
+        uiStore.clearScheduleNav()
+      },
+      onClose: () => {
+        uiStore.clearScheduleNav()
+      },
+    })
+  }
+})
 
-  watch(() => uiStore.pendingScheduleError, (msg) => {
-    if (msg) {
-      dialog.error({
-        title: '排课失败',
-        content: msg,
-        positiveText: '知道了',
-        onPositiveClick: () => {
-          uiStore.clearScheduleError()
-        },
-        onClose: () => {
-          uiStore.clearScheduleError()
-        },
-      })
-    }
-  })
+const stopWatchError = watch(() => uiStore.pendingScheduleError, (msg) => {
+  if (msg) {
+    dialog.error({
+      title: '排课失败',
+      content: msg,
+      positiveText: '知道了',
+      onPositiveClick: () => {
+        uiStore.clearScheduleError()
+      },
+      onClose: () => {
+        uiStore.clearScheduleError()
+      },
+    })
+  }
+})
+
+onUnmounted(() => {
+  stopWatchNav()
+  stopWatchError()
 })
 
 // Constraint weight labels for sliders

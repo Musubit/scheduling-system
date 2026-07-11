@@ -595,7 +595,7 @@ def solve_scheduling(data):
                             if int(us.get("dayOfWeek", -1)) == p_day and periods_overlap(p_start, SPAN, int(us.get("startPeriod", 0)), us.get("span", 2)):
                                 blocked_positions.add(p)
                     supply = len(VALID_POSITIONS) - len(blocked_positions)
-                except:
+                except Exception:
                     pass
             if demand > supply:
                 conflicts.append(f"教师{teacher.get('name', tid)}: 需排{demand}会话, 可用{supply}时段")
@@ -611,7 +611,7 @@ def solve_scheduling(data):
         # Total demand vs total supply
         total_demand = sum(task_sessions)
         total_supply_per_slot = n_rooms
-        conflicts.append(f"总需求: {total_demand}会话, {n_rooms}教室×{len(VALID_POSITIONS)}时段={total_demand * len(VALID_POSITIONS)}理论容量")
+        conflicts.append(f"总需求: {total_demand}会话, {n_rooms}教室×{len(VALID_POSITIONS)}时段={n_rooms * len(VALID_POSITIONS)}理论容量")
 
     # Build unplaced-session diagnostics (separate from constraint conflicts).
     # Triggered when optimal/feasible but not all sessions placed — resource bottleneck.
