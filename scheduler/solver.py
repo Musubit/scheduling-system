@@ -217,8 +217,10 @@ def solve_scheduling(data):
                 for r in range(n_rooms)
             ) <= 1)
 
-    # HC2 — Room no-overlap
-    for r in range(n_rooms):
+    # HC2 — Room no-overlap (skip shared venues like 体育馆)
+    for r, room in enumerate(classrooms):
+        if room.get("type") == "体育馆":
+            continue  # shared venues can host multiple classes simultaneously
         for p in VALID_POSITIONS:
             model.Add(sum(
                 X[(i, s, r, p)]
@@ -256,11 +258,13 @@ def solve_scheduling(data):
                             model.Add(X[(i, s, r, p)] == 0)
                         break
 
-    # HC5 — Room capacity
+    # HC5 — Room capacity (skip shared venues like 体育馆)
     for i, total_students in enumerate(task_total_students):
         if total_students <= 0:
             continue
         for r, room in enumerate(classrooms):
+            if room.get("type") == "体育馆":
+                continue  # sports venues have unlimited effective capacity
             if room["capacity"] < total_students:
                 for s in range(task_sessions[i]):
                     for p in VALID_POSITIONS:

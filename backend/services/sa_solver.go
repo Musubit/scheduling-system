@@ -275,8 +275,20 @@ func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
 
 func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 	day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
+	// Find the classroom to check if it's a shared venue (体育馆)
+	isShared := false
+	for _, room := range ctx.classrooms {
+		if room.ID == e.ClassroomID && room.Type == "体育馆" {
+			isShared = true
+			break
+		}
+	}
+	if !isShared {
+		for p := start; p < start+span; p++ {
+			ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
+		}
+	}
 	for p := start; p < start+span; p++ {
-		ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
 		ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
 	}
 	// Add class group occupancy for all classes in the teaching task
@@ -383,9 +395,13 @@ func (ctx *schedulingContext) isTeacherUnavailable(teacherID uint, day, start, s
 }
 
 // canRoomFitCapacity checks if a classroom's capacity is sufficient for the given teaching task.
+// Sports venues (体育馆) are shared spaces that can accommodate any number of students.
 func (ctx *schedulingContext) canRoomFitCapacity(classroom models.Classroom, taskData *teachingTaskData) bool {
 	if taskData.TotalStudents <= 0 {
 		return true
+	}
+	if classroom.Type == "体育馆" {
+		return true // sports venues have unlimited effective capacity
 	}
 	return classroom.Capacity >= taskData.TotalStudents
 }

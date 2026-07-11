@@ -211,6 +211,8 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 					continue
 				}
 
+			// Check room conflict (skip for shared venues like 体育馆)
+			if room.Type != "体育馆" {
 				roomBusy := false
 				for p := start; p < start+span; p++ {
 					key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
@@ -222,6 +224,7 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 				if roomBusy {
 					continue
 				}
+			}
 
 				// All constraints satisfied, create entry
 				entry := models.ScheduleEntry{
@@ -238,10 +241,12 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 				}
 				ctx.entries = append(ctx.entries, entry)
 
-				// Occupy room, teacher, and all class groups
-				for p := start; p < start+span; p++ {
-					ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
-					ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
+		// Occupy room (skip for shared venues), teacher, and all class groups
+		for p := start; p < start+span; p++ {
+			if room.Type != "体育馆" {
+				ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
+			}
+			ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
 				}
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {

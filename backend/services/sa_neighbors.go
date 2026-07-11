@@ -133,16 +133,19 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 			continue
 		}
 
-		roomBusy := false
-		for p := start; p < start+span; p++ {
-			key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
-			if ctx.roomOcc[key] {
-				roomBusy = true
-				break
+		// Check room busy (skip for shared venues like 体育馆)
+		if room.Type != "体育馆" {
+			roomBusy := false
+			for p := start; p < start+span; p++ {
+				key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+				if ctx.roomOcc[key] {
+					roomBusy = true
+					break
+				}
 			}
-		}
-		if roomBusy {
-			continue
+			if roomBusy {
+				continue
+			}
 		}
 
 		// Apply move
@@ -234,11 +237,20 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 		}
 	}
 
-	// Check room busy
-	for p := start; p < start+span; p++ {
-		key := fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)
-		if ctx.roomOcc[key] {
-			return true
+	// Check room busy (skip for shared venues like 体育馆)
+	isShared := false
+	for _, room := range ctx.classrooms {
+		if room.ID == e.ClassroomID && room.Type == "体育馆" {
+			isShared = true
+			break
+		}
+	}
+	if !isShared {
+		for p := start; p < start+span; p++ {
+			key := fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)
+			if ctx.roomOcc[key] {
+				return true
+			}
 		}
 	}
 

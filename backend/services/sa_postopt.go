@@ -73,8 +73,11 @@ func (s *SASolver) PostOptimize(
 		return false
 	}
 
-	// Helper: check room capacity
+	// Helper: check room capacity (sports venues have unlimited capacity)
 	canRoomFit := func(room models.Classroom, td teachingTaskData) bool {
+		if room.Type == "体育馆" {
+			return true
+		}
 		return td.TotalStudents <= 0 || room.Capacity >= td.TotalStudents
 	}
 
@@ -99,6 +102,14 @@ func (s *SASolver) PostOptimize(
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	rng.Shuffle(len(scored), func(i, j int) { scored[i], scored[j] = scored[j], scored[i] })
 
+	// Build a quick lookup for shared rooms (体育馆 have unlimited capacity and can be shared)
+	sharedRoom := make(map[uint]bool)
+	for _, room := range classrooms {
+		if room.Type == "体育馆" {
+			sharedRoom[room.ID] = true
+		}
+	}
+
 	// Build current occupancy from all OTHER entries (excluding the one being optimized)
 	buildOcc := func(excludeIdx int) (roomOcc, teacherOcc, classOcc map[string]bool) {
 		roomOcc = make(map[string]bool)
@@ -109,8 +120,12 @@ func (s *SASolver) PostOptimize(
 				continue
 			}
 			day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
+			if !sharedRoom[e.ClassroomID] {
+				for p := start; p < start+span; p++ {
+					roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
+				}
+			}
 			for p := start; p < start+span; p++ {
-				roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
 				teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
 			}
 			if td, ok := taskMap[*e.TeachingTaskID]; ok {
@@ -231,14 +246,16 @@ func (s *SASolver) PostOptimize(
 						continue
 					}
 
-					roomBusy := false
+				roomBusy := false
+				if room.Type != "体育馆" {
 					for p := start; p < start+span; p++ {
 						if roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] {
 							roomBusy = true
 							break
 						}
 					}
-					if roomBusy {
+				}
+				if roomBusy {
 						continue
 					}
 
