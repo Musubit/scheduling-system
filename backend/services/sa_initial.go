@@ -202,10 +202,14 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 			ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 			for _, room := range rooms {
-				// Check room type
-				if requiredRoomType != "" && room.Type != requiredRoomType {
+			// Check room type
+			if requiredRoomType != "" {
+				if room.Type != requiredRoomType {
 					continue
 				}
+			} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
+				continue // regular courses cannot use specialty rooms
+			}
 				// Check room capacity
 				if !ctx.canRoomFitCapacity(room, &td) {
 					continue

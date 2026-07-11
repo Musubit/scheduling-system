@@ -124,8 +124,12 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 		// Check room type
 		if td := ctx.findTaskDataByEntry(entry); td != nil {
 			requiredRoomType := ctx.getRequiredRoomType(td.Task.Course.Name)
-			if requiredRoomType != "" && room.Type != requiredRoomType {
-				continue
+			if requiredRoomType != "" {
+				if room.Type != requiredRoomType {
+					continue
+				}
+			} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
+				continue // regular courses cannot use specialty rooms
 			}
 		}
 		// Check room capacity

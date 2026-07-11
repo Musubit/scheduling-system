@@ -296,16 +296,23 @@ def solve_scheduling(data):
                             model.Add(X[(i, s, r, p)] == 0)
 
     # HC7 — Room type matching
+    SPECIALTY_ROOM_TYPES = {"体育馆", "实验室", "机房"}
     for i in range(n_tasks):
         req_type = task_room_type[i]
-        if not req_type:
-            continue
         for r, room in enumerate(classrooms):
             room_type = room.get("type", "")
-            if room_type and room_type != req_type:
-                for s in range(task_sessions[i]):
-                    for p in VALID_POSITIONS:
-                        model.Add(X[(i, s, r, p)] == 0)
+            if req_type:
+                # Specialty course: only allowed in matching rooms
+                if room_type and room_type != req_type:
+                    for s in range(task_sessions[i]):
+                        for p in VALID_POSITIONS:
+                            model.Add(X[(i, s, r, p)] == 0)
+            else:
+                # Regular course: forbidden in specialty rooms
+                if room_type in SPECIALTY_ROOM_TYPES:
+                    for s in range(task_sessions[i]):
+                        for p in VALID_POSITIONS:
+                            model.Add(X[(i, s, r, p)] == 0)
 
     # HC8 — Same-task sessions don't overlap each other
     for i in range(n_tasks):

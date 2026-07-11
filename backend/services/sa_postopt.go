@@ -237,10 +237,14 @@ func (s *SASolver) PostOptimize(
 					requiredRoomType = roomTypeForCourse(td.Task.Course.Name)
 				}
 				for _, room := range classrooms {
-					// Check room type
-					if requiredRoomType != "" && room.Type != requiredRoomType {
+				// Check room type
+				if requiredRoomType != "" {
+					if room.Type != requiredRoomType {
 						continue
 					}
+				} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
+					continue // regular courses cannot use specialty rooms
+				}
 					// Check room capacity
 					if tdOk && !canRoomFit(room, td) {
 						continue
