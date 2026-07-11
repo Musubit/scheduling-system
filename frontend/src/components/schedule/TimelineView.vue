@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { DAY_NAMES, PERIODS } from '../../types'
 import type { ScheduleEntry } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
@@ -97,11 +97,12 @@ const AXIS_TICKS = P_INFOS.map((p, i) => ({
   idx: i + 1,
 }))
 
-// 休息带边界刻度（11:50 / 14:00 / 17:30 / 18:30）
+// 休息带边界刻度（过滤掉与 AXIS_TICKS 重复的标签，如 14:00 / 18:30）
+const AXIS_LABEL_SET = new Set(AXIS_TICKS.map(t => t.label))
 const BREAK_TICKS = BREAK_DEFS.flatMap(d => [
   { label: formatAbs(d.absStart), pct: absToPct(d.absStart), type: 'break-start' as const },
   { label: formatAbs(d.absEnd), pct: absToPct(d.absEnd), type: 'break-end' as const },
-])
+]).filter(bt => !AXIS_LABEL_SET.has(bt.label))
 
 function formatAbs(min: number): string {
   const h = Math.floor(min / 60)
@@ -123,13 +124,20 @@ const dayCourses = computed(() => {
   return map
 })
 
-// 当前时间红线位置
-const nowLinePct = computed(() => {
+// 当前时间红线位置（ref + setInterval，因为 new Date() 不是响应式依赖）
+const nowLinePct = ref<number | null>(null)
+
+function updateNowLine() {
   const now = new Date()
   const min = now.getHours() * 60 + now.getMinutes()
   const pct = absToPct(min)
-  return pct >= 0 && pct <= 100 ? pct : null
-})
+  nowLinePct.value = (pct >= 0 && pct <= 100) ? pct : null
+}
+updateNowLine()
+const nowLineTimer = setInterval(updateNowLine, 60000) // 每分钟更新
+
+// 组件卸载时清理定时器
+onUnmounted(() => clearInterval(nowLineTimer))
 
 // 选中的课程（用于高亮同课程）
 const hoveredCourseId = ref<number | null>(null)
