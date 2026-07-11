@@ -143,7 +143,7 @@ const perCategoryMax = computed(() => {
   if ((s.weekendAvoid || 0) > 0) count++
   if ((s.pePeriodPref || 0) > 0) count++
   if ((s.studentFatigue || 0) > 0) count++
-  return count > 0 ? 100 / count : 25
+  return count > 0 ? Math.round(100 / count * 100) / 100 : 25
 })
 
 // Sort details by "拖后腿" (most penalties first)
@@ -239,7 +239,7 @@ onMounted(() => {
                 <span>教师偏好</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.teacherPref / perCategoryMax) * 100"
+                  :percentage="Math.round((selectedSnapshot.teacherPref / perCategoryMax) * 1000) / 10"
                   :color="scoreColor(selectedSnapshot.teacherPref / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -249,7 +249,7 @@ onMounted(() => {
                 <span>课程间隔</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.courseSpacing / perCategoryMax) * 100"
+                  :percentage="Math.round((selectedSnapshot.courseSpacing / perCategoryMax) * 1000) / 10"
                   :color="scoreColor(selectedSnapshot.courseSpacing / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -259,7 +259,7 @@ onMounted(() => {
                 <span>到校天数</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.teacherDays / perCategoryMax) * 100"
+                  :percentage="Math.round((selectedSnapshot.teacherDays / perCategoryMax) * 1000) / 10"
                   :color="scoreColor(selectedSnapshot.teacherDays / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -269,7 +269,7 @@ onMounted(() => {
                 <span>低楼层</span>
                 <n-progress
                   type="line"
-                  :percentage="(selectedSnapshot.lowFloorPref / perCategoryMax) * 100"
+                  :percentage="Math.round((selectedSnapshot.lowFloorPref / perCategoryMax) * 1000) / 10"
                   :color="scoreColor(selectedSnapshot.lowFloorPref / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -279,7 +279,7 @@ onMounted(() => {
                 <span>周末避让</span>
                 <n-progress
                   type="line"
-                  :percentage="((selectedSnapshot.weekendAvoid || 0) / perCategoryMax) * 100"
+                  :percentage="Math.round(((selectedSnapshot.weekendAvoid || 0) / perCategoryMax) * 1000) / 10"
                   :color="scoreColor((selectedSnapshot.weekendAvoid || 0) / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -289,7 +289,7 @@ onMounted(() => {
                 <span>体育课时段</span>
                 <n-progress
                   type="line"
-                  :percentage="((selectedSnapshot.pePeriodPref || 0) / perCategoryMax) * 100"
+                  :percentage="Math.round(((selectedSnapshot.pePeriodPref || 0) / perCategoryMax) * 1000) / 10"
                   :color="scoreColor((selectedSnapshot.pePeriodPref || 0) / perCategoryMax * 100)"
                   :height="16"
                 />
@@ -299,7 +299,7 @@ onMounted(() => {
                 <span>学生疲劳度</span>
                 <n-progress
                   type="line"
-                  :percentage="((selectedSnapshot.studentFatigue || 0) / perCategoryMax) * 100"
+                  :percentage="Math.round(((selectedSnapshot.studentFatigue || 0) / perCategoryMax) * 1000) / 10"
                   :color="scoreColor((selectedSnapshot.studentFatigue || 0) / perCategoryMax * 100)"
                   :height="16"
                 />

@@ -24,6 +24,17 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   const entries = ref<ScheduleEntry[]>([])
 
+  // Parse weeks string like "1-16" and check if the given week falls within
+  function isInWeek(entry: ScheduleEntry, week: number): boolean {
+    if (!entry.weeks) return true
+    const parts = entry.weeks.split('-')
+    if (parts.length !== 2) return true
+    const start = parseInt(parts[0], 10)
+    const end = parseInt(parts[1], 10)
+    if (isNaN(start) || isNaN(end)) return true
+    return week >= start && week <= end
+  }
+
   // Perspective filtering — three dimensions: teacher, classroom, class
   const perspective = ref<'teacher' | 'classroom' | 'class'>('teacher')
   const selectedTeacherId = ref<number | null>(null)
@@ -32,13 +43,14 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   const displayEntries = computed(() => {
     if (perspective.value === 'teacher' && selectedTeacherId.value) {
-      return entries.value.filter(e => e.teacherId === selectedTeacherId.value)
+      return entries.value.filter(e => e.teacherId === selectedTeacherId.value && isInWeek(e, currentWeek.value))
     }
     if (perspective.value === 'classroom' && selectedClassroomId.value) {
-      return entries.value.filter(e => e.classroomId === selectedClassroomId.value)
+      return entries.value.filter(e => e.classroomId === selectedClassroomId.value && isInWeek(e, currentWeek.value))
     }
     if (perspective.value === 'class' && selectedClassId.value) {
       return entries.value.filter(e => {
+        if (!isInWeek(e, currentWeek.value)) return false
         // Check if entry's class group matches
         if (e.classGroupId === selectedClassId.value) return true
         // Also check via TeachingTask association

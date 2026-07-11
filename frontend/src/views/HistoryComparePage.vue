@@ -22,7 +22,7 @@ const result = ref<any | null>(null)
 // ---- Snapshot Select Options ----
 const snapshotOptions = computed(() =>
   snapshots.value.map((s: any) => ({
-    label: `#${s.ID} · ${s.solver || '-'} · 总分${s.totalScore} · ${formatTime(s.solveTimeMs)}`,
+    label: `#${s.ID} · ${s.solver || '-'} · 总分${(s.totalScore ?? 0).toFixed(1)} · ${formatTime(s.solveTimeMs)}`,
     value: s,
   }))
 )
@@ -211,7 +211,7 @@ onMounted(() => {
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">总分</span>
-                  <span class="stat-value">{{ result.a?.totalScore }}</span>
+                  <span class="stat-value">{{ result.a?.totalScore?.toFixed(1) }}</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">课时数</span>
@@ -246,7 +246,7 @@ onMounted(() => {
                 <div class="stat-row">
                   <span class="stat-label">总分变化</span>
                   <span class="stat-value" :style="{ color: scoreDeltaColor(result.scoreDelta) }">
-                    {{ result.scoreDelta > 0 ? '+' : '' }}{{ result.scoreDelta }}
+                    {{ result.scoreDelta > 0 ? '+' : '' }}{{ result.scoreDelta?.toFixed(1) }}
                   </span>
                 </div>
                 <div class="stat-row">
@@ -275,7 +275,7 @@ onMounted(() => {
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">总分</span>
-                  <span class="stat-value">{{ result.b?.totalScore }}</span>
+                  <span class="stat-value">{{ result.b?.totalScore?.toFixed(1) }}</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">课时数</span>
