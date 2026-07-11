@@ -27,22 +27,8 @@ const scoreColor = computed(() => {
   return 'var(--b3-theme-error)'
 })
 
-// Per-category max score（与后端 Go enabledCount 分组逻辑一致）
-const categoryMax = computed(() => {
-  const keys = store.config.constraints
-  if (!keys || keys.length === 0) return 25
-  // avoid_saturday + avoid_sunday → 合并为 1 类（周末避让）
-  let hasWeekend = keys.includes('avoid_saturday') || keys.includes('avoid_sunday')
-  let count = 0
-  if (keys.includes('teacher_preference')) count++
-  if (keys.includes('course_dispersed')) count++
-  if (keys.includes('teacher_days_limit')) count++
-  if (keys.includes('low_floor_preference')) count++
-  if (hasWeekend) count++
-  if (keys.includes('pe_preferred_periods')) count++
-  if (keys.includes('student_fatigue')) count++
-  return Math.round(100 / Math.max(count, 1) * 100) / 100
-})
+// PerCategoryMax — single source: computed by Go ScoreSchedule, returned in scoreDetail
+const categoryMax = computed(() => store.result?.scoreDetail?.perCategoryMax || 25)
 
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
 

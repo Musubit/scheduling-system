@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NTag, NButton, NEmpty, NSpin, NProgress, NCard } from 'naive-ui'
+import { NButton, NEmpty, NSpin, NProgress, NCard } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 import type { TeacherWorkloadInfo } from '../types'
 import { jsPDF } from 'jspdf'
@@ -181,7 +181,7 @@ async function exportPDF() {
 
   // DOM 渲染的标题头（避免 jsPDF 中文乱码）
   const dateStr = formatDate(snap.CreatedAt || snap.createdAt)
-  const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">排课验证报告</div><div style="font-size:12px;color:#888;margin-bottom:12px;">学期：${snap.semester || ''} · 院系：${snap.dept || '全校'}　|　生成时间：${dateStr}　|　${triggerLabel(snap.trigger)}</div>`
+	const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">${snap.name || '排课验证报告'}</div><div style="font-size:12px;color:#888;margin-bottom:12px;">学期：${snap.semester || ''} · 院系：${snap.dept || '全校'}　|　${dateStr}</div>`
   container.innerHTML = headerHtml
 
   // (4) 克隆报告主体
@@ -251,20 +251,8 @@ async function exportPDF() {
   }
 }
 
-// Compute perCategoryMax from the snapshot scores
-const perCategoryMax = computed(() => {
-  if (!selectedSnapshot.value) return 25
-  let count = 0
-  const s = selectedSnapshot.value
-  if (s.teacherPref > 0) count++
-  if (s.courseSpacing > 0) count++
-  if (s.teacherDays > 0) count++
-  if (s.lowFloorPref > 0) count++
-  if ((s.weekendAvoid || 0) > 0) count++
-  if ((s.pePeriodPref || 0) > 0) count++
-  if ((s.studentFatigue || 0) > 0) count++
-  return count > 0 ? Math.round(100 / count * 100) / 100 : 25
-})
+// PerCategoryMax — single source: computed by Go ScoreSchedule, stored in snapshot
+const perCategoryMax = computed(() => selectedSnapshot.value?.perCategoryMax || 25)
 
 // Sort details by "拖后腿" (most penalties first)
 const rankedDetails = computed(() => {
@@ -335,11 +323,7 @@ const rankedDetails = computed(() => {
 	  return tips
 	})
 
-const triggerLabel = (trigger: string) => {
-  return trigger === 'auto' ? '自动生成' : '手动生成'
-}
-
-const formatDate = (d: string) => {
+	const formatDate = (d: string) => {
   if (!d) return ''
   return new Date(d).toLocaleString('zh-CN')
 }
@@ -387,11 +371,9 @@ onMounted(() => {
             @click="selectSnapshot(snap)"
           >
             <button class="snap-delete-btn" @click.stop="deleteSnapshot(snap)" title="删除此快照">×</button>
-            <div class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</div>
+            <div class="snap-name">{{ snap.name || '未命名' }}</div>
             <div class="snap-meta">
-              <n-tag :type="snap.trigger === 'auto' ? 'info' : 'warning'" size="small">
-                {{ triggerLabel(snap.trigger) }}
-              </n-tag>
+              <span class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</span>
               <span class="snap-score" :style="{ color: scoreColor(snap.totalScore) }">
                 {{ snap.totalScore?.toFixed(2) }}分
               </span>
@@ -520,10 +502,9 @@ onMounted(() => {
 
           <!-- Print-only report header -->
           <div class="print-only print-header">
-            <h1>排课验证报告</h1>
+            <h1>{{ selectedSnapshot.name || '排课验证报告' }}</h1>
             <p>学期：{{ selectedSnapshot.semester }} · 院系：{{ selectedSnapshot.dept || '全校' }}</p>
-            <p>生成时间：{{ formatDate(selectedSnapshot.CreatedAt || selectedSnapshot.createdAt) }}</p>
-            <p>生成方式：{{ triggerLabel(selectedSnapshot.trigger) }}</p>
+            <p>{{ formatDate(selectedSnapshot.CreatedAt || selectedSnapshot.createdAt) }}</p>
           </div>
         </div>
       </div>
@@ -628,10 +609,19 @@ onMounted(() => {
   background: var(--b3-card-background);
 }
 
+.snap-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .snap-date {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--b3-text-color-2);
-  margin-bottom: 6px;
 }
 
 .snap-meta {

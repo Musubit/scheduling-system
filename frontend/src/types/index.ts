@@ -233,4 +233,6 @@ export interface ScoreBreakdown {
   weekendAvoid: number
   pePeriodPref?: number
   studentFatigue?: number
+  perCategoryMax: number
+  enabledCategoryCount: number
 }

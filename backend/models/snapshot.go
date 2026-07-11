@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 // Generated automatically after scheduling or manually by user request.
 type ScheduleSnapshot struct {
 	gorm.Model
+	Name     string `gorm:"size:100" json:"name"`     // 快照名称，创建时自动生成
 	Semester string `gorm:"index;size:50" json:"semester"`
 	Dept     string `gorm:"size:50" json:"dept"`     // 院系范围，空=全校
 	Trigger  string `gorm:"size:20" json:"trigger"`   // "auto" | "manual"
@@ -28,13 +30,20 @@ type ScheduleSnapshot struct {
 	TeacherDays    float64 `json:"teacherDays"`
 	LowFloorPref   float64 `json:"lowFloorPref"`
 	WeekendAvoid   float64 `json:"weekendAvoid"`
-	PePeriodPref   float64 `json:"pePeriodPref"`  // 体育课时段偏好
-	CapacityWarn   int     `json:"capacityWarn"`  // 容量不足警告数
+	PePeriodPref   float64 `json:"pePeriodPref"`   // 体育课时段偏好
+	StudentFatigue float64 `json:"studentFatigue"` // 学生连续疲劳度
+	CapacityWarn   int     `json:"capacityWarn"`   // 容量不足警告数
+
+	// Scoring configuration stored at snapshot time for reproducible re-scoring
+	EnabledConstraints string `gorm:"size:500" json:"enabledConstraints"` // JSON array
+	ScoreVersion       int    `json:"scoreVersion"`
 
 	// Statistics
-	TotalEntries int    `json:"totalEntries"`
-	SolveTimeMs  int64  `json:"solveTimeMs"`
-	Solver       string `gorm:"size:30" json:"solver"` // "simulated_annealing"
+	TotalEntries         int     `json:"totalEntries"`
+	SolveTimeMs          int64   `json:"solveTimeMs"`
+	Solver               string  `gorm:"size:30" json:"solver"`
+	PerCategoryMax       float64 `json:"perCategoryMax"`
+	EnabledCategoryCount int     `json:"enabledCategoryCount"`
 
 	// Linked details
 	Details []SnapshotDetail `gorm:"foreignKey:SnapshotID" json:"details,omitempty"`
@@ -78,4 +87,32 @@ func (s *ScheduleSnapshot) BeforeCreate(tx *gorm.DB) error {
 		s.CreatedAt = time.Now()
 	}
 	return nil
+}
+
+// TriggerLabel maps a trigger code to its human-readable label.
+// Extensible for future trigger types (import, restore, copy, etc.).
+func TriggerLabel(trigger string) string {
+	switch trigger {
+	case "manual":
+		return "手动生成"
+	case "auto":
+		return "自动排课"
+	default:
+		return trigger
+	}
+}
+
+// DefaultSnapshotName returns the auto-generated name for a snapshot.
+// Format: "{TriggerLabel} · yyyy-MM-dd HH:mm:ss"
+func DefaultSnapshotName(trigger string, t time.Time) string {
+	return fmt.Sprintf("%s · %s", TriggerLabel(trigger), t.Format("2006-01-02 15:04:05"))
+}
+
+// DisplayName returns the snapshot's display name, falling back to auto-generated
+// default if Name is empty. Pure function — does not mutate.
+func (s *ScheduleSnapshot) DisplayName() string {
+	if s.Name != "" {
+		return s.Name
+	}
+	return DefaultSnapshotName(s.Trigger, s.CreatedAt)
 }

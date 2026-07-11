@@ -250,10 +250,13 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 				saResult.Iterations, float64(saResult.ElapsedMs)))
 		}
 
+		// 构建评分上下文（复用至统一评分 + CreateSnapshot）
+		scoringCtx := NewScoringContext(config.Constraints, sportsCourseIDs, teachingTasks)
+
 		// 统一评分：OR-Tools 和 SA 路径共用同一个 ScoreBreakdown
 		{
 			scorer := NewScoringService()
-			breakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, config.Constraints, sportsCourseIDs, teachingTasks)
+			breakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, scoringCtx)
 			saResult.Score = breakdown.Total
 			result.Score = breakdown.Total
 			result.ScoreDetail = &breakdown
@@ -313,10 +316,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Auto-snapshot after scheduling
 	if s.snapshots != nil && len(saResult.Entries) > 0 {
 		_, snapErr := s.snapshots.CreateSnapshot(
-			config.Semester, config.Scope, "auto", "simulated_annealing",
-			saResult.Entries, teachers, classrooms, config.Constraints,
-			saResult.ElapsedMs, result.Conflicts,
-		)
+				config.Semester, config.Scope, "auto", "simulated_annealing",
+				saResult.Entries, teachers, classrooms,
+				scoringCtx,
+				saResult.ElapsedMs, result.Conflicts,
+			)
 		if snapErr != nil {
 			addLog("WARN 快照保存失败: " + snapErr.Error())
 		} else {

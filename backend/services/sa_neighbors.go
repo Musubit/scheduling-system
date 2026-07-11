@@ -324,7 +324,8 @@ func (ctx *schedulingContext) computeScore() float64 {
 	for i, td := range ctx.teachingTasks {
 		ttList[i] = td.Task
 	}
-	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.constraints, ctx.sportsCourseIDs, ttList)
+	scoringCtx := NewScoringContext(ctx.constraints, ctx.sportsCourseIDs, ttList)
+	breakdown := (&ScoringService{}).ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, scoringCtx)
 	return breakdown.Total
 }
 

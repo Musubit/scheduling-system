@@ -23,25 +23,24 @@ type ScoreBreakdown struct {
 	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层
 	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让
 	PePeriodPref  float64 `json:"pePeriodPref"`  // 体育课时段偏好
-	StudentFatigue float64 `json:"studentFatigue"` // 学生连续疲劳度
+	StudentFatigue       float64 `json:"studentFatigue"`
+	PerCategoryMax       float64 `json:"perCategoryMax"`
+	EnabledCategoryCount int     `json:"enabledCategoryCount"`
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
-// enabledConstraints: list of constraint keys to evaluate. If empty, all are enabled.
-// sportsCourseIDs: set of course IDs that are sports courses (for pe_preferred_periods).
-// teachingTasks: optional — needed for student_fatigue constraint; pass nil to skip fatigue scoring.
+// ctx provides enabled constraints, sports course IDs, and teaching tasks.
 // Returns a score from 0-100 with detailed breakdown.
-func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, enabledConstraints []string, sportsCourseIDs map[uint]bool, teachingTasks ...[]models.TeachingTask) ScoreBreakdown {
+func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, ctx ScoringContext) ScoreBreakdown {
 	breakdown := ScoreBreakdown{}
 
-	var ttList []models.TeachingTask
-	if len(teachingTasks) > 0 {
-		ttList = teachingTasks[0]
-	}
+	enabledConstraints := ctx.EnabledConstraints
+	ttList := ctx.TeachingTasks
+	sportsCourseIDs := ctx.SportsCourseIDs
 
 	if len(enabledConstraints) == 0 {
-		// Default: enable all
-		enabledConstraints = []string{"teacher_preference", "course_dispersed", "teacher_days_limit", "low_floor_preference"}
+		// Default: enable all known constraints
+		enabledConstraints = FullDefaultConstraints()
 	}
 
 	enabled := make(map[string]bool)
@@ -76,6 +75,8 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	if enabledCount == 0 {
 		perCategoryMax = 25.0
 	}
+	breakdown.PerCategoryMax = math.Round(perCategoryMax*100) / 100
+	breakdown.EnabledCategoryCount = enabledCount
 
 	// Build lookup maps
 	teacherMap := make(map[uint]models.Teacher)

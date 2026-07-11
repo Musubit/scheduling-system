@@ -277,6 +277,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             weekendAvoid: (goResult.scoreDetail as any).weekendAvoid || 0,
             pePeriodPref: (goResult.scoreDetail as any).pePeriodPref || 0,
             studentFatigue: (goResult.scoreDetail as any).studentFatigue || 0,
+            perCategoryMax: goResult.scoreDetail.perCategoryMax || 25,
+            enabledCategoryCount: goResult.scoreDetail.enabledCategoryCount || 4,
           } : undefined,
           logs: goResult.logs || [],
         }

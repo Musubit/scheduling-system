@@ -22,7 +22,7 @@ const result = ref<any | null>(null)
 // ---- Snapshot Select Options ----
 const snapshotOptions = computed(() =>
   snapshots.value.map((s: any) => ({
-    label: `#${s.ID} · ${s.solver || '-'} · 总分${(s.totalScore ?? 0).toFixed(1)} · ${formatTime(s.solveTimeMs)}`,
+    label: s.name || '未命名',
     value: s,
   }))
 )
@@ -36,9 +36,7 @@ function formatTime(ms: number): string {
 
 function formatDate(raw: string | Date): string {
   if (!raw) return '-'
-  const d = typeof raw === 'string' ? new Date(raw) : raw
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return new Date(raw).toLocaleString('zh-CN')
 }
 
 // ---- Data Loading ----
@@ -207,7 +205,7 @@ onMounted(() => {
               <NSpace vertical size="small">
                 <div class="stat-row">
                   <span class="stat-label">快照</span>
-                  <span class="stat-value">#{{ result.a?.ID }}</span>
+                  <span class="stat-value">{{ result.a?.name || '未命名' }}</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">总分</span>
@@ -271,7 +269,7 @@ onMounted(() => {
               <NSpace vertical size="small">
                 <div class="stat-row">
                   <span class="stat-label">快照</span>
-                  <span class="stat-value">#{{ result.b?.ID }}</span>
+                  <span class="stat-value">{{ result.b?.name || '未命名' }}</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">总分</span>

@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
@@ -23,30 +24,37 @@ func (s *SnapshotService) CreateSnapshot(
 	entries []models.ScheduleEntry,
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
-	constraints []string,
+	scoringCtx ScoringContext,
 	solveTimeMs int64,
 	conflictCount int,
 ) (*models.ScheduleSnapshot, error) {
 	scorer := NewScoringService()
-	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints, nil)
+	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
 
 	snapshot := &models.ScheduleSnapshot{
-		Semester:   semester,
-		Dept:       dept,
-		Trigger:    trigger,
+		Name:      models.DefaultSnapshotName(trigger, time.Now()),
+		Semester:  semester,
+		Dept:      dept,
+		Trigger:   trigger,
 		HardPassed: conflictCount == 0,
 
-		TotalScore:    breakdown.Total,
-		TeacherPref:   breakdown.TeacherPref,
-		CourseSpacing: breakdown.CourseSpacing,
-		TeacherDays:   breakdown.TeacherDays,
-		LowFloorPref:   breakdown.LowFloorPref,
-		WeekendAvoid:   breakdown.WeekendAvoid,
-		PePeriodPref:   breakdown.PePeriodPref,
+		TotalScore:        breakdown.Total,
+		TeacherPref:       breakdown.TeacherPref,
+		CourseSpacing:     breakdown.CourseSpacing,
+		TeacherDays:       breakdown.TeacherDays,
+		LowFloorPref:      breakdown.LowFloorPref,
+		WeekendAvoid:      breakdown.WeekendAvoid,
+		PePeriodPref:      breakdown.PePeriodPref,
+		StudentFatigue:    breakdown.StudentFatigue,
 
-		TotalEntries: len(entries),
-		SolveTimeMs:  solveTimeMs,
-		Solver:       solver,
+		EnabledConstraints: scoringCtx.MarshalStored(),
+		ScoreVersion:       scoringCtx.Version,
+
+		TotalEntries:         len(entries),
+		SolveTimeMs:          solveTimeMs,
+		Solver:               solver,
+		PerCategoryMax:       breakdown.PerCategoryMax,
+		EnabledCategoryCount: breakdown.EnabledCategoryCount,
 	}
 
 	// Build teacher-level details
@@ -151,12 +159,18 @@ func (s *SnapshotService) CreateSnapshot(
 }
 
 // GetSnapshots returns all snapshots for a semester.
+// Backfills Name for legacy snapshots that were created before the Name field existed.
 func (s *SnapshotService) GetSnapshots(semester string) ([]models.ScheduleSnapshot, error) {
 	var snapshots []models.ScheduleSnapshot
 	if err := s.db.Where("semester = ?", semester).
 		Order("created_at DESC").
 		Find(&snapshots).Error(); err != nil {
 		return nil, err
+	}
+	for i := range snapshots {
+		if snapshots[i].Name == "" {
+			snapshots[i].Name = snapshots[i].DisplayName()
+		}
 	}
 	return snapshots, nil
 }
@@ -168,10 +182,14 @@ func (s *SnapshotService) GetSnapshotWithDetails(id uint) (*models.ScheduleSnaps
 		First(&snapshot, id).Error(); err != nil {
 		return nil, err
 	}
+	if snapshot.Name == "" {
+		snapshot.Name = snapshot.DisplayName()
+	}
 	return &snapshot, nil
 }
 
 // CreateManualSnapshot generates a snapshot from the current schedule in the database.
+// It reads EnabledConstraints from the latest auto-snapshot (falling back to full defaults).
 func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.ScheduleSnapshot, error) {
 	var entries []models.ScheduleEntry
 	if err := s.db.Where("semester = ?", semester).
@@ -188,18 +206,27 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	var classrooms []models.Classroom
 	s.db.Find(&classrooms)
 
-	constraints := []string{"teacher_preference", "course_dispersed", "teacher_days_limit", "low_floor_preference"}
+	// Read EnabledConstraints from the latest auto-snapshot
+	storedConfig := readLatestStoredConfig(s.db, semester)
 
-		// Build sports course IDs
-		sportsCourseIDs := make(map[uint]bool)
-		for _, e := range entries {
-			if models.IsSportsCourse(e.Course.Name) {
-				sportsCourseIDs[e.CourseID] = true
-			}
+	// Build sports course IDs from entries
+	sportsCourseIDs := make(map[uint]bool)
+	for _, e := range entries {
+		if models.IsSportsCourse(e.Course.Name) {
+			sportsCourseIDs[e.CourseID] = true
 		}
+	}
+
+	// Load teaching tasks for student_fatigue scoring
+	var teachingTasks []models.TeachingTask
+	s.db.Where("semester_id IN (SELECT id FROM semesters WHERE name = ?)", semester).
+		Preload("Course").Preload("Teacher").Preload("Classes.ClassGroup").
+		Find(&teachingTasks)
+
+	scoringCtx := ScoringContextFromStored(storedConfig, sportsCourseIDs, teachingTasks)
 
 	scorer := NewScoringService()
-	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, constraints, sportsCourseIDs)
+	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
 
 	conflicts := 0
 	roomSlots := make(map[string]bool)
@@ -212,6 +239,7 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	}
 
 	snapshot := &models.ScheduleSnapshot{
+		Name:          models.DefaultSnapshotName("manual", time.Now()),
 		Semester:      semester,
 		Dept:          "全校",
 		Trigger:       "manual",
@@ -223,8 +251,15 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 		LowFloorPref:  breakdown.LowFloorPref,
 		WeekendAvoid:  breakdown.WeekendAvoid,
 		PePeriodPref:  breakdown.PePeriodPref,
-		TotalEntries:  len(entries),
-		Solver:        "manual",
+		StudentFatigue: breakdown.StudentFatigue,
+
+		EnabledConstraints: scoringCtx.MarshalStored(),
+		ScoreVersion:       scoringCtx.Version,
+
+		TotalEntries:         len(entries),
+		Solver:               "manual",
+		PerCategoryMax:       breakdown.PerCategoryMax,
+		EnabledCategoryCount: breakdown.EnabledCategoryCount,
 	}
 
 	if err := s.db.Create(snapshot).Error(); err != nil {
@@ -232,6 +267,27 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	}
 
 	return snapshot, nil
+}
+
+// readLatestStoredConfig reads EnabledConstraints from the most recent auto snapshot.
+// Returns full defaults if no auto snapshot exists.
+func readLatestStoredConfig(db database.DB, semester string) StoredConfig {
+	var snap models.ScheduleSnapshot
+	err := db.Where("semester = ? AND trigger = ?", semester, "auto").
+		Order("created_at DESC").
+		First(&snap).Error
+	if err != nil || snap.EnabledConstraints == "" {
+		cfg, _ := UnmarshalStoredConfig("")
+		cfg.EnabledConstraints = FullDefaultConstraints()
+		cfg.Version = 1
+		return cfg
+	}
+	cfg, parseErr := UnmarshalStoredConfig(snap.EnabledConstraints)
+	if parseErr != nil {
+		cfg.EnabledConstraints = FullDefaultConstraints()
+		cfg.Version = 1
+	}
+	return cfg
 }
 
 // DeleteSnapshot removes a snapshot and its details.
