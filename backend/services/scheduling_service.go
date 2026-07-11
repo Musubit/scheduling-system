@@ -6,7 +6,6 @@ import (
 	"log"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
-	"strings"
 	"time"
 )
 
@@ -33,18 +32,25 @@ type SchedulingConfig struct {
 	}
 
 type SchedulingResult struct {
-	TotalCourses     int             `json:"totalCourses"`
-	Scheduled        int             `json:"scheduled"`
-	TasksScheduled   int             `json:"tasksScheduled"`
-	Conflicts        int             `json:"conflicts"`
-	TeacherConflicts int             `json:"teacherConflicts"`
-	RoomConflicts    int             `json:"roomConflicts"`
-	ClassConflicts   int             `json:"classConflicts"`
-	Utilization      float64         `json:"utilization"`
-	Score            float64         `json:"score"`
-	ScoreDetail      *ScoreBreakdown `json:"scoreDetail,omitempty"`
-	Logs             []string        `json:"logs"`
-	Error            string          `json:"error,omitempty"`
+	TotalCourses     int                `json:"totalCourses"`
+	Scheduled        int                `json:"scheduled"`
+	TasksScheduled   int                `json:"tasksScheduled"`
+	Conflicts        int                `json:"conflicts"`
+	TeacherConflicts int                `json:"teacherConflicts"`
+	RoomConflicts    int                `json:"roomConflicts"`
+	ClassConflicts   int                `json:"classConflicts"`
+	Utilization      float64            `json:"utilization"`
+	Score            float64            `json:"score"`
+	ScoreDetail      *ScoreBreakdown    `json:"scoreDetail,omitempty"`
+	Logs             []string           `json:"logs"`
+	Error            string             `json:"error,omitempty"`
+	ProgressHistory  []ScheduleProgress `json:"progressHistory,omitempty"`
+}
+
+// ScheduleProgress records a scheduling phase milestone.
+type ScheduleProgress struct {
+	Progress int    `json:"progress"` // 0-100 percentage
+	Stage    string `json:"stage"`    // human-readable phase name
 }
 
 // LockedTimeSlot represents a globally locked time period.
@@ -62,6 +68,15 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	addLog := func(msg string) {
 		result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg))
 	}
+	addProgress := func(progress int, stage string) {
+		result.ProgressHistory = append(result.ProgressHistory, ScheduleProgress{
+			Progress: progress,
+			Stage:    stage,
+		})
+	}
+
+	// Phase 1: Init
+	addProgress(5, "初始化资源")
 
 	// Load teaching tasks for the active semester
 	var teachingTasks []models.TeachingTask
@@ -143,6 +158,8 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 	log.Printf("[SCHED] resources loaded: classrooms=%d teachers=%d classGroups=%d", len(classrooms), len(teachers), len(classGroups))
 
+	addProgress(15, "加载教学任务")
+
 	// Load locked time slots — merge from both frontend JSON and SQLite
 		var lockedSlots []LockedTimeSlot
 		seen := make(map[string]bool)
@@ -197,10 +214,13 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
 
+	addProgress(25, "初始化求解器")
+
 	// Try OR-Tools first if available
 	var saResult *SAResult
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	if s.orchestrator != nil {
+		addProgress(35, "OR-Tools求解")
 		if ortoolsResult := s.tryORTools(teachingTasks, teachers, classrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog); ortoolsResult != nil {
 			saResult = ortoolsResult
 		}
@@ -208,6 +228,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// Fall back to SA solver if OR-Tools didn't produce a result
 	if saResult == nil {
+		addProgress(45, "模拟退火优化")
 		solver := NewSASolver()
 		saResult = solver.SolveMultiRun(
 			teachingTasks, teachers, classrooms, classGroups,
@@ -233,7 +254,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			saResult.Iterations, float64(saResult.ElapsedMs), saResult.Score))
 		}
 
-		// Save result to database
+	// Post-solve analysis
+	addProgress(70, "分析冲突")
+
+	// Save result to database
+	addProgress(85, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
 		// Hard-delete old entries for the semester
 		if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
@@ -300,10 +325,12 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		}
 	}
 
-	log.Printf("[SCHED] RunScheduling DONE: totalCourses=%d scheduled=%d conflicts=%d logs=%d",
-		result.TotalCourses, result.Scheduled, result.Conflicts, len(result.Logs))
+		log.Printf("[SCHED] RunScheduling DONE: totalCourses=%d scheduled=%d conflicts=%d logs=%d",
+			result.TotalCourses, result.Scheduled, result.Conflicts, len(result.Logs))
 
-	return result
+		addProgress(100, "排课完成")
+
+		return result
 }
 
 // buildSportsCourseIDs returns a set of course IDs that are "体育" courses.
@@ -315,11 +342,6 @@ func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.Teaching
 		}
 	}
 	return ids
-}
-
-// containsKeyword checks if s contains the given keyword (case-insensitive).
-func containsKeyword(s, keyword string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(keyword))
 }
 
 // loadLockedSlots reads locked time slots from the settings table.
@@ -453,9 +475,9 @@ func (s *SchedulingService) tryORTools(
 			courseName := tt.Course.Name
 			if models.IsSportsCourse(courseName) {
 				requiredRoomType = "体育馆"
-			} else if containsKeyword(courseName, "实验") {
-				requiredRoomType = "实验室"
-			} else if containsKeyword(courseName, "上机") {
+		} else if IsLabCourse(courseName) {
+			requiredRoomType = "实验室"
+		} else if IsComputerCourse(courseName) {
 				requiredRoomType = "机房"
 			}
 

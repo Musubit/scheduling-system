@@ -201,6 +201,13 @@ export interface SchedulingResult {
   score?: number
   scoreDetail?: ScoreBreakdown
   logs: string[]
+  progressHistory?: ScheduleProgress[]
+}
+
+/** 排课阶段进度 */
+export interface ScheduleProgress {
+  progress: number  // 0-100
+  stage: string     // 阶段名称
 }
 
 /** 评分明细 */

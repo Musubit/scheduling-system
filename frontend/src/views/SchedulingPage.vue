@@ -14,15 +14,6 @@ const appStore = useAppStore()
 const uiStore = useUiStore()
 const dialog = useDialog()
 
-// Step indicator
-const currentStep = computed(() => {
-  if (!store.isRunning && store.progress === 0) return 0
-  if (store.progress < 30) return 1
-  if (store.progress < 70) return 2
-  if (store.progress < 100) return 3
-  return 4
-})
-
 const scopeOptions = [
   { label: '全校所有院系', value: '全校所有院系' },
   ...DEPARTMENTS.map(d => ({ label: d.name, value: d.name })),
@@ -36,10 +27,21 @@ const scoreColor = computed(() => {
   return 'var(--b3-theme-error)'
 })
 
-// Per-category max score
+// Per-category max score（与后端 Go enabledCount 分组逻辑一致）
 const categoryMax = computed(() => {
-  const count = store.config.constraints.length || 4
-  return Math.round(100 / count * 100) / 100
+  const keys = store.config.constraints
+  if (!keys || keys.length === 0) return 25
+  // avoid_saturday + avoid_sunday → 合并为 1 类（周末避让）
+  let hasWeekend = keys.includes('avoid_saturday') || keys.includes('avoid_sunday')
+  let count = 0
+  if (keys.includes('teacher_preference')) count++
+  if (keys.includes('course_dispersed')) count++
+  if (keys.includes('teacher_days_limit')) count++
+  if (keys.includes('low_floor_preference')) count++
+  if (hasWeekend) count++
+  if (keys.includes('pe_preferred_periods')) count++
+  if (keys.includes('student_fatigue')) count++
+  return Math.round(100 / Math.max(count, 1) * 100) / 100
 })
 
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
@@ -208,16 +210,21 @@ const weightLabels: Record<string, string> = {
       <div class="result-panel">
         <h3 class="panel-title">排课进度与结果</h3>
 
-        <n-steps :current="currentStep" size="small" style="margin-bottom: 16px;">
-          <n-step title="准备" description="加载资源" />
-          <n-step title="清空" description="清除旧课表" />
-          <n-step title="排课" description="算法分配" />
-          <n-step title="检测" description="冲突扫描" />
-          <n-step title="完成" description="生成课表" />
+        <n-steps :current="store.progressHistory.length" size="small" style="margin-bottom: 16px;">
+          <n-step
+            v-for="(p, idx) in store.progressHistory"
+            :key="idx"
+            :title="p.stage"
+            :description="p.progress + '%'"
+          />
+          <n-step v-if="store.progressHistory.length === 0" title="就绪" description="等待开始" />
         </n-steps>
 
         <div class="progress-section">
-          <div class="progress-label">{{ store.progressText }}</div>
+          <div class="progress-label">
+            <span class="stage-badge" v-if="store.currentStage">{{ store.currentStage }}</span>
+            {{ store.progressText }}
+          </div>
           <n-progress
             :percentage="store.progress"
             :indicator-placement="'inside'"
@@ -262,37 +269,37 @@ const weightLabels: Record<string, string> = {
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_preference')">
               <span class="breakdown-label">教师偏好满足度</span>
               <n-progress :percentage="Math.round(store.result.scoreDetail.teacherPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref.toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref.toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('course_dispersed')">
               <span class="breakdown-label">课程间隔均匀度</span>
               <n-progress :percentage="Math.round(store.result.scoreDetail.courseSpacing / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing.toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing.toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_days_limit')">
               <span class="breakdown-label">教师到校天数</span>
               <n-progress :percentage="Math.round(store.result.scoreDetail.teacherDays / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays.toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays.toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('low_floor_preference')">
               <span class="breakdown-label">优先低楼层</span>
               <n-progress :percentage="Math.round(store.result.scoreDetail.lowFloorPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref.toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref.toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('avoid_saturday') || isConstraintEnabled('avoid_sunday')">
               <span class="breakdown-label">周末避让</span>
               <n-progress :percentage="Math.round(((store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('pe_preferred_periods')">
               <span class="breakdown-label">体育课时段</span>
               <n-progress :percentage="Math.round(((store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(2) }}/{{ categoryMax }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('student_fatigue')">
               <span class="breakdown-label">学生疲劳度</span>
               <n-progress :percentage="Math.round(((store.result.scoreDetail.studentFatigue || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(1) }}/{{ categoryMax }}</span>
+              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(2) }}/{{ categoryMax }}</span>
             </div>
           </div>
         </div>
@@ -425,6 +432,18 @@ const weightLabels: Record<string, string> = {
   font-weight: 500;
   color: var(--b3-theme-primary);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 4px;
+  background: var(--b3-theme-primary);
+  color: #fff;
 }
 
 .stats-row {

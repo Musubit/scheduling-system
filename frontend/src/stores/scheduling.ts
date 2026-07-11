@@ -157,10 +157,18 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const progress = ref(0)
   const result = ref<SchedulingResult | null>(null)
   const logs = ref<string[]>([])
+  const progressHistory = ref<{ progress: number; stage: string }[]>([])
 
   const progressText = computed(() => {
     if (progress.value >= 100) return '排课完成 100%'
     return `已完成 ${progress.value}%`
+  })
+
+  /** Current stage label from progress history */
+  const currentStage = computed(() => {
+    const h = progressHistory.value
+    if (h.length === 0) return ''
+    return h[h.length - 1].stage
   })
 
   function toggleConstraint(key: string) {
@@ -173,6 +181,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     progress.value = 0
     logs.value = []
     result.value = null
+    progressHistory.value = []
     isRunning.value = false
   }
 
@@ -221,6 +230,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       console.log('[DEBUG] error field:', goResult?.error)
       progress.value = 90
       logs.value.push(...(goResult?.logs || []))
+      // Populate stage history from backend
+      if (goResult?.progressHistory) {
+        progressHistory.value = goResult.progressHistory
+      }
 
       // Check for backend-reported errors (no data, missing resources, etc.)
       if (goResult?.error) {
@@ -299,7 +312,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     constraintWeights, activePreset, engine, engineOptions,
     activeSemesterId, activeSemesterName, semesters, selectedSemesterId,
     CONSTRAINT_PRESETS,
-    isRunning, progress, result, logs, progressText,
+    isRunning, progress, result, logs, progressHistory, progressText, currentStage,
     toggleConstraint, resetProgress, startScheduling,
     applyPreset,
   }
