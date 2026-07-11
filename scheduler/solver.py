@@ -408,9 +408,11 @@ def solve_scheduling(data):
                     model.AddBoolOr([placed[(i, s)].Not(), at_preferred.Not()]).OnlyEnforceIf(active_pe.Not())
                     objective_terms.append(active_pe * w)
 
-    # SC4 — Course spacing (maximize unique days per course across all sessions)
+    # SC4 — Course spacing (maximize unique days, penalize consecutive-day clustering)
     if "course_dispersed" in constraints:
         w = weights.get("course_dispersed", 50)
+        w_consec = int(w * 0.5)  # consecutive-day penalty weight
+
         course_task_indices = {}
         for i, cid in enumerate(task_course_ids):
             course_task_indices.setdefault(cid, []).append(i)
@@ -420,6 +422,8 @@ def solve_scheduling(data):
             all_sessions = [(i, s) for i in indices for s in range(task_sessions[i])]
             if len(all_sessions) <= 1:
                 continue
+
+            any_on_day_vars = []  # collect for consecutive-pair penalties
             for d in range(DAYS):
                 any_on_day = model.NewBoolVar(f"c_{cid}_d{d}")
                 day_indicators = []
@@ -435,6 +439,14 @@ def solve_scheduling(data):
                 for ind in day_indicators:
                     model.AddImplication(ind, any_on_day)
                 objective_terms.append(any_on_day * w)
+                any_on_day_vars.append(any_on_day)
+
+            # Penalize consecutive-day clustering: discourage Mon+Tue, Tue+Wed, etc.
+            for d in range(DAYS - 1):
+                consecutive = model.NewBoolVar(f"c_{cid}_consec_d{d}")
+                model.AddBoolAnd([any_on_day_vars[d], any_on_day_vars[d + 1]]).OnlyEnforceIf(consecutive)
+                model.AddBoolOr([any_on_day_vars[d].Not(), any_on_day_vars[d + 1].Not()]).OnlyEnforceIf(consecutive.Not())
+                objective_terms.append(consecutive * (-w_consec))
 
     # SC5 — Low floor preference
     if "low_floor_preference" in constraints:

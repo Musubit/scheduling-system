@@ -3,6 +3,7 @@ package services
 import (
 	"math"
 	"scheduling-system/backend/models"
+	"sort"
 )
 
 // ScoringService evaluates a schedule's quality against soft constraints.
@@ -188,22 +189,22 @@ func (s *ScoringService) scoreTeacherPreferences(entries []models.ScheduleEntry,
 }
 
 // scoreCourseSpacing evaluates how evenly each course's sessions are distributed
-// across the week. Courses concentrated on fewer days get lower scores.
+// across the week, with emphasis on day-gap quality.
+// Single-session courses get full marks. Multi-session courses are scored by
+// the gaps between consecutive occupied days: gap≥3→1.0, gap=2→0.8, gap=1→0.4.
 func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxScore float64) float64 {
 	type courseInfo struct {
-		days      map[int]bool
-		count     int
+		dayCounts map[int]int // day -> number of sessions on that day
 	}
 	courses := make(map[uint]*courseInfo)
 
 	for _, e := range entries {
 		ci, exists := courses[e.CourseID]
 		if !exists {
-			ci = &courseInfo{days: make(map[int]bool)}
+			ci = &courseInfo{dayCounts: make(map[int]int)}
 			courses[e.CourseID] = ci
 		}
-		ci.days[int(e.DayOfWeek)] = true
-		ci.count++
+		ci.dayCounts[int(e.DayOfWeek)]++
 	}
 
 	if len(courses) == 0 {
@@ -212,17 +213,58 @@ func (s *ScoringService) scoreCourseSpacing(entries []models.ScheduleEntry, maxS
 
 	totalScore := 0.0
 	for _, ci := range courses {
-		if ci.count <= 1 {
-			totalScore += 1.0 // single-session courses are fine
+		totalSessions := 0
+		for _, cnt := range ci.dayCounts {
+			totalSessions += cnt
+		}
+
+		// Single-session courses: no spacing concern
+		if totalSessions <= 1 {
+			totalScore += 1.0
 			continue
 		}
-		// Ideal: each session on a different day
-		// Score = unique_days / total_sessions (capped at 1.0)
-		ratio := float64(len(ci.days)) / float64(ci.count)
-		if ratio > 1.0 {
-			ratio = 1.0
+
+		// Collect and sort unique occupied days
+		days := make([]int, 0, len(ci.dayCounts))
+		for d := range ci.dayCounts {
+			days = append(days, d)
 		}
-		totalScore += ratio
+		sort.Ints(days)
+
+		// All sessions on the same day: penalize by session count
+		if len(days) == 1 {
+			totalScore += 1.0 / float64(totalSessions)
+			continue
+		}
+
+		// Score gaps between consecutive occupied days
+		gapSum := 0.0
+		for i := 0; i < len(days)-1; i++ {
+			gap := days[i+1] - days[i]
+			switch {
+			case gap >= 3:
+				gapSum += 1.0 // ideal: Mon+Thu, Mon+Fri, Tue+Fri
+			case gap == 2:
+				gapSum += 0.8 // good: Mon+Wed, Tue+Thu, Wed+Fri
+			case gap == 1:
+				gapSum += 0.4 // consecutive: Mon+Tue, Tue+Wed, etc.
+			}
+		}
+		gapScore := gapSum / float64(len(days)-1)
+
+		// Same-day concentration penalty: extra sessions on same day reduce score
+		sameDayExcess := 0
+		for _, cnt := range ci.dayCounts {
+			if cnt > 1 {
+				sameDayExcess += cnt - 1
+			}
+		}
+		concentrationPenalty := float64(sameDayExcess) * 0.3
+		courseScore := gapScore * (1.0 - concentrationPenalty)
+		if courseScore < 0 {
+			courseScore = 0
+		}
+		totalScore += courseScore
 	}
 
 	avgScore := totalScore / float64(len(courses))
