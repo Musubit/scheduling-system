@@ -263,11 +263,64 @@ const rankedDetails = computed(() => {
   })
 })
 
-const scoreColor = (score: number) => {
-  if (score >= 80) return '#18a058'
-  if (score >= 60) return '#f0a020'
-  return '#d03050'
-}
+	const scoreColor = (score: number) => {
+	  if (score >= 80) return '#18a058'
+	  if (score >= 60) return '#f0a020'
+	  return '#d03050'
+	}
+
+	// ---- Quality analysis (v0.3.0) ----
+
+	/** Overall grade from total score */
+	const gradeLabel = computed(() => {
+	  const s = selectedSnapshot.value?.totalScore ?? 0
+	  if (s >= 95) return { label: 'A+', color: '#18a058' }
+	  if (s >= 85) return { label: 'A',  color: '#18a058' }
+	  if (s >= 75) return { label: 'B',  color: '#3575f0' }
+	  if (s >= 60) return { label: 'C',  color: '#f0a020' }
+	  return { label: 'D', color: '#d03050' }
+	})
+
+	/** Category metadata for display */
+	const categoryDefs: { key: string; label: string; field: string }[] = [
+	  { key: 'teacherPref',    label: '教师偏好',   field: 'teacherPref' },
+	  { key: 'courseSpacing',  label: '课程分布',   field: 'courseSpacing' },
+	  { key: 'teacherDays',    label: '到校天数',   field: 'teacherDays' },
+	  { key: 'lowFloorPref',   label: '低楼层',     field: 'lowFloorPref' },
+	  { key: 'weekendAvoid',   label: '周末避让',   field: 'weekendAvoid' },
+	  { key: 'pePeriodPref',   label: '体育课时段', field: 'pePeriodPref' },
+	  { key: 'studentFatigue', label: '学生疲劳度', field: 'studentFatigue' },
+	]
+
+	/** Star rating string for a category (e.g. "★★★½☆") */
+	function starRating(score: number, max: number): string {
+	  if (max <= 0) return '☆☆☆☆☆'
+	  const stars = Math.max(0, Math.min(5, (score / max) * 5))
+	  const full = Math.floor(stars)
+	  const half = stars - full >= 0.25 ? 1 : 0
+	  const empty = 5 - full - half
+	  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty)
+	}
+
+	/** Auto-generated suggestions when a category falls below 60% */
+	const suggestions = computed(() => {
+	  if (!selectedSnapshot.value) return []
+	  const s = selectedSnapshot.value
+	  const max = perCategoryMax.value
+	  const tips: { label: string; text: string }[] = []
+	  const pct = (field: string) => {
+	    const v = s[field]
+	    return v !== undefined && v !== null ? (v / max) * 100 : 100
+	  }
+	  if (pct('teacherPref') < 60)    tips.push({ label: '教师偏好', text: '部分教师被安排在不偏好的时段（早课/晚课），可调整教师偏好设置或增加该约束权重' })
+	  if (pct('courseSpacing') < 60)  tips.push({ label: '课程分布', text: '部分课程集中在相邻日期或同一天，建议启用"课程分散度"约束并提高权重' })
+	  if (pct('teacherDays') < 60)    tips.push({ label: '到校天数', text: '部分教师到校天数超过目标值，可调整教师 MaxDays 设置' })
+	  if (pct('lowFloorPref') < 60)   tips.push({ label: '低楼层', text: '偏好低楼层的教师被分配到较高楼层，可增加低楼层教室资源' })
+	  if (pct('weekendAvoid') < 60)   tips.push({ label: '周末避让', text: '较多课程被排在周六/周日，可启用"避开周末"约束' })
+	  if (pct('pePeriodPref') < 60)   tips.push({ label: '体育课时段', text: '体育课未优先排在推荐时段（3-4节或7-8节）' })
+	  if (pct('studentFatigue') < 60) tips.push({ label: '学生疲劳度', text: '部分班级连续课时超过4节，建议分散该班级课程' })
+	  return tips
+	})
 
 const triggerLabel = (trigger: string) => {
   return trigger === 'auto' ? '自动生成' : '手动生成'
@@ -327,7 +380,7 @@ onMounted(() => {
                 {{ triggerLabel(snap.trigger) }}
               </n-tag>
               <span class="snap-score" :style="{ color: scoreColor(snap.totalScore) }">
-                {{ snap.totalScore?.toFixed(1) }}分
+                {{ snap.totalScore?.toFixed(2) }}分
               </span>
             </div>
           </div>
@@ -337,80 +390,40 @@ onMounted(() => {
         <div v-if="selectedSnapshot" class="detail-area">
           <!-- Score overview -->
           <n-card title="综合评分" size="small" class="score-card">
-            <div class="total-score" :style="{ color: scoreColor(selectedSnapshot.totalScore) }">
-              {{ selectedSnapshot.totalScore?.toFixed(1) }}
-              <span class="score-unit">/ 100</span>
+            <div class="total-score-row">
+              <div class="total-score" :style="{ color: scoreColor(selectedSnapshot.totalScore) }">
+                {{ selectedSnapshot.totalScore?.toFixed(2) }}
+                <span class="score-unit">/ 100</span>
+              </div>
+              <span class="grade-badge" :style="{ background: gradeLabel.color }">
+                {{ gradeLabel.label }}
+              </span>
             </div>
             <div class="score-bars">
-              <div class="score-bar-item">
-                <span>教师偏好</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round((selectedSnapshot.teacherPref / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor(selectedSnapshot.teacherPref / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ selectedSnapshot.teacherPref?.toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item">
-                <span>课程间隔</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round((selectedSnapshot.courseSpacing / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor(selectedSnapshot.courseSpacing / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ selectedSnapshot.courseSpacing?.toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item">
-                <span>到校天数</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round((selectedSnapshot.teacherDays / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor(selectedSnapshot.teacherDays / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ selectedSnapshot.teacherDays?.toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item">
-                <span>低楼层</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round((selectedSnapshot.lowFloorPref / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor(selectedSnapshot.lowFloorPref / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ selectedSnapshot.lowFloorPref?.toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item" v-if="selectedSnapshot.weekendAvoid !== undefined">
-                <span>周末避让</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round(((selectedSnapshot.weekendAvoid || 0) / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor((selectedSnapshot.weekendAvoid || 0) / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ (selectedSnapshot.weekendAvoid || 0).toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item" v-if="(selectedSnapshot.pePeriodPref || 0) > 0">
-                <span>体育课时段</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round(((selectedSnapshot.pePeriodPref || 0) / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor((selectedSnapshot.pePeriodPref || 0) / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ (selectedSnapshot.pePeriodPref || 0).toFixed(1) }}</span>
-              </div>
-              <div class="score-bar-item" v-if="(selectedSnapshot.studentFatigue || 0) > 0">
-                <span>学生疲劳度</span>
-                <n-progress
-                  type="line"
-                  :percentage="Math.round(((selectedSnapshot.studentFatigue || 0) / perCategoryMax) * 1000) / 10"
-                  :color="scoreColor((selectedSnapshot.studentFatigue || 0) / perCategoryMax * 100)"
-                  :height="16"
-                />
-                <span class="bar-value">{{ (selectedSnapshot.studentFatigue || 0).toFixed(1) }}</span>
+              <template v-for="cat in categoryDefs" :key="cat.key">
+                <div class="score-bar-item" v-if="selectedSnapshot[cat.field] !== undefined && (selectedSnapshot[cat.field] || 0) >= 0">
+                  <span>{{ cat.label }}</span>
+                  <n-progress
+                    type="line"
+                    :percentage="Math.round(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 1000) / 10"
+                    :color="scoreColor(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 100)"
+                    :height="16"
+                  />
+                  <span class="star-rating" :style="{ color: scoreColor(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 100) }">
+                    {{ starRating((selectedSnapshot[cat.field] || 0), perCategoryMax) }}
+                  </span>
+                  <span class="bar-value">{{ (selectedSnapshot[cat.field] || 0).toFixed(2) }}</span>
+                </div>
+              </template>
+            </div>
+          </n-card>
+
+          <!-- Suggestions -->
+          <n-card title="改善建议" size="small" class="suggest-card" v-if="suggestions.length > 0">
+            <div class="suggest-list">
+              <div v-for="tip in suggestions" :key="tip.label" class="suggest-item">
+                <span class="suggest-label">{{ tip.label }}</span>
+                <span class="suggest-text">{{ tip.text }}</span>
               </div>
             </div>
           </n-card>
@@ -452,7 +465,7 @@ onMounted(() => {
                 <span class="col-num" :class="{ warn: d.daysActual > d.daysTarget }">
                   {{ d.daysActual }}/{{ d.daysTarget }}
                 </span>
-                <span class="col-num">{{ d.avgFloor?.toFixed(1) }}</span>
+                <span class="col-num">{{ d.avgFloor?.toFixed(2) }}</span>
                 <span class="col-summary">{{ d.summary }}</span>
               </div>
             </div>
@@ -594,11 +607,26 @@ onMounted(() => {
   min-width: 0;
 }
 
+.score-card .total-score-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
 .score-card .total-score {
   font-size: 48px;
   font-weight: 800;
-  text-align: center;
-  margin: 12px 0;
+}
+
+.grade-badge {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  padding: 2px 14px;
+  border-radius: 8px;
+  line-height: 1.3;
 }
 
 .score-unit {
@@ -643,6 +671,42 @@ onMounted(() => {
   flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.star-rating {
+  font-size: 15px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Suggestions */
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggest-item {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--b3-card-background);
+  border-left: 3px solid #f0a020;
+}
+
+.suggest-label {
+  font-weight: 700;
+  color: #f0a020;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.suggest-text {
+  color: var(--b3-text-color-1);
+  line-height: 1.5;
 }
 
 .check-items {
