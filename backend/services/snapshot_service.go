@@ -118,7 +118,7 @@ func (s *SnapshotService) CreateSnapshot(
 		// Build summary string
 		daySlots := make(map[models.DayOfWeek][]string)
 		for _, e := range a.entries {
-			label := fmt.Sprintf("周%s%d-%d节", e.DayOfWeek.String(), e.StartPeriod.DisplayNum(),
+			label := fmt.Sprintf("%s %d-%d节", e.DayOfWeek.String(), e.StartPeriod.DisplayNum(),
 				int(e.StartPeriod)+e.Span)
 			daySlots[e.DayOfWeek] = append(daySlots[e.DayOfWeek], label)
 		}
