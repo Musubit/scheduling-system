@@ -81,10 +81,13 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		var filtered []models.TeachingTask
 		for _, tt := range teachingTasks {
 			var course models.Course
-			if err := s.db.First(&course, tt.CourseID).Error(); err == nil {
-				if course.Dept == config.Scope {
-					filtered = append(filtered, tt)
-				}
+			if err := s.db.First(&course, tt.CourseID).Error(); err != nil {
+				log.Printf("[SCHED] WARN: scope filter - course ID=%d not found for task ID=%d, skipping", tt.CourseID, tt.ID)
+				addLog(fmt.Sprintf("WARN 教学任务(ID=%d)关联的课程(ID=%d)不存在，已跳过", tt.ID, tt.CourseID))
+				continue
+			}
+			if course.Dept == config.Scope {
+				filtered = append(filtered, tt)
 			}
 		}
 		teachingTasks = filtered
@@ -94,12 +97,19 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	for i := range teachingTasks {
 		var classes []models.TeachingTaskClass
 		if err := s.db.Where("teaching_task_id = ?", teachingTasks[i].ID).
-			Preload("ClassGroup").Find(&classes).Error(); err == nil {
+			Preload("ClassGroup").Find(&classes).Error(); err != nil {
+			log.Printf("[SCHED] WARN: failed to load classes for task ID=%d: %v", teachingTasks[i].ID, err)
+			addLog(fmt.Sprintf("WARN 加载教学任务(ID=%d)的班级关联失败", teachingTasks[i].ID))
+		} else {
 			teachingTasks[i].Classes = classes
 		}
 		// Preload course and teacher
-		s.db.First(&teachingTasks[i].Course, teachingTasks[i].CourseID)
-		s.db.First(&teachingTasks[i].Teacher, teachingTasks[i].TeacherID)
+		if err := s.db.First(&teachingTasks[i].Course, teachingTasks[i].CourseID).Error(); err != nil {
+			log.Printf("[SCHED] WARN: course ID=%d not found for task ID=%d: %v", teachingTasks[i].CourseID, teachingTasks[i].ID, err)
+		}
+		if err := s.db.First(&teachingTasks[i].Teacher, teachingTasks[i].TeacherID).Error(); err != nil {
+			log.Printf("[SCHED] WARN: teacher ID=%d not found for task ID=%d: %v", teachingTasks[i].TeacherID, teachingTasks[i].ID, err)
+		}
 	}
 
 	result.TotalCourses = len(teachingTasks)
@@ -417,7 +427,8 @@ func (s *SchedulingService) tryORTools(
 		// Map teachers
 		for _, t := range teachers {
 			input.Teachers = append(input.Teachers, ORToolsTeacher{
-				ID: t.ID, PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
+				ID: t.ID, Name: t.Name,
+				PreferNoEarly: t.PreferNoEarly, PreferNoLate: t.PreferNoLate,
 				MaxDaysPerWeek: t.MaxDaysPerWeek, PreferLowFloor: t.PreferLowFloor,
 				UnavailableSlots: t.UnavailableSlots,
 			})
@@ -438,15 +449,21 @@ func (s *SchedulingService) tryORTools(
 			classIDs[j] = c.ClassGroupID
 		}
 		// Determine required room type from course name
-		requiredRoomType := ""
-		courseName := tt.Course.Name
-		if models.IsSportsCourse(courseName) {
-			requiredRoomType = "体育馆"
-		} else if containsKeyword(courseName, "实验") {
-			requiredRoomType = "实验室"
-		} else if containsKeyword(courseName, "上机") {
-			requiredRoomType = "机房"
-		}
+			requiredRoomType := ""
+			courseName := tt.Course.Name
+			if models.IsSportsCourse(courseName) {
+				requiredRoomType = "体育馆"
+			} else if containsKeyword(courseName, "实验") {
+				requiredRoomType = "实验室"
+			} else if containsKeyword(courseName, "上机") {
+				requiredRoomType = "机房"
+			}
+
+			// TotalHours fallback: same as SA solver (sa_solver.go line 136-138)
+			totalHours := tt.TotalHours
+			if totalHours <= 0 {
+				totalHours = tt.Course.Hours
+			}
 
 		input.TeachingTasks = append(input.TeachingTasks, ORToolsTask{
 			ID:               tt.ID,
@@ -454,7 +471,7 @@ func (s *SchedulingService) tryORTools(
 			CourseID:         tt.CourseID,
 			ClassIDs:         classIDs,
 			SessionsPerWeek:  0, // let solver.py compute from TotalHours
-			TotalHours:       tt.TotalHours,
+			TotalHours:       totalHours,
 			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
 			RequiredRoomType: requiredRoomType,
 			StartWeek:        tt.StartWeek,
@@ -541,6 +558,59 @@ func (s *SchedulingService) tryORTools(
 
 	log(fmt.Sprintf("OR-Tools求解完成(status=%s): %d/%d会话, %.1fms, 分=%.1f",
 		output.Status, output.SessionsPlaced, output.SessionsExpected, float64(output.ElapsedMs), output.Score))
+
+	// Enrich unplaced diagnostics with Go-side course/class names
+	if output.SessionsPlaced < output.SessionsExpected && len(output.UnplacedDiagnostics) > 0 {
+		for _, d := range output.UnplacedDiagnostics {
+			log(fmt.Sprintf("  未排入诊断(Python): %s", d))
+		}
+		// Supplement with course + class names from Go taskMap
+		// Count placed sessions per task to detect partial placement
+		placedCount := make(map[uint]int)
+		for _, e := range output.Entries {
+			placedCount[e.TaskID]++
+		}
+		for _, tt := range teachingTasks {
+			// Compute expected sessions (same formula as Python solver.py)
+			weeks := tt.EndWeek - tt.StartWeek + 1
+			if weeks < 1 {
+				weeks = 1
+			}
+			totalHours := tt.TotalHours
+			if totalHours <= 0 {
+				totalHours = tt.Course.Hours
+			}
+			weeklyHours := float64(totalHours) / float64(weeks)
+			expectedSessions := int(weeklyHours/2.0 + 0.999)
+			if expectedSessions < 1 {
+				expectedSessions = 1
+			}
+			if expectedSessions > 4 {
+				expectedSessions = 4
+			}
+			if tt.MaxHoursPerWeek > 0 {
+				maxSess := tt.MaxHoursPerWeek / 2
+				if maxSess < 1 {
+					maxSess = 1
+				}
+				if expectedSessions > maxSess {
+					expectedSessions = maxSess
+				}
+			}
+			actualPlaced := placedCount[tt.ID]
+			if actualPlaced >= expectedSessions {
+				continue
+			}
+			classNames := make([]string, 0)
+			for _, c := range tt.Classes {
+				if c.ClassGroup.Name != "" {
+					classNames = append(classNames, c.ClassGroup.Name)
+				}
+			}
+			log(fmt.Sprintf("  未排入补充(Go): 课程=%s 教师=%s 班级=%v 已排%d/%d个session",
+				tt.Course.Name, tt.Teacher.Name, classNames, actualPlaced, expectedSessions))
+		}
+	}
 
 	return &SAResult{
 		Entries:   entries,

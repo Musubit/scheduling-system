@@ -601,6 +601,30 @@ def solve_scheduling(data):
         total_supply_per_slot = n_rooms
         conflicts.append(f"总需求: {total_demand}会话, {n_rooms}教室×{len(VALID_POSITIONS)}时段={total_demand * len(VALID_POSITIONS)}理论容量")
 
+    # Build unplaced-session diagnostics (separate from constraint conflicts).
+    # Triggered when optimal/feasible but not all sessions placed — resource bottleneck.
+    unplaced = []
+    if sessions_placed < total_sessions_expected:
+        unplaced_by_task = {}
+        for i, t in enumerate(tasks):
+            tid = t.get("id", i)
+            for s in range(task_sessions[i]):
+                if not solver.Value(placed[(i, s)]):
+                    info = unplaced_by_task.setdefault(tid, {
+                        "teacherName": teacher_map.get(t["teacherId"], {}).get("name", "?"),
+                        "requiredRoomType": task_room_type[i] or "普通教室",
+                        "unplacedCount": 0,
+                        "totalSessions": task_sessions[i],
+                    })
+                    info["unplacedCount"] += 1
+        for tid in sorted(unplaced_by_task.keys()):
+            info = unplaced_by_task[tid]
+            unplaced.append(
+                f"任务ID={tid} 教师={info['teacherName']} "
+                f"需教室={info['requiredRoomType']} "
+                f"未排入{info['unplacedCount']}/{info['totalSessions']}个session"
+            )
+
     return {
         "entries": result_entries,
         "score": round(normalized_score, 1),
@@ -610,6 +634,7 @@ def solve_scheduling(data):
         "sessionsPlaced": sessions_placed,
         "sessionsExpected": total_sessions_expected,
         "conflicts": conflicts,
+        "unplaced": unplaced,
     }
 
 

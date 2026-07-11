@@ -56,6 +56,7 @@ type ORToolsTask struct {
 
 type ORToolsTeacher struct {
 	ID               uint   `json:"id"`
+	Name             string `json:"name"`
 	PreferNoEarly    bool   `json:"preferNoEarly"`
 	PreferNoLate     bool   `json:"preferNoLate"`
 	MaxDaysPerWeek   int    `json:"maxDaysPerWeek"`
@@ -77,14 +78,15 @@ type ORToolsClassGroup struct {
 
 // ORToolsOutput is the response from the Python solver.
 type ORToolsOutput struct {
-	Entries          []ORToolsEntry `json:"entries"`
-	Score            float64        `json:"score"`
-	Status           string         `json:"status"`
-	ElapsedMs        int            `json:"elapsedMs"`
-	Error            string         `json:"error,omitempty"`
-	SessionsPlaced   int            `json:"sessionsPlaced,omitempty"`
-	SessionsExpected int            `json:"sessionsExpected,omitempty"`
-	Conflicts        []string       `json:"conflicts,omitempty"`
+	Entries             []ORToolsEntry `json:"entries"`
+	Score               float64        `json:"score"`
+	Status              string         `json:"status"`
+	ElapsedMs           int            `json:"elapsedMs"`
+	Error               string         `json:"error,omitempty"`
+	SessionsPlaced      int            `json:"sessionsPlaced,omitempty"`
+	SessionsExpected    int            `json:"sessionsExpected,omitempty"`
+	Conflicts           []string       `json:"conflicts,omitempty"`
+	UnplacedDiagnostics []string       `json:"unplaced,omitempty"`
 }
 
 type ORToolsEntry struct {

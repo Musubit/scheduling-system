@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useResourceStore } from '../stores/resource'
 import { NButton, NInput, NInputNumber, NSwitch, NModal, NForm, NFormItem, NSelect, NDataTable, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
-import { DEPARTMENTS } from '../types'
+import { DEPARTMENTS, DAY_NAMES } from '../types'
 import type { TeachingTask } from '../types'
 import { ref, computed, h, onMounted } from 'vue'
 import * as RS from '../../bindings/scheduling-system/backend/services/resourceservice'
@@ -276,11 +276,11 @@ const formFields = computed(() => {
       { key: 'code', label: '工号（选填）' },
       { key: 'name', label: '姓名' },
       { key: 'dept', label: '院系', type: 'select', options: deptFormOptions, filterable: true },
-      { key: 'preferNoEarly', label: '避免早课（选填）', type: 'switch' },
-      { key: 'preferNoLate', label: '避免晚课（选填）', type: 'switch' },
-      { key: 'maxDaysPerWeek', label: '每周最多到校天数（选填）', type: 'number', min: 1, max: 7 },
-      { key: 'preferLowFloor', label: '优先低楼层（选填）', type: 'switch' },
-      { key: 'unavailableSlots', label: '不可用时段(JSON)', type: 'textarea', placeholder: '[{"dayOfWeek":2,"startPeriod":0,"span":4}]' },
+      { key: 'preferNoEarly', label: '尽量不安排早课', type: 'switch' },
+      { key: 'preferNoLate', label: '尽量不安排晚课', type: 'switch' },
+      { key: 'maxDaysPerWeek', label: '每周最多到校天数', type: 'number', min: 1, max: 7 },
+      { key: 'preferLowFloor', label: '优先安排低楼层教室', type: 'switch' },
+      { key: 'unavailableSlots', label: '不可用时间', type: 'timegrid' },
     ],
 	    classroom: [
 	      { key: 'code', label: '编号（选填）' },
@@ -315,8 +315,57 @@ const formFields = computed(() => {
 		      { key: 'maxHoursPerWeek', label: '周最大学时（选填）', type: 'number', min: 0 },
 		    ],
 		  }
-			  return fields[resourceStore.activeTab] || []
-			})
+  return fields[resourceStore.activeTab] || []
+})
+
+// ===== 不可用时间网格 =====
+const VALID_STARTS = [0, 2, 4, 6, 8] // 对应第1-2、3-4、5-6、7-8、9-10节
+const timeGridRows = [
+  { label: '1-2节', start: 0 },
+  { label: '3-4节', start: 2 },
+  { label: '5-6节', start: 4 },
+  { label: '7-8节', start: 6 },
+  { label: '9-10节', start: 8 },
+]
+
+function parseSlots(json: string): Set<string> {
+  if (!json) return new Set()
+  try {
+    const arr = JSON.parse(json)
+    if (!Array.isArray(arr)) return new Set()
+    const keys = new Set<string>()
+    for (const slot of arr) {
+      const d = (slot as any).dayOfWeek ?? -1
+      const s = (slot as any).startPeriod ?? -1
+      if (d >= 0 && d <= 6 && VALID_STARTS.includes(s)) {
+        keys.add(`${d}-${s}`)
+      }
+    }
+    return keys
+  } catch { return new Set() }
+}
+
+function serializeSlots(keys: Set<string>): string {
+  const arr: { dayOfWeek: number; startPeriod: number; span: number }[] = []
+  for (const k of keys) {
+    const [d, s] = k.split('-').map(Number)
+    arr.push({ dayOfWeek: d, startPeriod: s, span: 2 })
+  }
+  return arr.length > 0 ? JSON.stringify(arr) : ''
+}
+
+function isSlotUnavailable(day: number, start: number): boolean {
+  if (resourceStore.activeTab !== 'teacher') return false
+  const slots = parseSlots(formData.value.unavailableSlots || '')
+  return slots.has(`${day}-${start}`)
+}
+
+function toggleSlot(day: number, start: number) {
+  const slots = parseSlots(formData.value.unavailableSlots || '')
+  const key = `${day}-${start}`
+  if (slots.has(key)) { slots.delete(key) } else { slots.add(key) }
+  formData.value.unavailableSlots = serializeSlots(slots)
+}
 
 // actionRender - shared by all tabs
 const actionRender = (row: any) => {
@@ -685,8 +734,22 @@ function downloadTemplate() {
 	          <n-input-number v-else-if="f.type === 'number'" v-model:value="formData[f.key]" :min="f.min" :max="f.max" :placeholder="'请输入' + f.label" clearable style="width:100%" />
 	          <n-input v-else-if="f.type === 'textarea'" v-model:value="formData[f.key]" type="textarea" :rows="3" :placeholder="f.placeholder || ('请输入' + f.label)" clearable style="width:100%" />
 	          <n-select v-else-if="f.type === 'select'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilterFn : undefined" :clearable="true" :placeholder="'请选择' + f.label" />
-	          <n-select v-else-if="f.type === 'multiSelect'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilterFn : undefined" :multiple="true" :clearable="true" :placeholder="'请选择' + f.label" />
-	          <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
+          <n-select v-else-if="f.type === 'multiSelect'" v-model:value="formData[f.key]" :options="resolveOptions(f)" :filterable="f.filterable" :filter="f.filterable ? fuzzyFilterFn : undefined" :multiple="true" :clearable="true" :placeholder="'请选择' + f.label" />
+          <div v-else-if="f.type === 'timegrid'" class="time-grid">
+            <div class="tg-header">
+              <span class="tg-label"></span>
+              <span v-for="d in 7" :key="d" class="tg-day">{{ DAY_NAMES[d-1] }}</span>
+            </div>
+            <div v-for="row in timeGridRows" :key="row.start" class="tg-row">
+              <span class="tg-label">{{ row.label }}</span>
+              <span v-for="d in 7" :key="d"
+                class="tg-cell"
+                :class="{ active: isSlotUnavailable(d-1, row.start) }"
+                @click="toggleSlot(d-1, row.start)"
+              ></span>
+            </div>
+          </div>
+          <n-input v-else v-model:value="formData[f.key]" :placeholder="'请输入' + f.label" clearable />
         </n-form-item>
       </n-form>
       <template #footer>
@@ -765,5 +828,52 @@ function downloadTemplate() {
 
 .merge-info {
   font-size: 13px;
+}
+
+/* ===== 不可用时间网格 ===== */
+.time-grid {
+  width: 100%;
+}
+.tg-header, .tg-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.tg-label {
+  width: 52px;
+  font-size: 12px;
+  color: var(--n-text-color-2, #666);
+  text-align: right;
+  padding-right: 6px;
+  flex-shrink: 0;
+}
+.tg-day {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  color: var(--n-text-color-2, #666);
+  min-width: 0;
+}
+.tg-cell {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  border: 1.5px solid var(--n-border-color, #d0d0d0);
+  background: var(--n-color, #fafafa);
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 0;
+}
+.tg-cell:hover {
+  border-color: var(--n-primary-color, #3575f0);
+  background: var(--n-primary-color-suppl, #e8f0fe);
+}
+.tg-cell.active {
+  background: #e88080;
+  border-color: #d04040;
+}
+.tg-cell.active:hover {
+  background: #d06060;
 }
 </style>
