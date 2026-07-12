@@ -90,6 +90,22 @@ func ResourcesDir() string {
 	return filepath.Join(DataDir(), "resources")
 }
 
+// WebviewDir returns the parent directory for WebView2 runtime data
+// (cache, cookies, IndexedDB, etc.). WebView2 will create its own
+// EBWebView/ subdirectory inside it on demand.
+//
+// This is intentionally NOT created by EnsureDataDir — WebView2 runtime
+// data is managed by the WebView2 runtime itself, not by the application.
+// Keeping it out of the eager-create list preserves the distinction between
+// application business data (logs/config/resources) and runtime cache.
+//
+// The returned path is absolute so Wails passes an unambiguous location to
+// WebView2 — a relative path would be resolved next to the .exe, polluting
+// the install directory (see Epic G2).
+func WebviewDir() string {
+	return filepath.Join(DataDir(), "webview")
+}
+
 // EnsureDataDir creates all standard subdirectories under DataDir.
 // Safe to call on every startup — MkdirAll is a no-op for existing dirs.
 func EnsureDataDir() error {

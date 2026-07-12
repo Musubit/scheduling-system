@@ -73,7 +73,11 @@ func Run(assets embed.FS) {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 		Windows: application.WindowsOptions{
-			WebviewUserDataPath: "scheduling-system",
+			// Absolute path so WebView2 does not create EBWebView next to the .exe.
+			// Wails resolves relative paths against the exe directory — passing an
+			// absolute path under %LOCALAPPDATA%\scheduling-system\webview keeps
+			// the install directory clean (Epic G2).
+			WebviewUserDataPath: appenv.WebviewDir(),
 		},
 	})
 
