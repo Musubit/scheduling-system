@@ -47,8 +47,9 @@ function isLocked(day: number, period: number): boolean {
 function toggleCell(day: number, period: number) {
   const startPeriod = period % 2 === 0 ? period : period - 1
   const span = 2
+  // Match by day+startPeriod only (the span may differ: original DEFAULT_LOCKED has span=4)
   const existingIdx = lockedSlots.value.findIndex(ls =>
-    ls.dayOfWeek === day && ls.startPeriod === startPeriod && ls.span === span
+    ls.dayOfWeek === day && ls.startPeriod === startPeriod
   )
   if (existingIdx >= 0) {
     lockedSlots.value.splice(existingIdx, 1)
@@ -88,7 +89,7 @@ onMounted(loadLockedSlots)
 
 .lg-header {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 4px;
 }
 
@@ -108,8 +109,8 @@ onMounted(loadLockedSlots)
 .lg-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 2px;
+  margin-bottom: 2px;
 }
 
 .lg-row-label {
@@ -123,8 +124,8 @@ onMounted(loadLockedSlots)
 
 .lg-cell {
   flex: 1;
-  aspect-ratio: 3 / 2;
-  border-radius: 4px;
+  height: 28px;
+  border-radius: 3px;
   border: 1px solid var(--b3-border-color);
   background: var(--b3-theme-surface-light);
   cursor: pointer;
