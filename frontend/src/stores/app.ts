@@ -22,15 +22,16 @@ export const useAppStore = defineStore('app', () => {
   const breadcrumbPath = ref<string[]>(['课表中心', '周视图课表'])
 
   const pageTitle = computed(() => {
-    const titles: Record<PageId, string> = {
-      schedule: '课表中心',
-      resource: '资源管理',
-      scheduling: '自动排课',
-      report: '验证报告',
-      settings: '系统设置',
-      history: '历史课表对比',
-      system: '系统管理',
-    }
+	    const titles: Record<PageId, string> = {
+	      schedule: '课表中心',
+	      resource: '资源管理',
+	      scheduling: '自动排课',
+	      report: '验证报告',
+	      settings: '系统设置',
+	      history: '历史课表对比',
+	      system: '系统管理',
+	      'schedule-center': '课表中心',
+	    }
     return titles[currentPage.value]
   })
 
@@ -71,11 +72,12 @@ export const useAppStore = defineStore('app', () => {
     {
       label: '排课引擎',
       icon: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
-      children: [
-        { label: '自动排课', page: 'scheduling' },
-        { label: '验证报告', page: 'report' },
-        { label: '历史课表对比', page: 'history' },
-      ],
+	      children: [
+	        { label: '自动排课', page: 'scheduling' },
+	        { label: '课表中心', page: 'schedule-center' },
+	        { label: '验证报告', page: 'report' },
+	        { label: '历史课表对比', page: 'history' },
+	      ],
     },
     {
       label: '系统设置',

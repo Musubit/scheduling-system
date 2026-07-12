@@ -165,7 +165,7 @@ export const PERIODS: Period[] = [
 export const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 /** 页面标识 */
-export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settings' | 'history' | 'system'
+export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settings' | 'history' | 'system' | 'schedule-center'
 
 /** 课表视图 */
 export type ScheduleView = 'week' | 'timeline' | 'month'

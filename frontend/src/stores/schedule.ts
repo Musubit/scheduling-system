@@ -90,6 +90,74 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  // ---- Version browsing support (Epic H2-2) ----
+
+  const viewMode = ref<'current' | 'version'>('current')
+  const versionName = ref<string>('')
+
+  /** Load a historical schedule version into the store for read-only viewing. */
+  async function loadVersionEntries(versionId: number) {
+    viewMode.value = 'version'
+    versionName.value = ''
+    entries.value = []
+    isLoading.value = true
+
+    try {
+      const { GetVersion } = await import('../../bindings/scheduling-system/backend/services/versionservice')
+      const { GetCourses, GetTeachers, GetClassrooms } =
+        await import('../../bindings/scheduling-system/backend/services/resourceservice')
+
+      const [version, courses, teachers, classrooms] = await Promise.all([
+        GetVersion(versionId),
+        GetCourses().catch(() => []),
+        GetTeachers().catch(() => []),
+        GetClassrooms().catch(() => []),
+      ])
+
+      if (!version) {
+        viewMode.value = 'current'
+        return
+      }
+
+      versionName.value = version.name || ''
+
+      // Build lookup maps for resource resolution
+      const courseById = new Map<number, any>((courses || []).map((c: any) => [c.ID, c]))
+      const teacherById = new Map<number, any>((teachers || []).map((t: any) => [t.ID, t]))
+      const classroomById = new Map<number, any>((classrooms || []).map((c: any) => [c.ID, c]))
+
+      // Convert version entries to ScheduleEntry format
+      entries.value = (version.entries || []).map((e: any) => ({
+        ID: (e.originalEntryId || e.ID) as number,
+        courseId: e.courseId,
+        teacherId: e.teacherId,
+        classroomId: e.classroomId,
+        teachingTaskId: e.teachingTaskId,
+        dayOfWeek: e.dayOfWeek,
+        startPeriod: e.startPeriod,
+        span: e.span,
+        weeks: e.weeks || '1-16',
+        semester: '',
+        course: courseById.get(e.courseId),
+        teacher: teacherById.get(e.teacherId),
+        classroom: classroomById.get(e.classroomId),
+      } as ScheduleEntry))
+    } catch (e) {
+      console.warn('Failed to load version:', e)
+      viewMode.value = 'current'
+      entries.value = []
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /** Return to the live schedule view. */
+  function clearVersionView() {
+    viewMode.value = 'current'
+    versionName.value = ''
+    loadSchedule('')
+  }
+
   return {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
@@ -97,5 +165,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     perspective, selectedTeacherId, selectedClassroomId, selectedClassId,
     setPerspective,
     getEntryAt, loadSchedule,
+    viewMode, versionName,
+    loadVersionEntries, clearVersionView,
   }
 })

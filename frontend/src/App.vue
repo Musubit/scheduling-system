@@ -17,6 +17,7 @@ const ReportPage = defineAsyncComponent(() => import('./views/ReportPage.vue'))
 const SettingsPage = defineAsyncComponent(() => import('./views/SettingsPage.vue'))
 const HistoryComparePage = defineAsyncComponent(() => import('./views/HistoryComparePage.vue'))
 const SystemManagementPage = defineAsyncComponent(() => import('./views/SystemManagementPage.vue'))
+const ScheduleCenterPage = defineAsyncComponent(() => import('./views/ScheduleCenterPage.vue'))
 
 import type { PageId } from './types'
 
@@ -82,6 +83,7 @@ const themeOverrides = {
 	  settings: SettingsPage,
 	  history: HistoryComparePage,
 	  system: SystemManagementPage,
+	  'schedule-center': ScheduleCenterPage,
 	}
 
 const currentPageComponent = computed(() => pageComponents[appStore.currentPage])

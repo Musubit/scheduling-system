@@ -13,6 +13,7 @@ const drawerRef = inject<any>('drawerRef')
 const message = useMessage()
 
 const displayEntries = computed(() => scheduleStore.displayEntries)
+const readonly = computed(() => scheduleStore.viewMode === 'version')
 
 // ---- Locked Time Slot Editing Mode ----
 const editMode = ref(false)
@@ -133,7 +134,7 @@ function togglePopover(day: number, period: number) {
 const dragSourceEl = ref<HTMLElement | null>(null)
 
 function onDragStart(e: DragEvent, entry: ScheduleEntry) {
-  if (editMode.value) return
+  if (editMode.value || readonly.value) return
   dragEntry.value = entry
   popoverCell.value = null
 
@@ -172,7 +173,7 @@ function onDragEnd() {
 }
 
 function onDragOver(e: DragEvent, day: number, period: number) {
-  if (editMode.value) return
+  if (editMode.value || readonly.value) return
   e.preventDefault()
   if (e.dataTransfer) {
     e.dataTransfer.dropEffect = isDropAllowed(day, period) ? 'move' : 'none'
@@ -194,7 +195,7 @@ function onDragLeave() {
 }
 
 async function onDrop(e: DragEvent, day: number, period: number) {
-  if (editMode.value) return
+  if (editMode.value || readonly.value) return
   e.preventDefault()
   dragOverDay.value = -1
   dragOverPeriod.value = -1
@@ -275,12 +276,22 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
   <div class="week-view">
     <div class="week-toolbar" v-if="displayEntries.length > 0 || editMode">
       <div class="toolbar-left">
-        <span class="mode-label" v-if="editMode">🔒 锁定时段编辑模式 — 点击格子锁定/解锁时段</span>
-        <span class="mode-label" v-else>💡 拖拽课程卡片即可调整课表位置</span>
+        <span v-if="readonly" class="mode-label" style="color:var(--b3-theme-primary)">
+          📖 历史版本：{{ scheduleStore.versionName }}
+        </span>
+        <span v-else-if="editMode" class="mode-label">🔒 锁定时段编辑模式 — 点击格子锁定/解锁时段</span>
+        <span v-else class="mode-label">💡 拖拽课程卡片即可调整课表位置</span>
       </div>
-      <button class="mode-toggle-btn" @click="editMode = !editMode">
-        {{ editMode ? '返回查看' : '编辑锁定时段' }}
-      </button>
+      <template v-if="readonly">
+        <button class="mode-toggle-btn" @click="scheduleStore.clearVersionView()">
+          ← 返回当前课表
+        </button>
+      </template>
+      <template v-else>
+        <button class="mode-toggle-btn" @click="editMode = !editMode">
+          {{ editMode ? '返回查看' : '编辑锁定时段' }}
+        </button>
+      </template>
     </div>
 
     <div v-if="editMode" class="edit-mode-container">
@@ -330,7 +341,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             <div
               class="course-card"
               :style="courseColorStyle(getCourseAt(di, pi)!.course?.ID ?? 0)"
-              draggable="true"
+              :draggable="!readonly"
               @dragstart="onDragStart($event, getCourseAt(di, pi)!)"
               @dragend="onDragEnd"
               @click.stop="openCourseDetail(getCourseAt(di, pi)!)"
@@ -364,7 +375,7 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
             :key="e.ID"
             class="overflow-item"
             :style="courseColorStyle(e.course?.ID ?? 0)"
-            draggable="true"
+            :draggable="!readonly"
             @dragstart="onDragStart($event, e)"
             @click="openCourseDetail(e); popoverCell = null"
           >
