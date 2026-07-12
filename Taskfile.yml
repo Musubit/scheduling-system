@@ -3,6 +3,10 @@ version: '3'
 vars:
   APP_NAME: "scheduling-system"
   BIN_DIR: "bin"
+  # Portable release version — single source of truth for the ZIP filename.
+  # Keep in sync with wails.json / build/windows/version.rc when bumping;
+  # see docs/RELEASE.md Release Checklist.
+  VERSION: '{{.VERSION | default "0.4.0-alpha"}}'
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
   GOOS: '{{.GOOS | default OS}}'
@@ -44,7 +48,7 @@ tasks:
       - task: build:scheduler
     cmds:
       - task: windows:build
-      - powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -BinDir {{.BIN_DIR}} -AppName {{.APP_NAME}}
+      - powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -BinDir {{.BIN_DIR}} -AppName {{.APP_NAME}} -Version {{.VERSION}}
 
   run:
     summary: Runs the application

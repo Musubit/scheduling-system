@@ -19,14 +19,31 @@
 ### 生产构建
 
 ```bash
+# 一键：构建 scheduler + Wails GUI exe + 打包便携版 ZIP
+task package:portable
+```
+
+ZIP 文件名版本号来自 `Taskfile.yml` 顶部 `VERSION` var（当前 `0.4.0-alpha`）。
+Bump 版本时统一改 Taskfile 一处，`package:portable` 会自动把值透传给
+`package-portable.ps1`，产出 `bin/scheduling-system-portable-v<VERSION>.zip`。
+
+如需临时覆盖版本（例如 hotfix 打测试包），也可命令行指定：
+
+```bash
+task package:portable VERSION=0.4.0-alpha3
+```
+
+### 手动分步
+
+```bash
 # 1. 构建 OR-Tools 调度器（可选，SA-only 模式可跳过）
 task build:scheduler
 
 # 2. 构建 Windows GUI exe（含 icon + 版本信息 + manifest）
 task windows:build
 
-# 3. 打包便携版 ZIP
-powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1
+# 3. 打包便携版 ZIP（Version 参数必须显式传，否则用脚本默认值）
+powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -Version 0.4.0-alpha
 ```
 
 ### 手动构建（流程说明）
@@ -173,11 +190,12 @@ powershell .../package-portable.ps1
 
 发布新版本时检查：
 
-- [ ] **版本号同步 4 处**（bump 时必改；windres 路径下 `info.json` 已停用）：
-  1. `wails.json` `version`
-  2. `wails.json` `info.productVersion`
-  3. `build/windows/version.rc` `FILEVERSION` / `PRODUCTVERSION`（逗号分隔数字段）
-  4. `build/windows/version.rc` 字符串 `FileVersion` / `ProductVersion`
+- [ ] **版本号同步 5 处**（bump 时必改；info.json 已停用不再计入）：
+  1. `Taskfile.yml` 顶部 `VERSION` var —— **ZIP 文件名来源，务必先改**
+  2. `wails.json` `version`
+  3. `wails.json` `info.productVersion`
+  4. `build/windows/version.rc` `FILEVERSION` / `PRODUCTVERSION`（逗号分隔数字段）
+  5. `build/windows/version.rc` 字符串 `FileVersion` / `ProductVersion`
 - [ ] 产品名 / 描述 / 公司名一致（`wails.json`、`build/windows/version.rc`、`backend/app.go` 的 `Name` / `Description` / `Title`）
 - [ ] `go build` 通过
 - [ ] `npm run build` 通过
@@ -201,4 +219,12 @@ powershell .../package-portable.ps1
 | DPI awareness + Common Controls v6 | `build/windows/wails.exe.manifest`，rc 中 `1 24` 引用 |
 | 窗口标题 / Wails 应用 Name / Description | `backend/app.go` `application.Options` + `WebviewWindowOptions.Title` |
 | Wails 工具链元数据（非 exe 嵌入） | `wails.json` |
+| Portable ZIP 文件名版本号 | `Taskfile.yml` 顶部 `VERSION` var（Epic G4）|
 | `build/windows/info.json` | **已停用**（Epic G3 前 `wails3 generate syso` 消费；保留仅作历史记录，不再影响构建） |
+
+### 发布分支状态
+
+| 分支 | 状态 | 说明 |
+|----|----|----|
+| Portable ZIP (`task package:portable`) | ✅ 支持 | 内部 alpha 发布的唯一权威路径 |
+| NSIS installer (`task windows:package`) | ⚠️ 不在 v0.4.x 支持范围 | `build/windows/nsis/` 保留，但存在多处已知漂移（版本硬编码 0.1.0 / 产品名旧 / 不含 scheduler.exe）；如需商业发行，需专门 Sprint 处理。旧的 `SchedulingSystem-installer.exe` 遗留产物已在 Epic G4 清理 |
