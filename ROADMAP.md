@@ -48,7 +48,7 @@
 |----|------|
 | Theme | 用户体验提升、排课体验优化、发布工程完善 |
 | Focus | 技术债清理、全局学期上下文、快照管理、约束 UI、发布工程（G1-G4）、手动调课评分反馈（H1） |
-| Status | ✅ Epic A (Technical Debt) · ✅ Epic B (Global Semester Context) · ✅ Epic C (Snapshot) · ✅ Epic D (Constraint) · ✅ Epic E (Settings) · ✅ Epic F1/F2 (Scheduling UX) · ✅ Epic G1-G4 (Release Engineering) · ✅ Epic H1 (Adjustment Scoring) · **当前焦点：Epic H2 (Undo/Redo) — 规划中** |
+| Status | ✅ Epic A-D · ✅ Epic E · ✅ Epic F1/F2 · ✅ Epic G1-G4 · ✅ Epic H1 · ✅ **Epic H2-1 (Version Data Layer) — 已完成** · 当前焦点: H2-2 (Version UI) |
 
 ### v0.5.x - Intelligent Scheduling
 

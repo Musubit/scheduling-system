@@ -23,9 +23,9 @@
 | G3 - Application Metadata | P1 | 应用元数据完善（windres + 属性页）| ✅ Completed |
 | G4 - Release Engineering | P2 | Portable 版本一致性 + 工程整理 | ✅ Completed |
 | H1 - Manual Adjustment Scoring | P0 | 手动调课实时评分反馈 | ✅ Completed |
-| H2 - Undo/Redo | P1 | 拖拽撤销恢复 | Planned |
-| H3 - Adjustment Snapshot | P2 | 手动调整后保存快照 | Planned |
-| H4 - Constraint Violation Detail | P2 | 约束违反详情/可解释性 | Planned |
+| H2-1 - Version Data Layer | P0 | 课表版本管理后端数据层 | ✅ Completed |
+| H2-2 - Version UI | P1 | 课表版本管理前端 | Planned |
+| H3 | P2 | 调整后保存快照 | Planned |
 
 ---
 
