@@ -1,15 +1,15 @@
 {
 	"fixed": {
-		"file_version": "0.3.3"
+		"file_version": "0.4.0-alpha"
 		},
 		"info": {
 			"0000": {
-				"ProductVersion": "0.3.3",
+				"ProductVersion": "0.4.0-alpha",
 			"CompanyName": "高校排课系统",
 			"FileDescription": "高校智能排课管理系统",
 			"LegalCopyright": "(c) 2026, Scheduling System",
 			"ProductName": "高校排课系统",
-			"Comments": "高校智能排课管理系统"
+			"Comments": "高校智能排课管理系统（内部 alpha）"
 		}
 	}
 }

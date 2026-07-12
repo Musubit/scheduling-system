@@ -5,12 +5,12 @@
     "name": "高校排课系统",
     "email": ""
   },
-  "version": "0.3.3",
+  "version": "0.4.0-alpha",
   "info": {
     "companyName": "高校排课系统",
     "productName": "高校排课系统",
-    "productVersion": "0.3.3",
+    "productVersion": "0.4.0-alpha",
     "copyright": "(c) 2026, Scheduling System",
-    "comments": "高校智能排课管理系统"
+    "comments": "高校智能排课管理系统（内部 alpha）"
   }
 }
