@@ -41,6 +41,16 @@ type CheckMoveResult struct {
 	Conflicts []MoveConflict `json:"conflicts"`
 }
 
+// MoveAndScoreResult is the output of MoveEntryAndScore.
+type MoveAndScoreResult struct {
+	Success     bool            `json:"success"`
+	Error       string          `json:"error,omitempty"`
+	BeforeScore float64         `json:"beforeScore"`
+	NewScore    float64         `json:"newScore"`
+	Delta       float64         `json:"delta"`
+	ScoreDetail *ScoreBreakdown `json:"scoreDetail,omitempty"`
+}
+
 // CheckMove validates whether a schedule entry can be moved to a new time/room.
 func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 	result := &CheckMoveResult{Valid: true}
@@ -250,6 +260,71 @@ func (s *MoveService) MoveEntry(req CheckMoveRequest) error {
 	return s.db.Save(&entry).Error()
 }
 
+// MoveEntryAndScore validates and applies a move, then recalculates the full
+// schedule score to provide immediate quality-change feedback. On success the
+// DB entry is updated and the response includes before/after scores with a
+// human-readable delta.
+//
+// This is the recommended single-call replacement for CheckMove + MoveEntry
+// when the caller also wants score feedback. Existing CheckMove + MoveEntry
+// callers are unaffected (backward compatible).
+func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResult, error) {
+	// Load the entry being moved
+	var entry models.ScheduleEntry
+	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
+		Preload("TeachingTask").First(&entry, req.EntryID).Error(); err != nil {
+		return &MoveAndScoreResult{
+			Success: false,
+			Error:   fmt.Sprintf("课表条目不存在: ID=%d", req.EntryID),
+		}, nil
+	}
+
+	// Compute score BEFORE the move (entry still at old position)
+	beforeBD, err := s.computeScore(entry.Semester)
+	if err != nil {
+		return nil, fmt.Errorf("评分计算失败: %w", err)
+	}
+	beforeScore := beforeBD.Total
+
+	// Validate the move using the existing conflict checker
+	checkResult := s.CheckMove(req)
+	if !checkResult.Valid {
+		return &MoveAndScoreResult{
+			Success:     false,
+			Error:       checkResult.Conflicts[0].Description,
+			BeforeScore: beforeScore,
+		}, nil
+	}
+
+	// Apply the move
+	entry.DayOfWeek = models.DayOfWeek(req.NewDay)
+	entry.StartPeriod = models.Period(req.NewPeriod)
+	if req.NewSpan > 0 {
+		entry.Span = req.NewSpan
+	}
+	if req.NewClassroom > 0 {
+		entry.ClassroomID = req.NewClassroom
+	}
+	if err := s.db.Save(&entry).Error(); err != nil {
+		return nil, fmt.Errorf("移动课程失败: %w", err)
+	}
+
+	// Compute score AFTER the move
+	afterBD, err := s.computeScore(entry.Semester)
+	if err != nil {
+		return nil, fmt.Errorf("重评分失败: %w", err)
+	}
+	afterScore := afterBD.Total
+
+	return &MoveAndScoreResult{
+		Success:     true,
+		BeforeScore: beforeScore,
+		NewScore:    afterScore,
+		Delta:       afterScore - beforeScore,
+		ScoreDetail: afterBD,
+	}, nil
+}
+
 // getClassIDs returns all class group IDs associated with a schedule entry.
 func (s *MoveService) getClassIDs(entry models.ScheduleEntry) []uint {
 	if entry.TeachingTaskID != nil {
@@ -328,4 +403,81 @@ func weeksOverlap(a, b string) bool {
 	as, ae := parseWeeksRange(a)
 	bs, be := parseWeeksRange(b)
 	return as <= be && bs <= ae
+}
+
+// computeScore loads all schedule data for the given semester and evaluates
+// it against ScoreSchedule. It uses the constraint list from the most recent
+// snapshot so the score is directly comparable to what the user saw after
+// the last full scheduling run.
+func (s *MoveService) computeScore(semester string) (*ScoreBreakdown, error) {
+	// Load all entries for the semester
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester = ?", semester).
+		Preload("Course").Preload("Teacher").Preload("Classroom").
+		Preload("TeachingTask.Classes.ClassGroup").
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("加载课表数据失败: %w", err)
+	}
+
+	// Load all teachers
+	var teachers []models.Teacher
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return nil, err
+	}
+
+	// Load all classrooms
+	var classrooms []models.Classroom
+	if err := s.db.Find(&classrooms).Error(); err != nil {
+		return nil, err
+	}
+
+	// Load teaching tasks for this semester (needed for PE course detection
+	// and student_fatigue calculation)
+	var sem models.Semester
+	s.db.Where("name = ?", semester).First(&sem)
+
+	var teachingTasks []models.TeachingTask
+	if sem.ID > 0 {
+		s.db.Where("semester_id = ?", sem.ID).
+			Preload("Course").Preload("Teacher").
+			Preload("Classes.ClassGroup").
+			Find(&teachingTasks)
+	}
+
+	// Build sports course IDs
+	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
+
+	// Use the same constraints that were active during the original scheduling run
+	constraints := s.loadLatestConstraints(semester)
+
+	scoringCtx := NewScoringContext(constraints, sportsCourseIDs, teachingTasks)
+	breakdown := NewScoringService().ScoreSchedule(entries, teachers, classrooms, scoringCtx)
+	return &breakdown, nil
+}
+
+// loadLatestConstraints reads the constraint list from the most recent
+// auto-snapshot for the given semester. Falls back to FullDefaultConstraints
+// when no snapshot exists.
+func (s *MoveService) loadLatestConstraints(semester string) []string {
+	var snap models.ScheduleSnapshot
+	if err := s.db.Where("semester = ?", semester).
+		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
+		var constraints []string
+		if err := json.Unmarshal([]byte(snap.EnabledConstraints), &constraints); err == nil && len(constraints) > 0 {
+			return constraints
+		}
+	}
+	return FullDefaultConstraints()
+}
+
+// buildSportsCourseIDs identifies PE course IDs from teaching tasks.
+// A course is considered a sports course when its name contains "体育".
+func (s *MoveService) buildSportsCourseIDs(teachingTasks []models.TeachingTask) map[uint]bool {
+	ids := make(map[uint]bool)
+	for _, tt := range teachingTasks {
+		if tt.CourseID > 0 && models.IsSportsCourse(tt.Course.Name) {
+			ids[tt.CourseID] = true
+		}
+	}
+	return ids
 }

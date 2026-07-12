@@ -59,6 +59,18 @@ export interface MergeableGroup {
 }
 
 /**
+ * MoveAndScoreResult is the output of MoveEntryAndScore.
+ */
+export interface MoveAndScoreResult {
+    "success": boolean;
+    "error"?: string;
+    "beforeScore": number;
+    "newScore": number;
+    "delta": number;
+    "scoreDetail"?: ScoreBreakdown | null;
+}
+
+/**
  * MoveConflict describes a conflict found when checking a move.
  */
 export interface MoveConflict {

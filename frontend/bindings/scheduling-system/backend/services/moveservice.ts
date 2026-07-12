@@ -27,3 +27,17 @@ export function CheckMove(req: $models.CheckMoveRequest): $CancellablePromise<$m
 export function MoveEntry(req: $models.CheckMoveRequest): $CancellablePromise<void> {
     return $Call.ByID(410174494, req);
 }
+
+/**
+ * MoveEntryAndScore validates and applies a move, then recalculates the full
+ * schedule score to provide immediate quality-change feedback. On success the
+ * DB entry is updated and the response includes before/after scores with a
+ * human-readable delta.
+ * 
+ * This is the recommended single-call replacement for CheckMove + MoveEntry
+ * when the caller also wants score feedback. Existing CheckMove + MoveEntry
+ * callers are unaffected (backward compatible).
+ */
+export function MoveEntryAndScore(req: $models.CheckMoveRequest): $CancellablePromise<$models.MoveAndScoreResult | null> {
+    return $Call.ByID(3988363451, req);
+}

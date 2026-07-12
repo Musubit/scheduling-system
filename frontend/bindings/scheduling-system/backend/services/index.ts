@@ -18,6 +18,7 @@ export type {
     CheckMoveRequest,
     CheckMoveResult,
     MergeableGroup,
+    MoveAndScoreResult,
     MoveConflict,
     ScheduleProgress,
     SchedulingConfig,

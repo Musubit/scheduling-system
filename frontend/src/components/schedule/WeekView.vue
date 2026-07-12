@@ -219,33 +219,38 @@ async function onDrop(e: DragEvent, day: number, period: number) {
   }
 
   try {
-    const { CheckMove } = await import('../../../bindings/scheduling-system/backend/services/moveservice')
-    const result = await CheckMove({
+    const { MoveEntryAndScore } = await import('../../../bindings/scheduling-system/backend/services/moveservice')
+    const result = await MoveEntryAndScore({
       entryId: entry.ID,
       newDay: day,
       newPeriod: period,
       newSpan: entry.span,
     } as any)
 
-    if (!result?.valid) {
+    if (!result?.success) {
       conflictFlash.value = { day, period }
-      const conflictDesc = result?.conflicts?.[0]?.description || '冲突'
-      message.error(`无法移动：${conflictDesc}`)
+      const desc = result?.error || '冲突'
+      message.error(`无法移动：${desc}`)
       setTimeout(() => { conflictFlash.value = null }, 1500)
       dragEntry.value = null
       return
     }
 
-    const { MoveEntry } = await import('../../../bindings/scheduling-system/backend/services/moveservice')
-    await MoveEntry({
-      entryId: entry.ID,
-      newDay: day,
-      newPeriod: period,
-      newSpan: entry.span,
-    } as any)
+    // 评分变化反馈
+    if (result.newScore != null) {
+      const delta = result.delta ?? 0
+      const deltaStr = delta >= 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)
+      if (delta > 0) {
+        message.success(`评分 ${result.newScore.toFixed(1)} 分（${deltaStr}）`, { duration: 3000 })
+      } else if (delta < 0) {
+        message.warning(`评分 ${result.newScore.toFixed(1)} 分（${deltaStr}）`, { duration: 3000 })
+      } else {
+        message.success(`评分 ${result.newScore.toFixed(1)} 分`, { duration: 2000 })
+      }
+    }
 
-	    // 成功无需提示（课程已移动，用户能看到结果）
-	    await scheduleStore.loadSchedule('')
+    // 成功无需额外提示（课程已移动，用户能看到结果）
+    await scheduleStore.loadSchedule('')
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))
   }
