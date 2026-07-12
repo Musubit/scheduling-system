@@ -11,6 +11,8 @@ export interface Course {
   type: string
   hours: number
   status?: 'active' | 'inactive'
+  /** v0.5.3: 课程类别 — InferRoomType 的默认来源 */
+  category?: string
 }
 
 /** 教师 */
@@ -37,6 +39,8 @@ export interface Classroom {
   capacity: number
   type: string
   status: string
+  /** v0.5.3: 教室设备列表 (JSON 字符串) */
+  equipment?: string
 }
 
 /** 班级 */
@@ -79,6 +83,8 @@ export interface TeachingTask {
   maxHoursPerWeek: number
   /** v0.5.1: 单次连排节次偏好（0=不指定, 1/2/3=强制） */
   preferredSpan?: number
+  /** v0.5.3: 指定教室类型（可选覆盖，为空时由 ResourceMatcher 从 Course.Category 推断） */
+  requiredRoomType?: string
   course?: Course
   teacher?: Teacher
   semester?: Semester

@@ -64,7 +64,7 @@ const searchText = computed({
 	  { key: 'building', width: 70 },
 	  { key: 'floor', width: 50 },
 	  { key: 'capacity', width: 60 },
-	  { key: 'type', width: 80 },
+	  { key: 'type', width: 90, title: '教室类型' },
 	  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'available', onUpdateValue: () => toggleStatus(row) }) },
 	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
@@ -75,6 +75,7 @@ const searchText = computed({
 	  { key: 'dept', width: 120 },
 	  { key: 'credit', width: 50 },
 	  { key: 'type', width: 90 },
+	  { key: 'category', width: 80, title: '类别' },
 	  { key: 'hours', width: 50 },
 	  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
 	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
@@ -96,6 +97,31 @@ const deptOptions = [
 ]
 
 const deptFormOptions = DEPARTMENTS.map(d => ({ label: d.name, value: d.name }))
+
+// v0.5.3: 课程类别选项
+const categoryOptions = [
+  { label: '普通', value: '普通' },
+  { label: '实验', value: '实验' },
+  { label: '上机', value: '上机' },
+  { label: '体育', value: '体育' },
+  { label: '外语', value: '外语' },
+  { label: '艺术', value: '艺术' },
+]
+
+// v0.5.3: 教室类型选项
+const roomTypeOptions = [
+  { label: '普通教室', value: '普通教室' },
+  { label: '实验室', value: '实验室' },
+  { label: '机房', value: '机房' },
+  { label: '体育馆', value: '体育馆' },
+  { label: '语音室', value: '语音室' },
+]
+
+// v0.5.3: 教学任务-指定教室类型选项（含「不指定」选项）
+const requiredRoomTypeOptions = [
+  { label: '不指定（自动推断）', value: '' },
+  ...roomTypeOptions,
+]
 
 // ===== Modal state =====
 const showModal = ref(false)
@@ -224,6 +250,7 @@ async function callCreate(tab: string, item: any) {
         courseId: m.courseId, teacherId: m.teacherId, semesterId: m.semesterId, status: 'active',
         totalHours: formData.value.totalHours || 0, startWeek: formData.value.startWeek || 1,
         endWeek: formData.value.endWeek || 16, maxHoursPerWeek: formData.value.maxHoursPerWeek || 0,
+        requiredRoomType: formData.value.requiredRoomType || '',
       } as any, classIds)
       break
     }
@@ -242,6 +269,7 @@ async function callUpdate(tab: string, id: number, item: any) {
         courseId: m.courseId, teacherId: m.teacherId, semesterId: m.semesterId, status: 'active',
         totalHours: formData.value.totalHours || 0, startWeek: formData.value.startWeek || 1,
         endWeek: formData.value.endWeek || 16, maxHoursPerWeek: formData.value.maxHoursPerWeek || 0,
+        requiredRoomType: formData.value.requiredRoomType || '',
       } as any, classIds)
       break
     }
@@ -281,7 +309,7 @@ const formFields = computed(() => {
 	      { key: 'building', label: '教学楼' },
 	      { key: 'floor', label: '楼层', type: 'number', min: 1 },
 	      { key: 'capacity', label: '容量', type: 'number', min: 1 },
-	      { key: 'type', label: '类型（选填）' },
+	      { key: 'type', label: '教室类型', type: 'select', options: roomTypeOptions },
 	    ],
 	    course: [
 	      { key: 'code', label: '课程代码（选填）' },
@@ -290,6 +318,7 @@ const formFields = computed(() => {
 	      { key: 'hours', label: '学时（必填）', type: 'number', min: 1 },
 	      { key: 'credit', label: '学分（选填）', type: 'number', min: 0 },
 	      { key: 'type', label: '类型（选填）' },
+	      { key: 'category', label: '课程类别', type: 'select', options: categoryOptions },
 	    ],
 		    class: [
 		      { key: 'code', label: '班级编号（选填）' },
@@ -306,6 +335,7 @@ const formFields = computed(() => {
 		      { key: 'startWeek', label: '起始周', type: 'number', min: 1, max: 20 },
 		      { key: 'endWeek', label: '结束周', type: 'number', min: 1, max: 20 },
 		      { key: 'maxHoursPerWeek', label: '周最大学时（选填）', type: 'number', min: 0 },
+		      { key: 'requiredRoomType', label: '指定教室类型', type: 'select', options: requiredRoomTypeOptions },
 		    ],
 		  }
   return fields[resourceStore.activeTab] || []
@@ -376,6 +406,7 @@ const teachingTaskCols = [
     return h('div', { style: 'display:flex;flex-wrap:wrap;gap:4px' }, names.map((n: string) => h(NTag, { size: 'small', bordered: false }, { default: () => n })))
   }},
   { key: 'totalHours', width: 60, title: '学时' },
+  { key: 'requiredRoomType', width: 100, title: '教室类型', render: (row: any) => row.requiredRoomType || h('span', { style: 'color: var(--b3-theme-on-surface-light)' }, '自动') },
   { key: 'weeks', width: 80, render: (row: any) => `${row.startWeek || 1}-${row.endWeek || 16}周` },
   { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
   { key: 'actions', width: 140, render: actionRender },
@@ -460,10 +491,11 @@ function openTeachingTaskEdit(row?: any) {
       startWeek: row.startWeek || 1,
       endWeek: row.endWeek || 16,
       maxHoursPerWeek: row.maxHoursPerWeek || 0,
+      requiredRoomType: row.requiredRoomType || '',
     }
   } else {
     editingItem.value = null
-    formData.value = { semesterId: appStore.currentSemesterId || 0, _classIds: [], startWeek: 1, endWeek: 16, totalHours: 0, maxHoursPerWeek: 0 }
+    formData.value = { semesterId: appStore.currentSemesterId || 0, _classIds: [], startWeek: 1, endWeek: 16, totalHours: 0, maxHoursPerWeek: 0, requiredRoomType: '' }
   }
   showModal.value = true
 }
