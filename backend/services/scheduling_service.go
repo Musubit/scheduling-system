@@ -315,8 +315,8 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// Auto-snapshot after scheduling
 	if s.snapshots != nil && len(saResult.Entries) > 0 {
-		_, snapErr := s.snapshots.CreateSnapshot(
-				config.Semester, config.Scope, "auto", "simulated_annealing",
+			_, snapErr := s.snapshots.CreateSnapshot(
+					config.Semester, config.Scope, models.TriggerAuto, "simulated_annealing",
 				saResult.Entries, teachers, classrooms,
 				scoringCtx,
 				saResult.ElapsedMs, result.Conflicts,

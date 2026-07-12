@@ -89,14 +89,30 @@ func (s *ScheduleSnapshot) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// Trigger constants — centralized single source of truth.
+// Extend here when adding new trigger types.
+const (
+	TriggerAuto    = "auto"
+	TriggerManual  = "manual"
+	TriggerImport  = "import"
+	TriggerRestore = "restore"
+	TriggerCopy    = "copy"
+)
+
 // TriggerLabel maps a trigger code to its human-readable label.
-// Extensible for future trigger types (import, restore, copy, etc.).
+// Extensible for future trigger types — add new cases here.
 func TriggerLabel(trigger string) string {
 	switch trigger {
-	case "manual":
+	case TriggerManual:
 		return "手动生成"
-	case "auto":
+	case TriggerAuto:
 		return "自动排课"
+	case TriggerImport:
+		return "导入生成"
+	case TriggerRestore:
+		return "恢复生成"
+	case TriggerCopy:
+		return "复制生成"
 	default:
 		return trigger
 	}

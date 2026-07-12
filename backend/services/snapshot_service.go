@@ -239,10 +239,10 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	}
 
 	snapshot := &models.ScheduleSnapshot{
-		Name:          models.DefaultSnapshotName("manual", time.Now()),
+		Name:          models.DefaultSnapshotName(models.TriggerManual, time.Now()),
 		Semester:      semester,
 		Dept:          "全校",
-		Trigger:       "manual",
+		Trigger:       models.TriggerManual,
 		HardPassed:    conflicts == 0,
 		TotalScore:    breakdown.Total,
 		TeacherPref:   breakdown.TeacherPref,
@@ -269,14 +269,15 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	return snapshot, nil
 }
 
-// readLatestStoredConfig reads EnabledConstraints from the most recent auto snapshot.
-// Returns full defaults if no auto snapshot exists.
+// readLatestStoredConfig reads EnabledConstraints from the most recent snapshot
+// that has stored constraints. Decoupled from trigger value — works for any
+// trigger type (auto, manual, import, restore, copy, etc.).
 func readLatestStoredConfig(db database.DB, semester string) StoredConfig {
 	var snap models.ScheduleSnapshot
-	err := db.Where("semester = ? AND trigger = ?", semester, "auto").
+	err := db.Where("semester = ? AND enabled_constraints != ''", semester).
 		Order("created_at DESC").
 		First(&snap).Error
-	if err != nil || snap.EnabledConstraints == "" {
+	if err != nil {
 		cfg, _ := UnmarshalStoredConfig("")
 		cfg.EnabledConstraints = FullDefaultConstraints()
 		cfg.Version = 1
