@@ -112,19 +112,56 @@ export const useAppStore = defineStore('app', () => {
   // ===== 搜索 =====
   const searchQuery = ref('')
   const deptFilter = ref('全部院系')
-  const semesterFilter = ref('')  // loaded from active semester
-  const semesters = ref<Array<{ ID: number; name: string }>>([])  // all semesters from DB
-  const semesterOptions = ref<Array<{ label: string; value: string }>>([])  // stable ref for n-select
 
-  // Init: load active semester and all semesters
+  // ===== 全局学期上下文 (Single Source of Truth) =====
+  const semesters = ref<Array<{ ID: number; name: string; isActive?: boolean }>>([])
+  const currentSemesterId = ref<number>(0)
+
+  const currentSemester = computed(() =>
+    semesters.value.find(s => s.ID === currentSemesterId.value) || null
+  )
+  const currentSemesterName = computed(() => currentSemester.value?.name || '')
+
+  // semesterFilter: backward-compat writable computed synced to currentSemesterId
+  // Legacy code reads appStore.semesterFilter (string) - this proxies to the new state.
+  const semesterFilter = computed({
+    get: () => currentSemesterName.value,
+    set: (name: string) => {
+      const sem = semesters.value.find(s => s.name === name)
+      if (sem) setCurrentSemester(sem.ID)
+    },
+  })
+
+  // Legacy: stable ref for n-select options (derived from semesters)
+  const semesterOptions = computed(() =>
+    semesters.value.map(s => ({ label: s.name, value: s.name }))
+  )
+
+  // ===== 学期切换入口 =====
+  // Encapsulates all side-effects of switching semester.
+  // Sprint 3+ pages will call this instead of各自维护状态.
+  async function setCurrentSemester(id: number) {
+    if (id === currentSemesterId.value) return
+    currentSemesterId.value = id
+    const name = currentSemesterName.value
+    if (!name) return
+    // Dynamic import to avoid circular dependency
+    const { useScheduleStore } = await import('./schedule')
+    const { useResourceStore } = await import('./resource')
+    useScheduleStore().loadSchedule(name)
+    useResourceStore().loadTeachingTasks(id)
+  }
+
+  // ===== 学期初始化 =====
+  // GetActiveSemester() 仅用于确定默认学期，不作为页面级状态来源。
   async function initSemester() {
     await loadSemesters()
     try {
       const sem = await GetActiveSemester()
-      if (sem && sem.name) {
-        semesterFilter.value = sem.name
+      if (sem && sem.ID) {
+        currentSemesterId.value = sem.ID
       } else if (semesters.value.length > 0) {
-        semesterFilter.value = semesters.value[0].name
+        currentSemesterId.value = semesters.value[0].ID
       }
     } catch { /* no active semester */ }
   }
@@ -133,9 +170,7 @@ export const useAppStore = defineStore('app', () => {
   async function loadSemesters() {
     try {
       const result = await GetSemesters()
-      console.log('[appStore] loadSemesters:', result?.map((s: any) => s.name))
       semesters.value = result || []
-      semesterOptions.value = (result || []).map((s: any) => ({ label: s.name, value: s.name }))
     } catch (e) {
       console.warn('[appStore] loadSemesters FAILED:', e)
     }
@@ -144,21 +179,27 @@ export const useAppStore = defineStore('app', () => {
 	return {
 	    // sidebar
 	    sidebarCollapsed,
-    toggleSidebar,
-    // nav
-    currentPage,
-    breadcrumbPath,
-    pageTitle,
-    navGroups,
-    expandedGroups,
-    toggleNavGroup,
-    navigateTo,
-    // filters
-    searchQuery,
-    deptFilter,
-    semesterFilter,
-    semesters,
-    semesterOptions,
-    loadSemesters,
+	    toggleSidebar,
+	    // nav
+	    currentPage,
+	    breadcrumbPath,
+	    pageTitle,
+	    navGroups,
+	    expandedGroups,
+	    toggleNavGroup,
+	    navigateTo,
+	    // global semester context
+	    currentSemesterId,
+	    currentSemester,
+	    currentSemesterName,
+	    setCurrentSemester,
+	    // legacy compat (proxied to currentSemesterId)
+	    semesterFilter,
+	    semesterOptions,
+	    semesters,
+	    loadSemesters,
+	    // filters
+	    searchQuery,
+	    deptFilter,
   }
 })

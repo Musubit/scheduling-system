@@ -16,7 +16,6 @@ import * as models$0 from "../models/models.js";
 
 /**
  * BackupDatabase copies the database file to a backup location.
- * Returns the backup file path.
  */
 export function BackupDatabase(backupPath: string): $CancellablePromise<void> {
     return $Call.ByID(426460745, backupPath);
