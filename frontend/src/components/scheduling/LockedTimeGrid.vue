@@ -87,7 +87,12 @@ onMounted(loadLockedSlots)
 .locked-grid {
   display: grid;
   grid-template-columns: 60px repeat(7, 1fr);
-  gap: 2px;
+  grid-template-rows: auto repeat(11, minmax(48px, 1fr));
+  gap: 1px;
+  background: var(--b3-border-color);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  overflow: hidden;
   user-select: none;
   width: 100%;
 }
@@ -95,45 +100,43 @@ onMounted(loadLockedSlots)
 .lg-corner {
   grid-row: 1;
   grid-column: 1;
+  background: var(--b3-theme-surface);
 }
 
 .lg-col-label {
   grid-row: 1;
-  font-size: 11px;
-  color: var(--b3-text-color-2);
-  font-weight: 600;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
+  font-weight: 500;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--b3-theme-surface);
 }
 
 .lg-row-label {
-  font-size: 11px;
-  color: var(--b3-text-color-2);
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--b3-theme-surface);
 }
 
 .lg-cell {
-  min-height: 36px;
-  border-radius: 3px;
-  border: 1px solid var(--b3-border-color);
-  background: var(--b3-theme-surface-light);
+  background: var(--b3-theme-surface);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .lg-cell:hover {
-  border-color: var(--b3-theme-primary);
   background: var(--b3-theme-primary-lightest);
 }
 
 .lg-cell.locked {
   background: rgba(244, 67, 54, 0.25);
-  border-color: rgba(244, 67, 54, 0.4);
 }
 
 .lg-cell.locked:hover {
