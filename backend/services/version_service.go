@@ -94,6 +94,14 @@ func (s *VersionService) CreateManualVersion(semester, name string) (*models.Sch
 		name = fmt.Sprintf("手动方案 %s", time.Now().Format("2006-01-02 15:04"))
 	}
 
+	// Deduplicate: append counter if the same name already exists for this semester.
+	// This prevents confusion when users save multiple versions with the default name.
+	var dupCount int64
+	s.db.Model(&models.ScheduleVersion{}).Where("semester_id = ? AND name = ?", semesterID, name).Count(&dupCount)
+	if dupCount > 0 {
+		name = fmt.Sprintf("%s (%d)", name, dupCount+1)
+	}
+
 	// Load current schedule entries
 	var entries []models.ScheduleEntry
 	if err := s.db.Where("semester = ?", semester).

@@ -51,6 +51,11 @@ async function handleSaveVersion() {
   }
 }
 
+function onVersionNameFocus(e: FocusEvent) {
+  const input = e.target as HTMLInputElement
+  input?.select()
+}
+
 // Perspective state — three dimensions
 const perspectives = [
   { label: '教师', value: 'teacher' as const },
@@ -468,6 +473,7 @@ function handleExportSelect(key: string) {
           v-model:value="versionName"
           clearable
           @keyup.enter="handleSaveVersion"
+          @focus="onVersionNameFocus"
         />
       </n-form-item>
     </n-form>
