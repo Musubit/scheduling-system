@@ -1,6 +1,6 @@
 	<script setup lang="ts">
-	import { reactive, ref, onMounted } from 'vue'
-	import { NSwitch, NButton, NInput, NModal, NForm, NFormItem, NSpace } from 'naive-ui'
+import { reactive, ref, computed, onMounted } from 'vue'
+import { NSwitch, NButton, NInput, NDatePicker, NModal, NForm, NFormItem, NSpace } from 'naive-ui'
 	import { useAppStore } from '../stores/app'
 	import LockedTimeGrid from '../components/scheduling/LockedTimeGrid.vue'
 
@@ -29,6 +29,19 @@ const semesters = ref<SemesterData[]>([])
 const showSemesterModal = ref(false)
 const editingSemester = ref<SemesterData | null>(null)
 const semesterForm = reactive({ name: '', isActive: false, startDate: '' })
+
+// NDatePicker value ↔ string converter
+const semesterDateVal = computed({
+  get: () => semesterForm.startDate ? new Date(semesterForm.startDate).getTime() : null,
+  set: (ts: number | null) => {
+    if (ts) {
+      const d = new Date(ts)
+      semesterForm.startDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    } else {
+      semesterForm.startDate = ''
+    }
+  },
+})
 
 async function loadSemesters() {
   try {
@@ -207,7 +220,7 @@ async function handleRestore() {
           <n-input v-model:value="semesterForm.name" placeholder="如 2025-2026 第二学期" />
         </n-form-item>
         <n-form-item label="学期第一天">
-          <n-input v-model:value="semesterForm.startDate" placeholder="如 2025-09-01" />
+          <n-date-picker v-model:value="semesterDateVal" type="date" clearable placeholder="选择日期" />
         </n-form-item>
         <n-form-item label="设为当前学期">
           <n-switch v-model:value="semesterForm.isActive" />
