@@ -486,16 +486,8 @@ func (ctx *schedulingContext) findTaskDataByEntry(e models.ScheduleEntry) *teach
 	return nil
 }
 
-// getRequiredRoomType determines the required room type from course name.
+// getRequiredRoomType is deprecated. Use ResourceMatcher.Match() or InferRoomType() instead.
+// Kept for backward compatibility; will be removed in v0.6.
 func (ctx *schedulingContext) getRequiredRoomType(courseName string) string {
-	if models.IsSportsCourse(courseName) {
-		return "体育馆"
-	}
-	if IsLabCourse(courseName) {
-		return "实验室"
-	}
-	if IsComputerCourse(courseName) {
-		return "机房"
-	}
-	return ""
+	return inferRoomTypeByName(courseName)
 }

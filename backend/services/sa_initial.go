@@ -32,17 +32,6 @@ func (ctx *schedulingContext) buildInitial() {
 			td.Task.PreferredSpan,
 		)
 
-		// Determine required room type for this task
-		requiredRoomType := ""
-		courseName := td.Task.Course.Name
-		if models.IsSportsCourse(courseName) {
-			requiredRoomType = "体育馆"
-		} else if IsLabCourse(courseName) {
-			requiredRoomType = "实验室"
-		} else if IsComputerCourse(courseName) {
-			requiredRoomType = "机房"
-		}
-
 		for _, sessionSpan := range plan.Spans {
 			// Legal starts depend on this session's span (block-alignment rules).
 			validStarts := toIntSlice(models.ValidStartsForSpan(sessionSpan))
@@ -78,11 +67,11 @@ func (ctx *schedulingContext) buildInitial() {
 			}
 
 			// Phase 1: Try with teacher preference enforced (soft — skip conflicting starts)
-			placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, requiredRoomType, true)
+			placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, true)
 
 			// Phase 2: Relax teacher preference if not placed
 			if !placed && ctx.hasConstraint("teacher_preference") {
-				placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, requiredRoomType, false)
+				placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, false)
 			}
 
 			_ = placed
@@ -103,7 +92,8 @@ func toIntSlice(ps []models.Period) []int {
 // If enforcePref is true, teacher preference conflicts cause the start to be skipped.
 // If false, teacher preferences are ignored (relaxed phase).
 // v0.5.1: span is now a per-session parameter, no longer hardcoded to 2.
-func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, starts []int, span int, requiredRoomType string, enforcePref bool) bool {
+// v0.5.3: room type + equipment check via ResourceMatcher.Match().
+func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, starts []int, span int, enforcePref bool) bool {
 	for _, day := range days {
 		// Shuffle starts for randomness, but sports courses prefer specific starts
 		var orderedStarts []int
@@ -210,39 +200,35 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 				continue
 			}
 
-			// Try rooms (with room type filtering)
+			// Try rooms (with resource matching)
 			rooms := make([]models.Classroom, len(ctx.classrooms))
 			copy(rooms, ctx.classrooms)
 			ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 			for _, room := range rooms {
-			// Check room type
-			if requiredRoomType != "" {
-				if room.Type != requiredRoomType {
+				// v0.5.3: unified resource matching (room type + equipment)
+				if !Match(td.Task, td.Task.Course, room).OK {
 					continue
 				}
-			} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
-				continue // regular courses cannot use specialty rooms
-			}
 				// Check room capacity
 				if !ctx.canRoomFitCapacity(room, &td) {
 					continue
 				}
 
-			// Check room conflict (skip for shared venues like 体育馆)
-			if room.Type != "体育馆" {
-				roomBusy := false
-				for p := start; p < start+span; p++ {
-					key := occKey(day, p, room.ID)
-					if ctx.roomOcc[key] {
-						roomBusy = true
-						break
+				// Check room conflict (skip for shared venues)
+				if !IsSharedVenue(room) {
+					roomBusy := false
+					for p := start; p < start+span; p++ {
+						key := occKey(day, p, room.ID)
+						if ctx.roomOcc[key] {
+							roomBusy = true
+							break
+						}
+					}
+					if roomBusy {
+						continue
 					}
 				}
-				if roomBusy {
-					continue
-				}
-			}
 
 				// All constraints satisfied, create entry
 				entry := models.ScheduleEntry{
@@ -259,12 +245,12 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 				}
 				ctx.entries = append(ctx.entries, entry)
 
-		// Occupy room (skip for shared venues), teacher, and all class groups
-		for p := start; p < start+span; p++ {
-			if room.Type != "体育馆" {
-				ctx.roomOcc[occKey(day, p, room.ID)] = true
-			}
-			ctx.teacherOcc[occKey(day, p, td.Task.TeacherID)] = true
+				// Occupy room (skip for shared venues), teacher, and all class groups
+				for p := start; p < start+span; p++ {
+					if !IsSharedVenue(room) {
+						ctx.roomOcc[occKey(day, p, room.ID)] = true
+					}
+					ctx.teacherOcc[occKey(day, p, td.Task.TeacherID)] = true
 				}
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {

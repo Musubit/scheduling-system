@@ -75,9 +75,9 @@ func (s *SASolver) PostOptimize(
 		return false
 	}
 
-	// Helper: check room capacity (sports venues have unlimited capacity)
+	// Helper: check room capacity (shared venues have unlimited capacity)
 	canRoomFit := func(room models.Classroom, td teachingTaskData) bool {
-		if room.Type == "体育馆" {
+		if IsSharedVenue(room) {
 			return true
 		}
 		return td.TotalStudents <= 0 || room.Capacity >= td.TotalStudents
@@ -165,10 +165,10 @@ func (s *SASolver) PostOptimize(
 		}
 	}
 
-	// Build a quick lookup for shared rooms (体育馆 have unlimited capacity and can be shared)
+	// Build a quick lookup for shared rooms (unlimited capacity, can be shared)
 	sharedRoom := make(map[uint]bool)
 	for _, room := range classrooms {
-		if room.Type == "体育馆" {
+		if IsSharedVenue(room) {
 			sharedRoom[room.ID] = true
 		}
 	}
@@ -305,35 +305,28 @@ func (s *SASolver) PostOptimize(
 
 				// Try rooms
 				td, tdOk := taskMap[*e.TeachingTaskID]
-				// Determine required room type (same logic as sa_initial.go)
-				requiredRoomType := ""
-				if tdOk {
-					requiredRoomType = roomTypeForCourse(td.Task.Course.Name)
-				}
 				for _, room := range classrooms {
-				// Check room type
-				if requiredRoomType != "" {
-					if room.Type != requiredRoomType {
-						continue
+					// v0.5.3: use ResourceMatcher for room type + equipment check
+					if tdOk {
+						if !Match(td.Task, td.Task.Course, room).OK {
+							continue
+						}
 					}
-				} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
-					continue // regular courses cannot use specialty rooms
-				}
 					// Check room capacity
 					if tdOk && !canRoomFit(room, td) {
 						continue
 					}
 
-				roomBusy := false
-				if room.Type != "体育馆" {
-					for p := start; p < start+span; p++ {
-						if roomOcc[occKey(day, p, room.ID)] {
-							roomBusy = true
-							break
+					roomBusy := false
+					if !IsSharedVenue(room) {
+						for p := start; p < start+span; p++ {
+							if roomOcc[occKey(day, p, room.ID)] {
+								roomBusy = true
+								break
+							}
 						}
 					}
-				}
-				if roomBusy {
+					if roomBusy {
 						continue
 					}
 
@@ -371,21 +364,4 @@ func (s *SASolver) PostOptimize(
 	}
 
 	return entries
-}
-
-// ---- Helpers ----
-
-// roomTypeForCourse determines the required room type from course name.
-// Same logic as schedulingContext.getRequiredRoomType in sa_solver.go.
-func roomTypeForCourse(courseName string) string {
-	if models.IsSportsCourse(courseName) {
-		return "体育馆"
-	}
-	if IsLabCourse(courseName) {
-		return "实验室"
-	}
-	if IsComputerCourse(courseName) {
-		return "机房"
-	}
-	return ""
 }

@@ -134,24 +134,19 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	ctx.rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
 
 	for _, room := range rooms {
-		// Check room type
+		// v0.5.3: use ResourceMatcher for room type + equipment check
 		if td := ctx.findTaskDataByEntry(entry); td != nil {
-			requiredRoomType := ctx.getRequiredRoomType(td.Task.Course.Name)
-			if requiredRoomType != "" {
-				if room.Type != requiredRoomType {
-					continue
-				}
-			} else if room.Type == "体育馆" || room.Type == "实验室" || room.Type == "机房" {
-				continue // regular courses cannot use specialty rooms
+			if !Match(td.Task, td.Task.Course, room).OK {
+				continue
+			}
+			// Check room capacity
+			if !ctx.canRoomFitCapacity(room, td) {
+				continue
 			}
 		}
-		// Check room capacity
-		if td := ctx.findTaskDataByEntry(entry); td != nil && !ctx.canRoomFitCapacity(room, td) {
-			continue
-		}
 
-		// Check room busy (skip for shared venues like 体育馆)
-		if room.Type != "体育馆" {
+		// Check room busy (skip for shared venues)
+		if !IsSharedVenue(room) {
 			roomBusy := false
 			for p := start; p < start+span; p++ {
 				key := occKey(day, p, room.ID)
@@ -260,10 +255,10 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 		}
 	}
 
-	// Check room busy (skip for shared venues like 体育馆)
+	// Check room busy (skip for shared venues)
 	isShared := false
 	for _, room := range ctx.classrooms {
-		if room.ID == e.ClassroomID && room.Type == "体育馆" {
+		if room.ID == e.ClassroomID && IsSharedVenue(room) {
 			isShared = true
 			break
 		}
