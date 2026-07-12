@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
+	"strconv"
+	"strings"
 )
 
 // MoveService validates schedule entry moves for drag-and-drop micro-adjustment.
@@ -79,7 +81,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 					result.Valid = false
 					result.Conflicts = append(result.Conflicts, MoveConflict{
 						Type:        "locked",
-						Description: fmt.Sprintf("该时段为全校锁定时间（周%s %d-%d节）",
+						Description: fmt.Sprintf("该时段为全校锁定时间（%s %d-%d节）",
 							models.DayOfWeek(req.NewDay).String(),
 							ls.StartPeriod.DisplayNum(),
 							int(ls.StartPeriod)+ls.Span),
@@ -98,7 +100,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 						result.Valid = false
 						result.Conflicts = append(result.Conflicts, MoveConflict{
 							Type:        "teacher",
-							Description: fmt.Sprintf("%s在周%s的%d-%d节有不可用时间设置",
+							Description: fmt.Sprintf("%s在%s的%d-%d节有不可用时间设置",
 								entry.Teacher.Name,
 								models.DayOfWeek(req.NewDay).String(),
 								u.StartPeriod.DisplayNum(),
@@ -133,11 +135,16 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 		if int(other.DayOfWeek) != req.NewDay {
 			continue
 		}
+		// Skip entries whose Weeks range never overlaps with the moved entry —
+		// they never coexist in the same teaching week and cannot conflict.
+		if !weeksOverlap(entry.Weeks, other.Weeks) {
+			continue
+		}
 		if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
 			result.Valid = false
 			result.Conflicts = append(result.Conflicts, MoveConflict{
 				Type:        "teacher",
-				Description: fmt.Sprintf("%s在周%s %d-%d节已有课程",
+				Description: fmt.Sprintf("%s在%s %d-%d节已有课程",
 					entry.Teacher.Name,
 					models.DayOfWeek(req.NewDay).String(),
 					other.StartPeriod.DisplayNum(),
@@ -155,13 +162,16 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 		if int(other.DayOfWeek) != req.NewDay {
 			continue
 		}
+		if !weeksOverlap(entry.Weeks, other.Weeks) {
+			continue
+		}
 		if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
 			var room models.Classroom
 			s.db.First(&room, newRoomID)
 			result.Valid = false
 			result.Conflicts = append(result.Conflicts, MoveConflict{
 				Type:        "room",
-				Description: fmt.Sprintf("%s在周%s %d-%d节已被占用",
+				Description: fmt.Sprintf("%s在%s %d-%d节已被占用",
 					room.Name,
 					models.DayOfWeek(req.NewDay).String(),
 					other.StartPeriod.DisplayNum(),
@@ -195,13 +205,16 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 				if int(other.DayOfWeek) != req.NewDay {
 					continue
 				}
+				if !weeksOverlap(entry.Weeks, other.Weeks) {
+					continue
+				}
 				if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
 					var cg models.ClassGroup
 					s.db.First(&cg, cid)
 					result.Valid = false
 					result.Conflicts = append(result.Conflicts, MoveConflict{
 						Type:        "class",
-						Description: fmt.Sprintf("%s在周%s %d-%d节已有课程",
+						Description: fmt.Sprintf("%s在%s %d-%d节已有课程",
 							cg.Name,
 							models.DayOfWeek(req.NewDay).String(),
 							other.StartPeriod.DisplayNum(),
@@ -269,4 +282,50 @@ func (s *MoveService) getClassGroupTotalStudents(entry models.ScheduleEntry) int
 		}
 	}
 	return total
+}
+
+// parseWeeksRange parses a Weeks string like "1-16" / "9-16" / "3" into a
+// closed integer interval [start, end]. Whitespace tolerated. If the input
+// is empty, malformed, or unparseable, returns the permissive full range
+// [1, 20] so callers treat "unknown" as "possibly overlaps everything" —
+// preserving pre-fix behavior for legacy rows without a Weeks value.
+//
+// A single number "N" is treated as [N, N].
+func parseWeeksRange(w string) (int, int) {
+	const fullStart, fullEnd = 1, 20
+	s := strings.TrimSpace(w)
+	if s == "" {
+		return fullStart, fullEnd
+	}
+	if idx := strings.Index(s, "-"); idx >= 0 {
+		a, errA := strconv.Atoi(strings.TrimSpace(s[:idx]))
+		b, errB := strconv.Atoi(strings.TrimSpace(s[idx+1:]))
+		if errA != nil || errB != nil {
+			return fullStart, fullEnd
+		}
+		if a > b {
+			a, b = b, a
+		}
+		return a, b
+	}
+	// Single number
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fullStart, fullEnd
+	}
+	return n, n
+}
+
+// weeksOverlap reports whether two Weeks strings (e.g. "1-8" and "9-16")
+// share at least one teaching week. Used by CheckMove to skip conflicts
+// between entries that never coexist within the same week — the schedule
+// grid the user sees is week-scoped, so two "same day/period" entries in
+// disjoint week ranges are not a real conflict.
+//
+// Malformed / empty Weeks defaults to the full teaching range [1,20] —
+// preserving pre-fix behavior for legacy rows that lack a Weeks value.
+func weeksOverlap(a, b string) bool {
+	as, ae := parseWeeksRange(a)
+	bs, be := parseWeeksRange(b)
+	return as <= be && bs <= ae
 }
