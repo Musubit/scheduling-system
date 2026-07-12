@@ -12,10 +12,155 @@
 | Epic | 优先级 | 内容 | 影响 |
 |------|--------|------|------|
 | A - Technical Debt | P0 | 消除 5 项遗留重复代码 | 内部质量，用户无感 |
-| B - Snapshot Management | P1 | 快照重命名 + Trigger 扩展 | 用户可见 |
-| C - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | 用户可见 |
-| D - Settings & Data | P2 | 设置页增强 + 时间配置 | 用户可见 |
-| E - Scheduling UX | P2 | 排课页面交互优化 | 用户可见 |
+| B - Global State & Navigation | P0 | 全局学期上下文 + 导航统一 | 用户可见 |
+| C - Snapshot Management | P1 | 快照重命名 + Trigger 扩展 | 用户可见 |
+| D - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | 用户可见 |
+| E - Settings & Data | P2 | 设置页增强 + 时间配置 | 用户可见 |
+| F - Scheduling UX | P2 | 排课页面交互优化 | 用户可见 |
+
+---
+
+## Epic B - Global State & Navigation (P0)
+
+### 问题
+
+当前系统存在多处独立的学期状态，互不同步：
+
+| 页面 | 学期来源 | 类型 | 问题 |
+|------|----------|------|------|
+| AppToolbar 下拉 | `appStore.semesterFilter` | string | 仅 schedule 页显示 |
+| ResourcePage | `GetActiveSemester()` 一次性 | local ref | 始终锁定 active 学期，无切换 |
+| SchedulingPage | `store.selectedSemesterId` | number | 独立状态，与全局不同步 |
+| ReportPage | `appStore.semesterFilter` | string | 继承全局，无独立切换 |
+| HistoryComparePage | `appStore.semesterFilter` | string | 同上 |
+
+用户切换学期后不同页面显示不同学期数据，造成"教学任务未按学期隔离"的误解。
+
+### 设计目标
+
+建立 **全局唯一 Current Semester**，遵循 Single Source of Truth：
+
+```
+appStore.currentSemesterId (number)  ← 唯一来源
+         │
+    ┌────┴────┬────────┬──────────┬──────────────┐
+    ▼         ▼        ▼          ▼              ▼
+ SchedulePage  ResourcePage  SchedulingPage  ReportPage  HistoryComparePage
+```
+
+刷新逻辑封装在 Store 内（`setCurrentSemester` 方法），不在 App.vue 集中增加 watch。
+
+### B1: appStore 统一学期状态
+
+**现状：** `appStore` 有 `semesterFilter`（string）和 `semesters`（列表），无 numeric ID。各页面各自调 `GetActiveSemester()` 获取 ID。
+
+**方案：**
+
+```typescript
+// stores/app.ts
+const currentSemesterId = ref<number>(0)
+const currentSemesterName = computed(() =>
+  semesters.value.find(s => s.ID === currentSemesterId.value)?.name || ''
+)
+const currentSemester = computed(() =>
+  semesters.value.find(s => s.ID === currentSemesterId.value) || null
+)
+```
+
+- `initSemester()` 用 `GetActiveSemester()` 设置 `currentSemesterId`（仅初始化）
+- 保留 `semesterFilter`（string）作为兼容别名，内部同步 `currentSemesterName`
+- 新增 `setCurrentSemester(id: number)` 方法，内部触发相关 store 刷新
+
+**文件：** `frontend/src/stores/app.ts`
+
+### B2: 工具栏统一学期切换器
+
+**现状：** `AppToolbar.vue` 学期下拉 `v-if="currentPage === 'schedule'"`，仅课表页显示。
+
+**方案：**
+- 移除 `v-if` 条件，所有页面均显示
+- 下拉绑定 `appStore.currentSemesterId`（number），options 来自 `appStore.semesters`
+- 切换时调用 `appStore.setCurrentSemester(id)`
+
+**文件：** `frontend/src/components/layout/AppToolbar.vue`
+
+### B3: Store 内封装刷新逻辑
+
+**现状：** `App.vue` 的 `watch(semesterFilter)` 仅刷新 `scheduleStore.loadSchedule`。
+
+**方案：** 在 `appStore.setCurrentSemester(id)` 内部统一触发刷新：
+
+```typescript
+function setCurrentSemester(id: number) {
+  currentSemesterId.value = id
+  const name = currentSemesterName.value
+  // 课表
+  useScheduleStore().loadSchedule(name)
+  // 教学任务
+  useResourceStore().loadTeachingTasks(id)
+  // 后续可扩展：Report / History 等
+}
+```
+
+- 不在 `App.vue` 增加 watch
+- 后续页面接入只需在此方法中增加一行
+
+**文件：** `frontend/src/stores/app.ts`（可能需要动态 import 其他 store 避免循环依赖）
+
+### B4: ResourcePage 改用全局学期
+
+**现状：** `ResourcePage.vue` 自己调 `GetActiveSemester()` 获取 `activeSemester`，无 watcher。
+
+**方案：**
+- 删除本地 `activeSemester` ref
+- `onMounted` 改用 `appStore.currentSemesterId`
+- 教学任务 CRUD 后的刷新改用 `appStore.currentSemesterId`
+- 教学任务表格增加"学期"列，显示 `appStore.currentSemesterName`
+
+**文件：** `frontend/src/views/ResourcePage.vue`
+
+### B5: SchedulingPage 改用全局学期
+
+**现状：** `SchedulingPage.vue` 使用 `store.selectedSemesterId`（scheduling store 独立状态）。
+
+**方案：**
+- scheduling store 的 `selectedSemesterId` 改为 computed 代理 `appStore.currentSemesterId`
+- SchedulingPage 下拉绑定 `appStore.currentSemesterId`
+- 删除 scheduling store 中 `selectedSemesterId`、`activeSemesterId`、`activeSemesterName`、`semesters`、`loadActiveSemester()` 等冗余状态
+
+**文件：** `frontend/src/stores/scheduling.ts`、`frontend/src/views/SchedulingPage.vue`
+
+### B6: 当前学期视觉标识
+
+**现状：** 除排课页外，无页面显示当前操作的是哪个学期。
+
+**方案：**
+- AppToolbar 学期下拉旁增加固定标签"当前学期"
+- ResourcePage 教学任务区域顶部显示 `当前学期：{{ appStore.currentSemesterName }}`
+- ReportPage / HistoryComparePage 已通过快照 semester 字段显示，无需额外标识
+
+**文件：** `frontend/src/components/layout/AppToolbar.vue`、`frontend/src/views/ResourcePage.vue`
+
+### 交互流程
+
+```
+用户在工具栏切换学期
+  ↓
+appStore.setCurrentSemester(id)  ← 唯一入口
+  ├──> scheduleStore.loadSchedule(name)     课表刷新
+  ├──> resourceStore.loadTeachingTasks(id)  教学任务刷新
+  └──> schedulingStore 自动同步             排课页同步（computed 代理）
+  ↓
+所有页面显示新学期数据
+工具栏标签更新为新学期名称
+```
+
+### 不涉及
+
+- 后端 API 不变（`ListTeachingTasks(semesterID)` 签名不变）
+- 数据库结构不变
+- Stable Core 不变
+- `GetActiveSemester()` 仅用于初始化默认学期
 
 ---
 
