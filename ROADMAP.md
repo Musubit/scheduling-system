@@ -12,7 +12,7 @@
 | 项目 | 值 |
 |------|-----|
 | Current Version | v0.4.0-alpha |
-| Project Status | Epic H1 完成 — 手动调课实时评分反馈上线 |
+| Project Status | Epic H 排课体验优化中 — 方案管理 (H2) |
 | Architecture | Wails v3 (Go + Vue 3 + OR-Tools) |
 | Solver | SA（模拟退火）+ OR-Tools（CP-SAT）双引擎 |
 
@@ -42,59 +42,67 @@
 
 ## Version Roadmap
 
-### v0.4.x - Experience & Extensibility
+### v0.3.x — Stable Core ✅
 
 | 项 | 内容 |
 |----|------|
-| Theme | 用户体验提升、排课体验优化、发布工程完善 |
-| Focus | 技术债清理、全局学期上下文、快照管理、约束 UI、发布工程（G1-G4）、手动调课评分反馈（H1） |
-| Status | ✅ Epic A-D · ✅ Epic E · ✅ Epic F1/F2 · ✅ Epic G1-G4 · ✅ Epic H1 · ✅ **Epic H2-1 (Data Layer)** · ✅ **Epic H2-2 (Version UI)** · H3 规划中 |
+| Theme | 核心冻结 |
+| Focus | 评分系统统一、Snapshot 名称统一、PDF/Report/Compare 数据统一、Windows 发布流程 |
+| Status | ✅ 已完成 — 基础架构冻结 |
 
-### v0.5.x - Intelligent Scheduling
+### v0.4.x — Experience & Extensibility 🔄
 
 | 项 | 内容 |
 |----|------|
-| Theme | AI 辅助排课、智能分析、智能建议 |
-| Focus | 排课结果智能诊断；冲突自动修复建议；教师工作量均衡分析入求解器（基于 v0.3 后处理数据积累）；排课方案多维度对比 |
+| Theme | 用户体验、版本管理、扩展能力 |
+| Focus | 技术债清理、全局学期上下文、快照管理、约束 UI、排课页面折叠交互、Windows 发布体验、运行时数据隔离、应用元数据完善、Portable 版本工程、手动调课评分反馈、课表方案管理 |
+| Status | 🔄 In Progress — Epic H2 (方案管理) 完成后发布 |
+
+### v0.5.x — Algorithm Optimization & Adaptation
+
+| 项 | 内容 |
+|----|------|
+| Theme | 算法重构、高校适配 |
+| Focus | 约束权重自动调参；求解时间预算控制；SA / OR-Tools 策略协同优化；多目标权重调整；教师偏好细化（按天/按时间段）；教室类型/楼层偏好；班级时间偏好；体育课特殊规则 |
 | Status | Planned |
 
-### v0.6.x - Optimization Engine
+### v0.6.x — Data & Decision Support
 
 | 项 | 内容 |
 |----|------|
-| Theme | 排课策略优化、多算法协同、性能提升 |
-| Focus | SA / OR-Tools 策略协同优化；大规模数据性能调优；约束权重自动调参；求解时间预算控制 |
+| Theme | 数据分析、决策辅助 |
+| Focus | 排课历史趋势分析；教室利用率统计与热力图；教师工作量报表；院系排课质量对比；决策支持仪表盘；方案多维度可视化对比 |
 | Status | Planned |
 
-### v0.7.x - Data & Decision
+### v0.7.x — Ecosystem
 
 | 项 | 内容 |
 |----|------|
-| Theme | 数据分析、统计报表、决策支持 |
-| Focus | 排课历史趋势分析；教室利用率统计；教师工作量报表；院系排课质量对比；决策支持仪表盘 |
+| Theme | 导入导出、系统连接 |
+| Focus | Excel/CSV 导入导出增强；自定义约束插件接口；第三方系统集成预留；数据备份恢复完善；开放 API 能力 |
 | Status | Planned |
 
-### v0.8.x - Ecosystem
+### v0.8.x — Advanced Optimization
 
 | 项 | 内容 |
 |----|------|
-| Theme | 导入导出增强、插件化、开放扩展能力 |
-| Focus | Excel/CSV 导入导出增强；自定义约束插件接口；第三方系统集成预留；数据备份恢复完善 |
+| Theme | 高级优化能力 |
+| Focus | 增量重排（保留手动调整后再优化）；排课冲突自动修复建议；大规模数据性能调优；多学期、跨校区支持 |
 | Status | Planned |
 
-### v0.9.x - Polish & Stabilization
+### v0.9.x — Polish & Stabilization
 
 | 项 | 内容 |
 |----|------|
-| Theme | UI 打磨、工程优化、长期稳定性提升 |
+| Theme | 全面打磨 |
 | Focus | 全局 UI 一致性审查；前端性能优化；错误处理统一；日志体系完善；国际化预留 |
 | Status | Planned |
 
-### v1.0.0 - First Stable Release (LTS)
+### v1.0.0 — LTS
 
 | 项 | 内容 |
 |----|------|
-| Theme | 高校智能排课系统正式版 |
+| Theme | 正式版本 |
 | Focus | 全量回归测试；文档完善；部署指南；长期支持版本锁定 |
 | Status | Planned |
 
