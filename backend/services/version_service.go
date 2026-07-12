@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
@@ -85,6 +86,12 @@ func (s *VersionService) CreateManualVersion(semester, name string) (*models.Sch
 	semesterID, err := s.resolveSemesterID(semester)
 	if err != nil {
 		return nil, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
+	}
+
+	// Guard against empty name — generate a default so callers that forget
+	// to provide one (e.g. old RPC callers, test code) still produce a valid version.
+	if strings.TrimSpace(name) == "" {
+		name = fmt.Sprintf("手动方案 %s", time.Now().Format("2006-01-02 15:04"))
 	}
 
 	// Load current schedule entries

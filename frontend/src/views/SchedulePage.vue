@@ -22,14 +22,21 @@ const message = useMessage()
 const showSaveModal = ref(false)
 const versionName = ref('')
 const savingVersion = ref(false)
-const defaultVersionName = computed(() => {
+
+function generateDefaultVersionName(): string {
   const now = new Date()
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `手动方案 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
-})
+}
+
+function openSaveVersionModal() {
+  versionName.value = generateDefaultVersionName()
+  showSaveModal.value = true
+}
 
 async function handleSaveVersion() {
-  const name = versionName.value.trim() || defaultVersionName.value
+  const name = versionName.value.trim()
+  if (!name) return
   savingVersion.value = true
   try {
     const { CreateManualVersion } = await import('../../bindings/scheduling-system/backend/services/versionservice')
@@ -376,7 +383,7 @@ function handleExportSelect(key: string) {
           </button>
         </div>
         <span class="stat-badge">已排 {{ scheduleStore.filteredCount }} 门课</span>
-        <n-button size="small" @click="showSaveModal = true" :disabled="scheduleStore.viewMode === 'version'">另存为方案</n-button>
+        <n-button size="small" @click="openSaveVersionModal" :disabled="scheduleStore.viewMode === 'version'">另存为方案</n-button>
         <n-dropdown trigger="click" :options="combinedExportOptions" @select="handleExportSelect">
           <n-button size="small" :loading="exporting">导出</n-button>
         </n-dropdown>
@@ -459,7 +466,6 @@ function handleExportSelect(key: string) {
       <n-form-item label="方案名称">
         <n-input
           v-model:value="versionName"
-          :placeholder="defaultVersionName"
           clearable
           @keyup.enter="handleSaveVersion"
         />
