@@ -471,10 +471,10 @@ func (s *SchedulingService) tryORTools(
 		input.TimeLimitSeconds = 60
 	}
 
-	// Map classrooms (include type for room-type matching)
+	// Map classrooms (include type + equipment for resource matching)
 	for _, c := range classrooms {
 		input.Classrooms = append(input.Classrooms, ORToolsRoom{
-			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity, Type: c.Type,
+			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity, Type: c.Type, Equipment: c.Equipment,
 		})
 	}
 
@@ -502,16 +502,13 @@ func (s *SchedulingService) tryORTools(
 		for j, c := range tt.Classes {
 			classIDs[j] = c.ClassGroupID
 		}
-		// Determine required room type from course name
-			requiredRoomType := ""
-			courseName := tt.Course.Name
-			if models.IsSportsCourse(courseName) {
-				requiredRoomType = "体育馆"
-		} else if IsLabCourse(courseName) {
-			requiredRoomType = "实验室"
-		} else if IsComputerCourse(courseName) {
-				requiredRoomType = "机房"
-			}
+		// v0.5.3: unified resource matching — Go computes allowed rooms, Python just reads the list
+		requiredRoomType := InferRoomType(tt, tt.Course)
+		allowedRooms := AllowedRooms(tt, tt.Course, classrooms)
+		allowedIDs := make([]uint, len(allowedRooms))
+		for i, r := range allowedRooms {
+			allowedIDs[i] = r.ID
+		}
 
 			// TotalHours fallback: same as SA solver (sa_solver.go line 136-138)
 			totalHours := tt.TotalHours
@@ -533,7 +530,8 @@ func (s *SchedulingService) tryORTools(
 			TotalHours:       totalHours,
 			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
 			PreferredSpan:    tt.PreferredSpan,
-			RequiredRoomType: requiredRoomType,
+			RequiredRoomType:  requiredRoomType,
+			AllowedRoomIDs:    allowedIDs,
 			StartWeek:        tt.StartWeek,
 			EndWeek:          tt.EndWeek,
 		})

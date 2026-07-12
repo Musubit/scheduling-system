@@ -122,7 +122,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 			}
 		}
 
-		// 1c. Check room capacity
+		// 1c. Check room capacity + resource matching (v0.5.3: unified ResourceMatcher)
 		if req.NewClassroom > 0 {
 			var newRoom models.Classroom
 			s.db.First(&newRoom, req.NewClassroom)
@@ -134,6 +134,18 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 					Description: fmt.Sprintf("%s容量不足（需%d人，仅%d座）", newRoom.Name, totalStudents, newRoom.Capacity),
 					Entity:      newRoom.Name,
 				})
+			}
+			// v0.5.3: check room type + equipment match
+			if entry.TeachingTask != nil {
+				matchResult := Match(*entry.TeachingTask, entry.Course, newRoom)
+				if !matchResult.OK {
+					result.Valid = false
+					result.Conflicts = append(result.Conflicts, MoveConflict{
+						Type:        "room",
+						Description: ExplainMismatch(matchResult),
+						Entity:      newRoom.Name,
+					})
+				}
 			}
 		}
 

@@ -55,6 +55,9 @@ type ORToolsTask struct {
 	MaxHoursPerWeek   int    `json:"maxHoursPerWeek,omitempty"`
 	PreferredSpan     int    `json:"preferredSpan,omitempty"`
 	RequiredRoomType  string `json:"requiredRoomType,omitempty"`
+	// v0.5.3: Go-side pre-computed allowed rooms (unified matching).
+	// Python reads this list instead of doing its own room type matching.
+	AllowedRoomIDs    []uint `json:"allowedRoomIds,omitempty"`
 	StartWeek         int    `json:"startWeek"`
 	EndWeek           int    `json:"endWeek"`
 }
@@ -74,6 +77,8 @@ type ORToolsRoom struct {
 	Floor    int    `json:"floor"`
 	Capacity int    `json:"capacity"`
 	Type     string `json:"type,omitempty"`
+	// v0.5.3: equipment list for Python-side reference (Go does the matching).
+	Equipment string `json:"equipment,omitempty"`
 }
 
 type ORToolsClassGroup struct {
