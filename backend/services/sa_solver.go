@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"math/rand"
 	"scheduling-system/backend/models"
@@ -76,6 +75,13 @@ type schedulingContext struct {
 	cachedScorer  *ScoringService
 	cachedScoreCtx ScoringContext
 
+	// v0.5.2 Goal 3 delta-score cache: maintained incrementally in
+	// tryMove/trySwap/undoNeighbor so computeScore avoids full ScoreSchedule
+	// scans. See sa_scorecache.go. When nil, computeScore falls back to full
+	// ScoreSchedule (safe path for legacy callers).
+	sCache        *scoreCache
+	enabledMap    map[string]bool // memoized enabled set for scoreFromCache
+
 	// Per-teacher unavailable time slots (keyed by teacher ID)
 	teacherUnavailable map[uint][]LockedTimeSlot
 	// Per-class-group student count (keyed by class group ID)
@@ -83,9 +89,12 @@ type schedulingContext struct {
 
 	// Mutable state
 	entries    []models.ScheduleEntry
-	roomOcc    map[string]bool // "day-period-roomID"
-	teacherOcc map[string]bool
-	classOcc   map[string]bool
+	// v0.5.2 Goal 3: int-keyed occupancy replaces fmt.Sprintf("%d-%d-%d") keys
+	// to eliminate per-iteration string allocation on the SA hot path.
+	// Key = uint64(day)<<48 | uint64(period)<<40 | uint64(resourceID)
+	roomOcc    map[uint64]bool
+	teacherOcc map[uint64]bool
+	classOcc   map[uint64]bool
 
 	rng *rand.Rand
 
@@ -194,8 +203,32 @@ func (s *SASolver) Solve(
 	ctx.cachedScorer = NewScoringService()
 	ctx.cachedScoreCtx = NewScoringContextWithExpected(constraints, sportsCourseIDs, ctx.cachedTTList, expectedTotalSessions)
 
+	// v0.5.2 Goal 3 delta-score: build cache & memoize enabled set.
+	ctx.sCache = newScoreCache(teachers, classrooms, taskData)
+	ctx.enabledMap = make(map[string]bool, len(constraints))
+	{
+		set := constraints
+		if len(set) == 0 {
+			set = FullDefaultConstraints()
+		}
+		for _, c := range set {
+			ctx.enabledMap[c] = true
+		}
+	}
+
 	// Phase 1: Generate initial solution with greedy construction
 	ctx.buildInitial()
+
+	// v0.5.2 Goal 3: seed the delta cache from the initial solution.
+	// From this point on the cache is authoritative — tryMove/trySwap/undo
+	// keep it in sync via applyDelta.
+	ctx.sCache.rebuildFromEntries(ctx.entries)
+	// Also patch isSports flag on cache (rebuildFromEntries didn't have context).
+	// applyEntry needs sportsCourseIDs lookup — do a symmetric replay:
+	ctx.sCache.rebuildFromEntries(nil)
+	for _, e := range ctx.entries {
+		ctx.sCache.applyEntry(+1, e, ctx.sportsCourseIDs[e.CourseID])
+	}
 
 	// Score initial solution
 	currentScore := ctx.computeScore()
@@ -283,8 +316,8 @@ done:
 func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
 	day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
 	for p := start; p < start+span; p++ {
-		delete(ctx.roomOcc, fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID))
-		delete(ctx.teacherOcc, fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID))
+		delete(ctx.roomOcc, occKey(day, p, e.ClassroomID))
+		delete(ctx.teacherOcc, occKey(day, p, e.TeacherID))
 	}
 	// Remove class group occupancy for all classes in the teaching task
 	if e.TeachingTaskID != nil {
@@ -292,7 +325,7 @@ func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
 			if td.Task.ID == *e.TeachingTaskID {
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {
-						delete(ctx.classOcc, fmt.Sprintf("%d-%d-%d", day, p, cid))
+						delete(ctx.classOcc, occKey(day, p, cid))
 					}
 				}
 				break
@@ -313,11 +346,11 @@ func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 	}
 	if !isShared {
 		for p := start; p < start+span; p++ {
-			ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
+			ctx.roomOcc[occKey(day, p, e.ClassroomID)] = true
 		}
 	}
 	for p := start; p < start+span; p++ {
-		ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
+		ctx.teacherOcc[occKey(day, p, e.TeacherID)] = true
 	}
 	// Add class group occupancy for all classes in the teaching task
 	if e.TeachingTaskID != nil {
@@ -325,7 +358,7 @@ func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 			if td.Task.ID == *e.TeachingTaskID {
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {
-						ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+						ctx.classOcc[occKey(day, p, cid)] = true
 					}
 				}
 				break
@@ -432,6 +465,12 @@ func (ctx *schedulingContext) canRoomFitCapacity(classroom models.Classroom, tas
 		return true // sports venues have unlimited effective capacity
 	}
 	return classroom.Capacity >= taskData.TotalStudents
+}
+
+// occKey encodes (day, period, resourceID) into a single uint64 for O(1) map ops
+// without fmt.Sprintf allocation. day∈[0,6], period∈[0,10], resourceID:uint32-safe.
+func occKey(day, period int, id uint) uint64 {
+	return uint64(uint32(day))<<48 | uint64(uint32(period))<<40 | uint64(id)
 }
 
 // findTaskDataByEntry finds the teachingTaskData for a given schedule entry.

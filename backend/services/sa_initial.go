@@ -7,9 +7,9 @@ import (
 
 func (ctx *schedulingContext) buildInitial() {
 	ctx.entries = nil
-	ctx.roomOcc = make(map[string]bool)
-	ctx.teacherOcc = make(map[string]bool)
-	ctx.classOcc = make(map[string]bool)
+	ctx.roomOcc = make(map[uint64]bool)
+	ctx.teacherOcc = make(map[uint64]bool)
+	ctx.classOcc = make(map[uint64]bool)
 
 	// v0.5.1: valid starts are now derived per-span via IsSpanLegal.
 
@@ -168,7 +168,7 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 			// Check teacher busy
 			teacherBusy := false
 			for p := start; p < start+span; p++ {
-				key := fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)
+				key := occKey(day, p, td.Task.TeacherID)
 				if ctx.teacherOcc[key] {
 					teacherBusy = true
 					break
@@ -196,7 +196,7 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 			classBusy := false
 			for _, cid := range td.ClassIDs {
 				for p := start; p < start+span; p++ {
-					key := fmt.Sprintf("%d-%d-%d", day, p, cid)
+					key := occKey(day, p, cid)
 					if ctx.classOcc[key] {
 						classBusy = true
 						break
@@ -233,7 +233,7 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 			if room.Type != "体育馆" {
 				roomBusy := false
 				for p := start; p < start+span; p++ {
-					key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+					key := occKey(day, p, room.ID)
 					if ctx.roomOcc[key] {
 						roomBusy = true
 						break
@@ -262,13 +262,13 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 		// Occupy room (skip for shared venues), teacher, and all class groups
 		for p := start; p < start+span; p++ {
 			if room.Type != "体育馆" {
-				ctx.roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] = true
+				ctx.roomOcc[occKey(day, p, room.ID)] = true
 			}
-			ctx.teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, td.Task.TeacherID)] = true
+			ctx.teacherOcc[occKey(day, p, td.Task.TeacherID)] = true
 				}
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {
-						ctx.classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+						ctx.classOcc[occKey(day, p, cid)] = true
 					}
 				}
 				return true

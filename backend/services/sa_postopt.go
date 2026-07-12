@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"scheduling-system/backend/models"
 	"time"
@@ -175,10 +174,10 @@ func (s *SASolver) PostOptimize(
 	}
 
 	// Build current occupancy from all OTHER entries (excluding the one being optimized)
-	buildOcc := func(excludeIdx int) (roomOcc, teacherOcc, classOcc map[string]bool) {
-		roomOcc = make(map[string]bool)
-		teacherOcc = make(map[string]bool)
-		classOcc = make(map[string]bool)
+	buildOcc := func(excludeIdx int) (roomOcc, teacherOcc, classOcc map[uint64]bool) {
+		roomOcc = make(map[uint64]bool)
+		teacherOcc = make(map[uint64]bool)
+		classOcc = make(map[uint64]bool)
 		for i, e := range entries {
 			if i == excludeIdx {
 				continue
@@ -186,16 +185,16 @@ func (s *SASolver) PostOptimize(
 			day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
 			if !sharedRoom[e.ClassroomID] {
 				for p := start; p < start+span; p++ {
-					roomOcc[fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)] = true
+					roomOcc[occKey(day, p, e.ClassroomID)] = true
 				}
 			}
 			for p := start; p < start+span; p++ {
-				teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] = true
+				teacherOcc[occKey(day, p, e.TeacherID)] = true
 			}
 			if td, ok := taskMap[*e.TeachingTaskID]; ok {
 				for _, cid := range td.ClassIDs {
 					for p := start; p < start+span; p++ {
-						classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] = true
+						classOcc[occKey(day, p, cid)] = true
 					}
 				}
 			}
@@ -276,7 +275,7 @@ func (s *SASolver) PostOptimize(
 				// Check teacher busy
 				teacherBusy := false
 				for p := start; p < start+span; p++ {
-					if teacherOcc[fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)] {
+					if teacherOcc[occKey(day, p, e.TeacherID)] {
 						teacherBusy = true
 						break
 					}
@@ -290,7 +289,7 @@ func (s *SASolver) PostOptimize(
 				if td, ok := taskMap[*e.TeachingTaskID]; ok {
 					for _, cid := range td.ClassIDs {
 						for p := start; p < start+span; p++ {
-							if classOcc[fmt.Sprintf("%d-%d-%d", day, p, cid)] {
+							if classOcc[occKey(day, p, cid)] {
 								classBusy = true
 								break
 							}
@@ -328,7 +327,7 @@ func (s *SASolver) PostOptimize(
 				roomBusy := false
 				if room.Type != "体育馆" {
 					for p := start; p < start+span; p++ {
-						if roomOcc[fmt.Sprintf("%d-%d-%d", day, p, room.ID)] {
+						if roomOcc[occKey(day, p, room.ID)] {
 							roomBusy = true
 							break
 						}

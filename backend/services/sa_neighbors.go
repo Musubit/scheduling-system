@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"scheduling-system/backend/models"
 )
 
@@ -111,7 +110,7 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	// Check teacher busy at new position
 	teacherBusy := false
 	for p := start; p < start+span; p++ {
-		key := fmt.Sprintf("%d-%d-%d", day, p, entry.TeacherID)
+		key := occKey(day, p, entry.TeacherID)
 		if ctx.teacherOcc[key] {
 			teacherBusy = true
 			break
@@ -155,7 +154,7 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 		if room.Type != "体育馆" {
 			roomBusy := false
 			for p := start; p < start+span; p++ {
-				key := fmt.Sprintf("%d-%d-%d", day, p, room.ID)
+				key := occKey(day, p, room.ID)
 				if ctx.roomOcc[key] {
 					roomBusy = true
 					break
@@ -167,9 +166,11 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 		}
 
 		// Apply move
+		ctx.applyDelta(-1, ctx.entries[idx])
 		ctx.entries[idx].DayOfWeek = models.DayOfWeek(day)
 		ctx.entries[idx].StartPeriod = models.Period(start)
 		ctx.entries[idx].ClassroomID = room.ID
+		ctx.applyDelta(+1, ctx.entries[idx])
 
 		ctx.lastNeighbor.newDay = models.DayOfWeek(day)
 		ctx.lastNeighbor.newStart = models.Period(start)
@@ -222,8 +223,12 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 	ctx.lastNeighbor.newRoom = e2.ClassroomID
 
 	// Swap day/period (keep teacher, room, teaching task)
+	ctx.applyDelta(-1, ctx.entries[i1])
+	ctx.applyDelta(-1, ctx.entries[i2])
 	ctx.entries[i1].DayOfWeek, ctx.entries[i2].DayOfWeek = e2.DayOfWeek, e1.DayOfWeek
 	ctx.entries[i1].StartPeriod, ctx.entries[i2].StartPeriod = e2.StartPeriod, e1.StartPeriod
+	ctx.applyDelta(+1, ctx.entries[i1])
+	ctx.applyDelta(+1, ctx.entries[i2])
 
 	ctx.lastNeighbor.applied = true
 	ctx.addOccupancy(ctx.entries[i1])
@@ -249,7 +254,7 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 
 	// Check teacher busy
 	for p := start; p < start+span; p++ {
-		key := fmt.Sprintf("%d-%d-%d", day, p, e.TeacherID)
+		key := occKey(day, p, e.TeacherID)
 		if ctx.teacherOcc[key] {
 			return true
 		}
@@ -265,7 +270,7 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 	}
 	if !isShared {
 		for p := start; p < start+span; p++ {
-			key := fmt.Sprintf("%d-%d-%d", day, p, e.ClassroomID)
+			key := occKey(day, p, e.ClassroomID)
 			if ctx.roomOcc[key] {
 				return true
 			}
@@ -286,7 +291,7 @@ func (ctx *schedulingContext) classGroupsBusy(e models.ScheduleEntry, day, start
 		if td.Task.ID == *e.TeachingTaskID {
 			for _, cid := range td.ClassIDs {
 				for p := start; p < start+span; p++ {
-					key := fmt.Sprintf("%d-%d-%d", day, p, cid)
+					key := occKey(day, p, cid)
 					if ctx.classOcc[key] {
 						return true
 					}
@@ -308,21 +313,27 @@ func (ctx *schedulingContext) undoNeighbor() {
 	case "move":
 		idx := ctx.lastNeighbor.entryIdx
 		ctx.removeOccupancy(ctx.entries[idx])
+		ctx.applyDelta(-1, ctx.entries[idx])
 		ctx.entries[idx].DayOfWeek = ctx.lastNeighbor.oldDay
 		ctx.entries[idx].StartPeriod = ctx.lastNeighbor.oldStart
 		ctx.entries[idx].ClassroomID = ctx.lastNeighbor.oldRoom
+		ctx.applyDelta(+1, ctx.entries[idx])
 		ctx.addOccupancy(ctx.entries[idx])
 
 	case "swap":
 		i1, i2 := ctx.lastNeighbor.swapIdx1, ctx.lastNeighbor.swapIdx2
 		ctx.removeOccupancy(ctx.entries[i1])
 		ctx.removeOccupancy(ctx.entries[i2])
+		ctx.applyDelta(-1, ctx.entries[i1])
+		ctx.applyDelta(-1, ctx.entries[i2])
 		ctx.entries[i1].DayOfWeek = ctx.lastNeighbor.oldDay
 		ctx.entries[i1].StartPeriod = ctx.lastNeighbor.oldStart
 		ctx.entries[i1].ClassroomID = ctx.lastNeighbor.oldRoom
 		ctx.entries[i2].DayOfWeek = ctx.lastNeighbor.newDay
 		ctx.entries[i2].StartPeriod = ctx.lastNeighbor.newStart
 		ctx.entries[i2].ClassroomID = ctx.lastNeighbor.newRoom
+		ctx.applyDelta(+1, ctx.entries[i1])
+		ctx.applyDelta(+1, ctx.entries[i2])
 		ctx.addOccupancy(ctx.entries[i1])
 		ctx.addOccupancy(ctx.entries[i2])
 	}
@@ -332,14 +343,18 @@ func (ctx *schedulingContext) undoNeighbor() {
 
 // computeScore scores the current schedule using ScoringService.
 // v0.5.2: SA optimizes FinalTotal (completeness-scaled).
-// v0.5.2 Goal 3: uses cached ScoringContext + ScoringService (built once at
-// solver start) to eliminate per-neighbor map allocations that dominated profile.
+// v0.5.2 Goal 3 delta: when the incremental cache is initialized, we use it
+// (O(#teachers + #courses + #classGroups)) instead of ScoreSchedule (O(N_entries × 7)).
+// Correctness parity is verified by TestDeltaScoreMatchesFullScore.
 func (ctx *schedulingContext) computeScore() float64 {
 	if len(ctx.entries) == 0 {
 		return 0
 	}
+	if ctx.sCache != nil && ctx.enabledMap != nil {
+		bd := ctx.sCache.scoreFromCache(ctx.enabledMap, ctx.sportsCourseIDs, ctx.expectedTotalSessions)
+		return bd.FinalTotal
+	}
 	if ctx.cachedScorer == nil {
-		// Defensive fallback for callers that didn't go through Solve() (e.g. tests).
 		ttList := make([]models.TeachingTask, len(ctx.teachingTasks))
 		for i, td := range ctx.teachingTasks {
 			ttList[i] = td.Task
@@ -349,6 +364,16 @@ func (ctx *schedulingContext) computeScore() float64 {
 	}
 	breakdown := ctx.cachedScorer.ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.cachedScoreCtx)
 	return breakdown.FinalTotal
+}
+
+// applyDelta updates the score cache for an entry being added or removed.
+// sign=+1 add, sign=-1 remove. Callers must pair these symmetrically around
+// any temporary mutation so undoNeighbor can restore invariants exactly.
+func (ctx *schedulingContext) applyDelta(sign int, e models.ScheduleEntry) {
+	if ctx.sCache == nil {
+		return
+	}
+	ctx.sCache.applyEntry(sign, e, ctx.sportsCourseIDs[e.CourseID])
 }
 
 // ---- Occupancy helpers ----
