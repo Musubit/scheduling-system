@@ -13,7 +13,7 @@
 |------|--------|------|------|
 | A - Technical Debt | P0 | 消除 5 项遗留重复代码 | ✅ Completed (Sprint 1) |
 | B - Global State & Navigation | P0 | 全局学期上下文 + 导航统一 | ✅ Completed (Sprint 2-3) |
-| C - Snapshot Management | P1 | 快照重命名 + Trigger 扩展 | 🔄 Current Focus |
+| C - Snapshot Management | P1 | 快照重命名 ✅ + Trigger 扩展 ⬜ | 🔄 In Progress |
 | D - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | Planned |
 | E - Settings & Data | P2 | 设置页增强 + 时间配置 | Planned |
 | F - Scheduling UX | P2 | 排课页面交互优化 | Planned |
