@@ -16,18 +16,14 @@ const message = useMessage()
 
 onMounted(async () => { 
   resourceStore.loadAll()
-  try {
-    activeSemester.value = await RS.GetActiveSemester()
-    if (activeSemester.value) {
-      resourceStore.loadTeachingTasks(activeSemester.value.ID)
-    }
-  } catch { /* no active semester */ }
+  if (appStore.currentSemesterId) {
+    resourceStore.loadTeachingTasks(appStore.currentSemesterId)
+  }
 })
 
 const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级', teachingTask: '教学任务' }
 
 // ===== 教学任务状态 =====
-const activeSemester = ref<any>(null)
 const mergeableGroups = ref<any[]>([])
 
 // Reactive search - switches store ref based on active tab
@@ -148,8 +144,8 @@ async function saveItem() {
       await callCreate(tab, formData.value)
     }
     resourceStore.loadAll()
-    if (tab === 'teachingTask' && activeSemester.value) {
-      resourceStore.loadTeachingTasks(activeSemester.value.ID)
+    if (tab === 'teachingTask' && appStore.currentSemesterId) {
+      resourceStore.loadTeachingTasks(appStore.currentSemesterId)
     }
   } catch (e) {
     console.warn('Go backend CRUD failed:', e)
@@ -167,8 +163,8 @@ async function deleteItem(row: any) {
     onPositiveClick: async () => {
       try { await callDelete(resourceStore.activeTab, row.ID) } catch {}
       resourceStore.loadAll()
-      if (resourceStore.activeTab === 'teachingTask' && activeSemester.value) {
-        resourceStore.loadTeachingTasks(activeSemester.value.ID)
+      if (resourceStore.activeTab === 'teachingTask' && appStore.currentSemesterId) {
+        resourceStore.loadTeachingTasks(appStore.currentSemesterId)
       }
       message.success('已删除')
     },
@@ -387,12 +383,12 @@ const teachingTaskCols = [
 
 // ===== 智能检测合班 =====
 async function handleDetectMerge() {
-  if (!activeSemester.value) {
+  if (!appStore.currentSemesterId) {
     message.warning('请先在设置中激活一个学期')
     return
   }
   try {
-    mergeableGroups.value = await TS.DetectMergeableTasks(activeSemester.value.ID) || []
+    mergeableGroups.value = await TS.DetectMergeableTasks(appStore.currentSemesterId) || []
     if (mergeableGroups.value.length === 0) {
       message.info('未发现可合班的教学任务')
     } else {
@@ -424,7 +420,7 @@ async function handleConfirmMerge(group: any) {
     }
     message.success('合班完成')
     mergeableGroups.value = []
-    if (activeSemester.value) resourceStore.loadTeachingTasks(activeSemester.value.ID)
+    if (appStore.currentSemesterId) resourceStore.loadTeachingTasks(appStore.currentSemesterId)
   } catch (e) {
     message.error('合班失败：' + (e as any).message)
   }
@@ -436,7 +432,7 @@ async function splitMerged(row: any) {
   try {
     const created = await TS.SplitMergedTeachingTask(row.ID)
     message.success(`拆班成功，已拆分为 ${created} 个单班教学任务`)
-    if (activeSemester.value) resourceStore.loadTeachingTasks(activeSemester.value.ID)
+    if (appStore.currentSemesterId) resourceStore.loadTeachingTasks(appStore.currentSemesterId)
   } catch (e) {
     message.error('拆班失败：' + (e as any).message)
   }
@@ -467,7 +463,7 @@ function openTeachingTaskEdit(row?: any) {
     }
   } else {
     editingItem.value = null
-    formData.value = { semesterId: activeSemester.value?.ID || 0, _classIds: [], startWeek: 1, endWeek: 16, totalHours: 0, maxHoursPerWeek: 0 }
+    formData.value = { semesterId: appStore.currentSemesterId || 0, _classIds: [], startWeek: 1, endWeek: 16, totalHours: 0, maxHoursPerWeek: 0 }
   }
   showModal.value = true
 }
@@ -636,7 +632,7 @@ async function handleFileChange(e: Event) {
             if (!courseCode || !teacherCode) { errors.push(`第${i + 1}行: 课程代码或工号为空`); continue }
             try {
               const row = [courseCode, teacherCode, classCodes.join(','), totalHours, startWeek, endWeek, maxHoursPerWeek]
-              const imported = await TS.ImportTeachingTasks(activeSemester.value?.ID || 0, [row])
+              const imported = await TS.ImportTeachingTasks(appStore.currentSemesterId || 0, [row])
               if (imported[0] > 0) count += imported[0]
               if (imported[1] && imported[1].length > 0) errors.push(...imported[1])
             } catch { errors.push(`第${i + 1}行: 后端导入接口调用失败`) }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, provide, watch, onMounted, defineAsyncComponent } from 'vue'
+import { computed, ref, provide, onMounted, defineAsyncComponent } from 'vue'
 import { NConfigProvider, NDialogProvider, NMessageProvider } from 'naive-ui'
 import { useAppStore } from './stores/app'
 import { useScheduleStore } from './stores/schedule'
@@ -26,19 +26,16 @@ const resourceStore = useResourceStore()
 
 const appLoading = ref(true)
 
-// Load data from Go backend on startup — sequential to avoid semester race
+// Load data from Go backend on startup
 onMounted(async () => {
   try {
-    // 1. Load semesters first (initSemester may have raced with Wails backend)
     await appStore.loadSemesters()
-    // 2. Ensure semesterFilter is set
-    if (!appStore.semesterFilter && appStore.semesterOptions.length > 0) {
-      appStore.semesterFilter = appStore.semesterOptions[0].value
+    if (!appStore.currentSemesterId && appStore.semesters.length > 0) {
+      appStore.setCurrentSemester(appStore.semesters[0].ID)
     }
-    // 3. Now load resources and schedule with the correct semester
     await Promise.all([
       resourceStore.loadAll(),
-      scheduleStore.loadSchedule(appStore.semesterFilter),
+      scheduleStore.loadSchedule(appStore.currentSemesterName),
     ])
   } catch (err) {
     console.error('App init failed:', err)
@@ -47,10 +44,6 @@ onMounted(async () => {
   }
 })
 
-// Watch semester changes → reload schedule
-watch(() => appStore.semesterFilter, (newSemester) => {
-  scheduleStore.loadSchedule(newSemester)
-})
 
 // Drawer ref — shared via provide/inject so child components can open it
 const drawerRef = ref<InstanceType<typeof AppDrawer>>()

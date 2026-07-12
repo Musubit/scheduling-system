@@ -2,8 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { SchedulingConfig, SchedulingResult, LockedTimeSlot } from '@/types'
 import { RunScheduling } from '../../bindings/scheduling-system/backend/services/schedulingservice'
-import { GetActiveSemester, GetSemesters, SaveSetting } from '../../bindings/scheduling-system/backend/services/resourceservice'
+import { SaveSetting } from '../../bindings/scheduling-system/backend/services/resourceservice'
 import { useUiStore } from './ui'
+import { useAppStore } from './app'
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
 // Single source of truth - imported by WeekView and used internally.
@@ -120,30 +121,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const constraintWeights = ref<Record<string, number>>({ ...CONSTRAINT_PRESETS[0].weights })
   const activePreset = ref<string>('balanced')
   const engine = ref<string>('auto')
-  const activeSemesterId = ref<number>(0)
-  const activeSemesterName = ref<string>('')
-  const semesters = ref<Array<{ ID: number; name: string; isActive: boolean }>>([])
-  const selectedSemesterId = ref<number>(0)
 
-  // Load semesters list + active semester on init
-  async function loadActiveSemester() {
-    try {
-      const sem = await GetActiveSemester()
-      if (sem) {
-        activeSemesterId.value = sem.ID
-        activeSemesterName.value = sem.name
-        config.value.semester = sem.name
-        selectedSemesterId.value = sem.ID
-      }
-    } catch { /* no active semester */ }
-
-    try {
-      const list = await GetSemesters()
-      if (list) {
-        semesters.value = list.map(s => ({ ID: s.ID, name: s.name, isActive: s.isActive }))
-      }
-    } catch { /* backend unavailable */ }
-  }
+  // Semester state proxied to appStore (Single Source of Truth)
+  const appStore = useAppStore()
+  const selectedSemesterId = computed(() => appStore.currentSemesterId)
+  const activeSemesterId = computed(() => appStore.currentSemesterId)
+  const activeSemesterName = computed(() => appStore.currentSemesterName)
+  const semesters = computed(() => appStore.semesters)
 
   // Apply preset weights
   function applyPreset(name: string) {
@@ -202,8 +186,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       } catch {}
 
       // Build config for Go backend
-      const selectedSem = semesters.value.find(s => s.ID === selectedSemesterId.value)
-      const semesterName = selectedSem?.name || activeSemesterName.value
+      const semesterName = activeSemesterName.value
       if (!semesterName) {
         logs.value.push('❌ 未设置当前学期，请在系统设置中激活一个学期')
         result.value = { totalCourses: 0, scheduled: 0, tasksScheduled: 0, conflicts: 0, teacherConflicts: 0, roomConflicts: 0, classConflicts: 0, utilization: 0, logs: ['未设置当前学期'] }
@@ -219,7 +202,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         timeLimit: 60,
         constraints: config.value.constraints,
         lockedSlotsJson: lockedSlotsJson || undefined,
-        semesterId: selectedSemesterId.value || activeSemesterId.value,
+        semesterId: selectedSemesterId.value,
         constraintWeights: constraintWeights.value,
       }
       progress.value = 20
@@ -305,7 +288,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   // Initialize — deferred to async to avoid blocking render
   function init() {
     ensureLockedSlots()
-    loadActiveSemester()
   }
   // Defer to next microtask
   Promise.resolve().then(init)

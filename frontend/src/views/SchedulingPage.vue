@@ -106,8 +106,9 @@ const weightLabels: Record<string, string> = {
         <div class="form-group">
           <label class="form-label">排课学期</label>
           <n-select
-            v-model:value="store.selectedSemesterId"
-            :options="store.semesters.map(s => ({
+            :value="appStore.currentSemesterId"
+            @update:value="appStore.setCurrentSemester($event)"
+            :options="appStore.semesters.map(s => ({
               label: s.name + (s.isActive ? '（当前）' : ''),
               value: s.ID
             }))"

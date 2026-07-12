@@ -30,11 +30,11 @@ async function handleOpenDownloads() {
     </div>
     <div class="toolbar-spacer"></div>
 
-    <!-- 学期选择（仅课表中心显示） -->
+    <!-- 全局学期选择 -->
     <n-select
-      v-if="appStore.currentPage === 'schedule'"
-      v-model:value="appStore.semesterFilter"
-      :options="appStore.semesterOptions"
+      :value="appStore.currentSemesterId"
+      @update:value="appStore.setCurrentSemester($event)"
+      :options="appStore.semesters.map(s => ({ label: s.name, value: s.ID }))"
       size="small"
       style="width: 170px"
     />
