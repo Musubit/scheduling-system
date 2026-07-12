@@ -106,6 +106,8 @@ export const useScheduleStore = defineStore('schedule', () => {
       const { GetVersion } = await import('../../bindings/scheduling-system/backend/services/versionservice')
       const { GetCourses, GetTeachers, GetClassrooms } =
         await import('../../bindings/scheduling-system/backend/services/resourceservice')
+      const { ListTeachingTasks } =
+        await import('../../bindings/scheduling-system/backend/services/teachingtaskservice')
 
       const [version, courses, teachers, classrooms] = await Promise.all([
         GetVersion(versionId),
@@ -121,10 +123,14 @@ export const useScheduleStore = defineStore('schedule', () => {
 
       versionName.value = version.name || ''
 
+      // Load teaching tasks for the version's semester (needed for class perspective filtering)
+      const teachingTasks = await ListTeachingTasks(version.semesterId).catch(() => [])
+
       // Build lookup maps for resource resolution
       const courseById = new Map<number, any>((courses || []).map((c: any) => [c.ID, c]))
       const teacherById = new Map<number, any>((teachers || []).map((t: any) => [t.ID, t]))
       const classroomById = new Map<number, any>((classrooms || []).map((c: any) => [c.ID, c]))
+      const teachingTaskById = new Map<number, any>((teachingTasks || []).map((t: any) => [t.ID, t]))
 
       // Convert version entries to ScheduleEntry format
       entries.value = (version.entries || []).map((e: any) => ({
@@ -141,6 +147,7 @@ export const useScheduleStore = defineStore('schedule', () => {
         course: courseById.get(e.courseId),
         teacher: teacherById.get(e.teacherId),
         classroom: classroomById.get(e.classroomId),
+        teachingTask: e.teachingTaskId ? teachingTaskById.get(e.teachingTaskId) : undefined,
       } as ScheduleEntry))
     } catch (e) {
       console.warn('Failed to load version:', e)
