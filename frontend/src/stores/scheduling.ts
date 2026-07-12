@@ -101,6 +101,18 @@ const constraintOptions = [
   { key: 'avoid_sunday', label: '尽量避开周日排课' },
 ]
 
+// Short labels for constraint weight sliders
+const constraintLabels: Record<string, string> = {
+  teacher_preference: '教师偏好',
+  course_dispersed: '课程分散度',
+  teacher_days_limit: '到校天数',
+  low_floor_preference: '低楼层',
+  pe_preferred_periods: '体育课时段',
+  student_fatigue: '学生疲劳度',
+  avoid_saturday: '避开周六',
+  avoid_sunday: '避开周日',
+}
+
 const engineOptions = [
   { value: 'auto', label: '智能（推荐）——自动选择最佳引擎' },
   { value: 'sa', label: 'SA优化——模拟退火多轮求解' },
@@ -293,7 +305,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   Promise.resolve().then(init)
 
   return {
-    config, constraintOptions,
+    config, constraintOptions, constraintLabels,
     constraintWeights, activePreset, engine, engineOptions,
     activeSemesterId, activeSemesterName, semesters, selectedSemesterId,
     CONSTRAINT_PRESETS,

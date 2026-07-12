@@ -3,7 +3,7 @@ import { computed, ref, onUnmounted, watch } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
-import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
+import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NSlider, useDialog } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
@@ -78,16 +78,8 @@ onUnmounted(() => {
   stopWatchError()
 })
 
-// Constraint weight labels for sliders
-const weightLabels: Record<string, string> = {
-  teacher_preference: '教师偏好时段',
-  course_dispersed: '课程分散度',
-  teacher_days_limit: '教师到校天数（按各自MaxDays）',
-  low_floor_preference: '优先低楼层',
-  pe_preferred_periods: '体育课时段',
-  avoid_saturday: '避开周六',
-  avoid_sunday: '避开周日',
-}
+// Constraint weight labels (centralized in store)
+const constraintLabels = computed(() => store.constraintLabels)
 </script>
 
 <template>
@@ -135,49 +127,53 @@ const weightLabels: Record<string, string> = {
           <span class="form-hint">切换方案自动调整约束权重</span>
         </div>
 
-        <!-- 约束开关 -->
+        <!-- 约束条件（卡片式行内布局） -->
         <div class="form-group">
           <label class="form-label">约束条件</label>
-          <div class="checkbox-group">
-            <n-checkbox
+          <div class="constraint-rows">
+            <div
               v-for="opt in store.constraintOptions"
               :key="opt.key"
-              :checked="store.config.constraints.includes(opt.key)"
-              size="small"
-              @update:checked="store.toggleConstraint(opt.key)"
+              class="constraint-row"
+              :class="{ disabled: !store.config.constraints.includes(opt.key) }"
             >
-              {{ opt.label }}
-            </n-checkbox>
+              <div class="cr-head">
+                <n-checkbox
+                  :checked="store.config.constraints.includes(opt.key)"
+                  size="small"
+                  @update:checked="store.toggleConstraint(opt.key)"
+                >
+                  {{ constraintLabels[opt.key] || opt.key }}
+                </n-checkbox>
+              </div>
+              <div class="cr-body">
+                <n-slider
+                  v-model:value="store.constraintWeights[opt.key]"
+                  :min="0"
+                  :max="100"
+                  :step="5"
+                  :disabled="!store.config.constraints.includes(opt.key)"
+                  style="flex:1"
+                />
+              </div>
+              <div class="cr-tail">
+                <span class="cr-weight">{{ store.constraintWeights[opt.key] }}</span>
+                <span class="cr-desc">{{ opt.label }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 高级设置 -->
-        <n-collapse class="advanced-collapse">
-          <n-collapse-item title="高级设置" name="advanced">
-            <!-- 约束权重滑块 -->
-            <div class="form-group" v-for="opt in store.constraintOptions" :key="'w-'+opt.key">
-              <label class="form-label" style="font-size:12px">{{ weightLabels[opt.key] || opt.label }}</label>
-              <n-slider
-                v-model:value="store.constraintWeights[opt.key]"
-                :min="0"
-                :max="100"
-                :step="5"
-                :disabled="!store.config.constraints.includes(opt.key)"
-              />
-            </div>
-
-            <!-- 求解引擎 -->
-            <div class="form-group">
-              <label class="form-label">求解引擎</label>
-              <n-select
-                v-model:value="store.engine"
-                :options="store.engineOptions"
-                size="small"
-              />
-              <span class="form-hint">智能模式自动选择最优引擎，OR-Tools不可用时自动降级</span>
-            </div>
-          </n-collapse-item>
-        </n-collapse>
+        <!-- 求解引擎 -->
+        <div class="form-group">
+          <label class="form-label">求解引擎</label>
+          <n-select
+            v-model:value="store.engine"
+            :options="store.engineOptions"
+            size="small"
+          />
+          <span class="form-hint">智能模式自动选择最优引擎，OR-Tools不可用时自动降级</span>
+        </div>
 
         <n-button
           type="primary"
@@ -398,14 +394,59 @@ const weightLabels: Record<string, string> = {
   font-weight: 500;
 }
 
-.checkbox-group {
+.constraint-rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.advanced-collapse {
-  margin-top: 16px;
+.constraint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--b3-card-background);
+  border: 1px solid var(--b3-border-color);
+  transition: opacity 0.15s;
+}
+
+.constraint-row.disabled {
+  opacity: 0.5;
+}
+
+.constraint-row .cr-head {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.constraint-row .cr-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.constraint-row .cr-tail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.constraint-row .cr-weight {
+  width: 28px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+}
+
+.constraint-row .cr-desc {
+  font-size: 11px;
+  color: var(--b3-text-color-2);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .progress-section {
