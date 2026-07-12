@@ -138,6 +138,8 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 		&models.TeachingTask{},
 		&models.TeachingTaskClass{},
 		&models.Department{},
+		&models.ScheduleVersion{},
+		&models.ScheduleVersionEntry{},
 	)
 	if err != nil {
 		return nil, err

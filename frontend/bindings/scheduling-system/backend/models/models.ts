@@ -261,6 +261,62 @@ export interface ScheduleSnapshot {
 }
 
 /**
+ * ScheduleVersion represents a user-facing historical schedule snapshot
+ * containing the actual schedule entries at a point in time.
+ * Unlike ScheduleSnapshot (which stores only aggregated statistics),
+ * ScheduleVersion stores the full entry set so versions can be viewed,
+ * restored, and compared independently of current schedule data.
+ */
+export interface ScheduleVersion {
+    "ID": number;
+    "CreatedAt": string;
+    "UpdatedAt": string;
+    "DeletedAt": gorm$0.DeletedAt;
+    "semesterId": number;
+    "name": string;
+
+    /**
+     * AutoGenerate | ManualAdjust | Import | Restore | Copy
+     */
+    "source": string;
+    "score": number;
+    "entryCount": number;
+
+    /**
+     * optional: which solver produced it
+     */
+    "solver": string;
+    "entries"?: ScheduleVersionEntry[] | null;
+}
+
+/**
+ * ScheduleVersionEntry stores a single course entry within a historical
+ * schedule version. Fields mirror the main ScheduleEntry but are stored
+ * independently so historical versions remain valid even if current
+ * resource data (teachers, classrooms, etc.) is later modified or deleted.
+ */
+export interface ScheduleVersionEntry {
+    "ID": number;
+    "CreatedAt": string;
+    "UpdatedAt": string;
+    "DeletedAt": gorm$0.DeletedAt;
+    "versionId": number;
+
+    /**
+     * optional: links back to the schedule_entry row at time of capture
+     */
+    "originalEntryId"?: number | null;
+    "teachingTaskId"?: number | null;
+    "courseId": number;
+    "teacherId": number;
+    "classroomId": number;
+    "dayOfWeek": number;
+    "startPeriod": number;
+    "span": number;
+    "weeks": string;
+}
+
+/**
  * Semester represents an academic semester.
  */
 export interface Semester {

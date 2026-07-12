@@ -52,7 +52,8 @@ func Run(assets embed.FS) {
 	resources := services.NewResourceService(db)
 	teachingTasks := services.NewTeachingTaskService(db)
 	snapshots := services.NewSnapshotService(db)
-	scheduler := services.NewSchedulingService(db, snapshots, orchestrator)
+	versions := services.NewVersionService(db)
+	scheduler := services.NewSchedulingService(db, snapshots, versions, orchestrator)
 	moves := services.NewMoveService(db)
 
 	// Create Wails application
@@ -64,6 +65,7 @@ func Run(assets embed.FS) {
 			application.NewService(teachingTasks),
 			application.NewService(scheduler),
 			application.NewService(snapshots),
+			application.NewService(versions),
 			application.NewService(moves),
 		},
 		Assets: application.AssetOptions{

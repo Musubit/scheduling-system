@@ -13,6 +13,8 @@ export type {
     Period,
     ScheduleEntry,
     ScheduleSnapshot,
+    ScheduleVersion,
+    ScheduleVersionEntry,
     Semester,
     SnapshotDetail,
     Teacher,

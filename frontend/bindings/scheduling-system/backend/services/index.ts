@@ -6,12 +6,14 @@ import * as ResourceService from "./resourceservice.js";
 import * as SchedulingService from "./schedulingservice.js";
 import * as SnapshotService from "./snapshotservice.js";
 import * as TeachingTaskService from "./teachingtaskservice.js";
+import * as VersionService from "./versionservice.js";
 export {
     MoveService,
     ResourceService,
     SchedulingService,
     SnapshotService,
-    TeachingTaskService
+    TeachingTaskService,
+    VersionService
 };
 
 export type {
