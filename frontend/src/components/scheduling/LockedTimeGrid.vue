@@ -64,66 +64,59 @@ onMounted(loadLockedSlots)
 
 <template>
   <div class="locked-grid">
-    <div class="lg-header">
-      <span class="lg-corner"></span>
-      <span v-for="(name, di) in DAY_NAMES" :key="di" class="lg-col-label">{{ name }}</span>
-    </div>
-    <div v-for="(p) in PERIODS" :key="p.num" class="lg-row">
-      <span class="lg-row-label">第{{ p.num }}节</span>
+    <!-- Header row: corner + 7 day labels -->
+    <div class="lg-corner"></div>
+    <div v-for="(name, di) in DAY_NAMES" :key="di" class="lg-col-label">{{ name }}</div>
+
+    <!-- Data rows -->
+    <template v-for="(p) in PERIODS" :key="p.num">
+      <div class="lg-row-label">第{{ p.num }}节</div>
       <div
         v-for="(_, di) in 7"
-        :key="di"
+        :key="'c' + p.num + '-' + di"
         class="lg-cell"
         :class="{ locked: isLocked(di, p.num - 1) }"
         @click="toggleCell(di, p.num - 1)"
         :title="(isLocked(di, p.num - 1) ? '解锁' : '锁定') + ' ' + DAY_NAMES[di] + ' 第' + p.num + '节'"
       ></div>
-    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .locked-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(7, 1fr);
+  gap: 2px;
   user-select: none;
 }
 
-.lg-header {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
 .lg-corner {
-  width: 56px;
-  flex-shrink: 0;
+  grid-row: 1;
+  grid-column: 1;
 }
 
 .lg-col-label {
-  flex: 1;
-  text-align: center;
+  grid-row: 1;
   font-size: 11px;
   color: var(--b3-text-color-2);
   font-weight: 600;
-}
-
-.lg-row {
+  text-align: center;
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin-bottom: 2px;
+  justify-content: center;
 }
 
 .lg-row-label {
-  width: 56px;
   font-size: 11px;
   color: var(--b3-text-color-2);
-  text-align: right;
-  padding-right: 6px;
-  flex-shrink: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .lg-cell {
-  flex: 1;
   height: 28px;
   border-radius: 3px;
   border: 1px solid var(--b3-border-color);
