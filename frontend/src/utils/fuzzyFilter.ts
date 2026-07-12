@@ -1,5 +1,5 @@
 /**
- * 子序列模糊匹配 — 搜"职师"能匹配"职业技术师范学院"
+ * 子序列模糊匹配 - 搜"职师"能匹配"职业技术师范学院"
  * 用于 n-select 的 :filter 属性
  */
 export function fuzzyFilter(pattern: string, option: { label: string; value: any }): boolean {
@@ -12,3 +12,9 @@ export function fuzzyFilter(pattern: string, option: { label: string; value: any
   }
   return pi === p.length
 }
+
+/**
+ * Naive UI Filter-compatible alias.
+ * Use this directly as :filter="fuzzyFilterFn" — no `as any` needed.
+ */
+export const fuzzyFilterFn = fuzzyFilter as (pattern: string, option: any) => boolean

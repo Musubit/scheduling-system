@@ -7,9 +7,7 @@ import * as RS from '../../bindings/scheduling-system/backend/services/resources
 import * as TS from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
 import * as XLSX from 'xlsx'
 import { useAppStore } from '../stores/app'
-import { fuzzyFilter } from '../utils/fuzzyFilter'
-
-const fuzzyFilterFn = fuzzyFilter as any
+import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
 const appStore = useAppStore()
 const resourceStore = useResourceStore()

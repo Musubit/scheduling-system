@@ -77,9 +77,7 @@ const classroomOptions = computed(() => {
   return resourceStore.classrooms.map(c => ({ label: `${c.name} (${c.building})`, value: c.ID }))
 })
 
-import { fuzzyFilter } from '../utils/fuzzyFilter'
-
-const fuzzyFilterFn = fuzzyFilter as any
+import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
 // Whether to show the schedule
 const showSchedule = computed(() => {

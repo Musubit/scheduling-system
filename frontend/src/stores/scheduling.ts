@@ -6,7 +6,8 @@ import { GetActiveSemester, GetSemesters, SaveSetting } from '../../bindings/sch
 import { useUiStore } from './ui'
 
 // Default locked slots: Thursday periods 4-7 (第5-8节)
-const DEFAULT_LOCKED: LockedTimeSlot[] = [
+// Single source of truth - imported by WeekView and used internally.
+export const DEFAULT_LOCKED: LockedTimeSlot[] = [
   { dayOfWeek: 3, startPeriod: 4, span: 4 },
 ]
 

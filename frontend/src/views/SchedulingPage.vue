@@ -5,9 +5,7 @@ import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
-import { fuzzyFilter } from '../utils/fuzzyFilter'
-
-const fuzzyFilterFn = fuzzyFilter as any
+import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
 const store = useSchedulingStore()
 const appStore = useAppStore()

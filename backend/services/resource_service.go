@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
@@ -311,43 +312,38 @@ func (s *ResourceService) GetDatabasePath() string {
 	return database.GetDBPath()
 }
 
-// BackupDatabase copies the database file to a backup location.
-// Returns the backup file path.
-func (s *ResourceService) BackupDatabase(backupPath string) error {
-	src, err := os.Open(database.GetDBPath())
+// copyFile copies src to dst, creating parent dirs as needed.
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer source.Close()
 
-	dst, err := os.Create(backupPath)
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	destination, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer destination.Close()
 
-	_, err = io.Copy(dst, src)
+	_, err = io.Copy(destination, source)
 	return err
+}
+
+// BackupDatabase copies the database file to a backup location.
+func (s *ResourceService) BackupDatabase(backupPath string) error {
+	return copyFile(database.GetDBPath(), backupPath)
 }
 
 // RestoreDatabase replaces the current database with a backup file.
 // WARNING: this will overwrite all current data. The application should
 // restart after restore to reload the database.
 func (s *ResourceService) RestoreDatabase(backupPath string) error {
-	src, err := os.Open(backupPath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	dst, err := os.Create(database.GetDBPath())
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	return err
+	return copyFile(backupPath, database.GetDBPath())
 }
 
 // OpenDownloads opens the user's Downloads folder in the system file explorer.

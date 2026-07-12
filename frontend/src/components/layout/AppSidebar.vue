@@ -3,67 +3,14 @@ import { computed } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { useScheduleStore } from '../../stores/schedule'
 import { useResourceStore } from '../../stores/resource'
-import type { PageId, ScheduleView } from '../../types'
 import { NTooltip, NPopover } from 'naive-ui'
 
 const appStore = useAppStore()
 const scheduleStore = useScheduleStore()
 const resourceStore = useResourceStore()
 
-/** 侧栏导航结构 */
-interface NavChild {
-  label: string
-  page: PageId
-  scheduleView?: ScheduleView
-  resourceTab?: 'teacher' | 'classroom' | 'course' | 'class' | 'teachingTask'
-}
-
-interface NavGroup {
-  label: string
-  icon: string   // SVG path data
-  children: NavChild[]
-}
-
-// 导航数据（和 store 保持同步）
-const navGroups: NavGroup[] = [
-  {
-    label: '课表中心',
-    icon: 'M3 6h18M3 12h18M3 18h12',
-    children: [
-      { label: '周视图课表', page: 'schedule', scheduleView: 'week' },
-      { label: '时间线视图', page: 'schedule', scheduleView: 'timeline' },
-      { label: '月视图', page: 'schedule', scheduleView: 'month' },
-    ],
-  },
-  {
-    label: '资源管理',
-    icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 3a4 4 0 0 1 0 7.75M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-    children: [
-      { label: '教师管理', page: 'resource', resourceTab: 'teacher' },
-      { label: '教室管理', page: 'resource', resourceTab: 'classroom' },
-      { label: '课程管理', page: 'resource', resourceTab: 'course' },
-      { label: '班级管理', page: 'resource', resourceTab: 'class' },
-      { label: '教学任务管理', page: 'resource', resourceTab: 'teachingTask' },
-    ],
-  },
-  {
-    label: '排课引擎',
-    icon: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
-    children: [
-      { label: '自动排课', page: 'scheduling' },
-      { label: '验证报告', page: 'report' },
-      { label: '历史课表对比', page: 'history' },
-    ],
-  },
-  {
-    label: '系统设置',
-    icon: 'M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
-    children: [
-      { label: '基本设置', page: 'settings' },
-      { label: '系统管理', page: 'system' },
-    ],
-  },
-]
+// Navigation data: single source from appStore.navGroups
+const navGroups = computed(() => appStore.navGroups)
 
 // 使用 store 的展开状态
 function isGroupOpen(label: string): boolean {
@@ -73,7 +20,7 @@ function isGroupOpen(label: string): boolean {
 // 活跃的子菜单项
 const activeChild = computed(() => appStore.breadcrumbPath[1] || '')
 
-function handleNavClick(child: NavChild) {
+function handleNavClick(child: { page: string; label: string; scheduleView?: string; resourceTab?: string }) {
   appStore.navigateTo(child.page, child.label)
   if (child.scheduleView) scheduleStore.switchView(child.scheduleView)
   if (child.resourceTab) resourceStore.switchTab(child.resourceTab)

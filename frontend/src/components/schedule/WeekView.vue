@@ -5,6 +5,7 @@ import type { ScheduleEntry, LockedTimeSlot } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
 import { useMessage } from 'naive-ui'
 import { courseColorStyle } from '../../utils/courseColor'
+import { DEFAULT_LOCKED } from '../../stores/scheduling'
 
 const scheduleStore = useScheduleStore()
 const drawerRef = inject<any>('drawerRef')
@@ -15,10 +16,6 @@ const displayEntries = computed(() => scheduleStore.displayEntries)
 // ---- Locked Time Slot Editing Mode ----
 const editMode = ref(false)
 const lockedSlots = ref<LockedTimeSlot[]>([])
-
-const DEFAULT_LOCKED: LockedTimeSlot[] = [
-  { dayOfWeek: 3, startPeriod: 4, span: 4 },
-]
 
 function loadLockedSlots() {
   try {
