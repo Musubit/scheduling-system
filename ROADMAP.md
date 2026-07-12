@@ -48,7 +48,7 @@
 |----|------|
 | Theme | 用户体验提升、可扩展性增强、约束体系完善 |
 | Focus | 消除 v0.3 遗留技术债（Backup/Restore 重构、导航数据统一、DEFAULT_LOCKED 统一、fuzzyFilter 优化）；全局学期上下文（Global Semester Context）；快照重命名 UI；新增 Trigger 类型支持；约束体系扩展预留 |
-| Status | In Progress — Sprint 1-3 已完成（技术债 + Global Semester Context），剩余快照管理/约束/设置等 Epic 待开发 |
+| Status | In Progress — Epic A (Technical Debt) ✅ · Epic B (Global Semester Context) ✅ · 当前焦点: Epic C (Snapshot Management) |
 
 ### v0.5.x - Intelligent Scheduling
 
