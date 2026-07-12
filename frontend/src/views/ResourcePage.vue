@@ -700,8 +700,9 @@ function downloadTemplate() {
 	      <n-data-table v-else-if="resourceStore.activeTab === 'classroom'" :columns="classroomCols" :data="resourceStore.filteredClassrooms" :single-line="false" size="small" />
 	      <n-data-table v-else-if="resourceStore.activeTab === 'course'" :columns="courseCols" :data="resourceStore.filteredCourses" :single-line="false" size="small" />
 	      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses" :single-line="false" size="small" />
-	      <div v-else-if="resourceStore.activeTab === 'teachingTask'" class="teaching-task-area">
-	        <!-- 智能检测面板 -->
+		      <div v-else-if="resourceStore.activeTab === 'teachingTask'" class="teaching-task-area">
+		        <div class="semester-banner">当前学期：<strong>{{ appStore.currentSemesterName }}</strong></div>
+		        <!-- 智能检测面板 -->
 	        <div v-if="mergeableGroups.length > 0" class="merge-panel">
 	          <div class="merge-panel-title">💡 检测到可合班教学任务</div>
 	          <div v-for="(g, gi) in mergeableGroups" :key="gi" class="merge-item">
@@ -781,6 +782,19 @@ function downloadTemplate() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.semester-banner {
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--b3-card-background);
+  border: 1px solid var(--b3-border-color);
+}
+
+.semester-banner strong {
+  color: var(--b3-theme-primary);
 }
 
 .merge-panel {
