@@ -151,9 +151,9 @@ const weightLabels: Record<string, string> = {
           </div>
         </div>
 
-        <!-- 高级设置 -->
+        <!-- 约束权重调整 -->
         <n-collapse class="advanced-collapse">
-          <n-collapse-item title="高级设置" name="advanced">
+          <n-collapse-item title="约束权重调整（高级）" name="advanced">
             <!-- 约束权重滑块 -->
             <div class="form-group" v-for="opt in store.constraintOptions" :key="'w-'+opt.key">
               <label class="form-label" style="font-size:12px">{{ weightLabels[opt.key] || opt.label }}</label>
