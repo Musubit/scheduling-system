@@ -164,7 +164,7 @@ powershell .../package-portable.ps1
 |------|------|------|
 | `scheduler.exe` 未找到 | OR-Tools 调度器未构建 | `task build:scheduler` 或使用 SA-only 模式 |
 | WebView2 运行时缺失 | 系统未安装 WebView2 | Windows 10/11 自带，旧系统需手动安装 |
-| 黑窗口闪现 | WebView2 初始化进程 | 无安全影响，后续版本优化 |
+| 黑窗口闪现 | v0.4.0 已修复：主 exe 走 GUI subsystem，solver 子进程用 `CREATE_NO_WINDOW` 隐藏；若仍出现，检查是否误用 DEV 构建 | 必须走 `task package:portable`（生产分支）；DEV=true 会保留 console 便于调试 |
 | SmartScreen 拦截 | 未代码签名 | 点击"仍要运行"，或校验 SHA256 |
 
 ---
@@ -175,10 +175,11 @@ powershell .../package-portable.ps1
 
 - [ ] `go build` 通过
 - [ ] `npm run build` 通过
-- [ ] `task windows:build` 通过（含 `-H windowsgui`）
+- [ ] `task windows:build` 通过（含 `-H windowsgui`，构建末尾自动校验 exe 为 GUI subsystem）
 - [ ] `windres` 手动构建验证
 - [ ] exe 版本信息正确（右键 → 属性 → 详细信息）
 - [ ] exe 图标正确显示
+- [ ] 双击启动无 CMD 黑窗、开始排课无 solver 闪窗
 - [ ] 便携版 ZIP 生成成功
 - [ ] SHA256 校验码已记录
 - [ ] CHANGELOG.md 已更新

@@ -56,6 +56,11 @@ tasks:
         platforms: [windows]
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
+      # Verify GUI subsystem for production builds. Fails the build if the
+      # produced exe is not IMAGE_SUBSYSTEM_WINDOWS_GUI (2). Skipped in DEV=true
+      # so dev builds retain a console window for stdout/log visibility.
+      - cmd: '{{if ne .DEV "true"}}powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=''{{.BIN_DIR}}/{{.APP_NAME}}.exe''; $b=[IO.File]::ReadAllBytes($p); $peOff=[BitConverter]::ToInt32($b,60); $ss=[BitConverter]::ToUInt16($b,$peOff+92); if($ss -ne 2){Write-Error (''Subsystem check FAILED: expected 2 (GUI), got '' + $ss + ''. Rebuild with production BUILD_FLAGS.''); exit 1} else {Write-Host (''Subsystem check OK: '' + $p + '' is WINDOWS_GUI'')}"{{else}}echo skip subsystem check (DEV=true){{end}}'
+        platforms: [windows]
     vars:
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
     env:

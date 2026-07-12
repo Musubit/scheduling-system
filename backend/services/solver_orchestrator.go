@@ -33,6 +33,9 @@ func (o *SolverOrchestrator) StartORTools(pythonPath string, scriptPath string, 
 		// Running as Python script (solver.py)
 		o.ortoolsCmd = exec.Command(pythonPath, scriptPath, fmt.Sprintf("%d", port))
 	}
+	// Platform-specific process attributes (e.g. hide console window on Windows).
+	// Implementation lives in solver_orchestrator_{windows,other}.go.
+	configureCommand(o.ortoolsCmd)
 	// Capture output for debugging
 	o.ortoolsCmd.Stdout = log.Writer()
 	o.ortoolsCmd.Stderr = log.Writer()
