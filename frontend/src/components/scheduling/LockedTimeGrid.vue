@@ -118,7 +118,7 @@ onMounted(loadLockedSlots)
 }
 
 .lg-cell {
-  height: 28px;
+  min-height: 36px;
   border-radius: 3px;
   border: 1px solid var(--b3-border-color);
   background: var(--b3-theme-surface-light);
