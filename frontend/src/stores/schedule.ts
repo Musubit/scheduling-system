@@ -132,23 +132,35 @@ export const useScheduleStore = defineStore('schedule', () => {
       const classroomById = new Map<number, any>((classrooms || []).map((c: any) => [c.ID, c]))
       const teachingTaskById = new Map<number, any>((teachingTasks || []).map((t: any) => [t.ID, t]))
 
-      // Convert version entries to ScheduleEntry format
+      // Convert version entries to ScheduleEntry format — every field of the
+      // ScheduleEntry interface must be explicitly assigned so the runtime
+      // shape matches what components expect (course cards, color, details drawer).
+      // Fields unavailable in the version entry are set to null/undefined.
       entries.value = (version.entries || []).map((e: any) => ({
+        // Identity
         ID: (e.originalEntryId || e.ID) as number,
+
+        // Foreign keys
         courseId: e.courseId,
         teacherId: e.teacherId,
         classroomId: e.classroomId,
+        classGroupId: null,
         teachingTaskId: e.teachingTaskId,
+
+        // Time
+        semester: '',
         dayOfWeek: e.dayOfWeek,
         startPeriod: e.startPeriod,
         span: e.span,
         weeks: e.weeks || '1-16',
-        semester: '',
-        course: courseById.get(e.courseId),
-        teacher: teacherById.get(e.teacherId),
-        classroom: classroomById.get(e.classroomId),
-        teachingTask: e.teachingTaskId ? teachingTaskById.get(e.teachingTaskId) : undefined,
-      } as ScheduleEntry))
+
+        // Populated associations
+        course: courseById.get(e.courseId) || null,
+        teacher: teacherById.get(e.teacherId) || null,
+        classroom: classroomById.get(e.classroomId) || null,
+        classGroup: null,
+        teachingTask: e.teachingTaskId ? teachingTaskById.get(e.teachingTaskId) || null : null,
+      })) as unknown as ScheduleEntry[]
     } catch (e) {
       console.warn('Failed to load version:', e)
       viewMode.value = 'current'
