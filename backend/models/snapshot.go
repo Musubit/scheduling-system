@@ -45,6 +45,16 @@ type ScheduleSnapshot struct {
 	PerCategoryMax       float64 `json:"perCategoryMax"`
 	EnabledCategoryCount int     `json:"enabledCategoryCount"`
 
+	// v0.5.2: placement completeness (append-only, Stable Core preserving).
+	// FinalScore is the completeness-scaled published score (Total × completeness curve).
+	// PlacedSessions / ExpectedSessions / Completeness expose the underlying ratio
+	// used by the ScoreBreakdown at snapshot time.
+	// Legacy snapshots (v0.4) leave these at zero — TotalScore keeps its meaning.
+	FinalScore       float64 `gorm:"default:0" json:"finalScore"`
+	PlacedSessions   int     `gorm:"default:0" json:"placedSessions"`
+	ExpectedSessions int     `gorm:"default:0" json:"expectedSessions"`
+	Completeness     float64 `gorm:"default:0" json:"completeness"`
+
 	// Linked details
 	Details []SnapshotDetail `gorm:"foreignKey:SnapshotID" json:"details,omitempty"`
 }

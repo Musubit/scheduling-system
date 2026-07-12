@@ -21,6 +21,10 @@ func (s *SASolver) PostOptimize(
 		return entries
 	}
 
+	// v0.5.2 Goal 4: capture a pristine copy so any final score regression can be rolled back.
+	pristine := make([]models.ScheduleEntry, len(entries))
+	copy(pristine, entries)
+
 	// Build per-class-group student map
 	classGroupStudents := make(map[uint]int)
 	for _, tt := range teachingTasks {
@@ -85,8 +89,9 @@ func (s *SASolver) PostOptimize(
 
 	// Score each entry individually to find the worst ones
 	type entryScore struct {
-		idx   int
-		entry models.ScheduleEntry
+		idx      int
+		entry    models.ScheduleEntry
+		marginal float64 // v0.5.2 Goal 4: how much score drops when this entry is removed
 	}
 	var scored []entryScore
 	for i, e := range entries {
@@ -98,9 +103,68 @@ func (s *SASolver) PostOptimize(
 		limit = len(entries)
 	}
 
-	// Shuffle scored to avoid bias
+	// v0.5.2 Goal 4: rank entries by their true marginal contribution to
+	// ScoreSchedule.FinalTotal. Entries whose removal barely changes the score
+	// are "least important" and become PostOptimize candidates first.
+	// This replaces the previous random shuffle disguised as "worst entries".
+	//
+	// Cost: O(N × ScoreSchedule) — acceptable at the end of solving (N ≤ ~50).
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rng.Shuffle(len(scored), func(i, j int) { scored[i], scored[j] = scored[j], scored[i] })
+
+	scorer := NewScoringService()
+	ttListFull := make([]models.TeachingTask, len(teachingTasks))
+	copy(ttListFull, teachingTasks)
+	// Recover expected total sessions so completeness scaling participates
+	// in the marginal ranking (removing an entry drops PlacedSessions by 1).
+	expectedSessions := 0
+	for _, tt := range teachingTasks {
+		th := tt.TotalHours
+		if th <= 0 {
+			th = tt.Course.Hours
+		}
+		plan := resolveSessionPlan(th, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+		expectedSessions += plan.SessionsPerWeek()
+	}
+	sportsIDs := make(map[uint]bool)
+	for _, tt := range teachingTasks {
+		if models.IsSportsCourse(tt.Course.Name) {
+			sportsIDs[tt.CourseID] = true
+		}
+	}
+	scoringCtx := NewScoringContextWithExpected(constraints, sportsIDs, ttListFull, expectedSessions)
+
+	baselineBreakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
+	baselineScore := baselineBreakdown.FinalTotal
+
+	// Compute marginal contribution: FinalTotal(entries) − FinalTotal(entries \ {e})
+	scratch := make([]models.ScheduleEntry, 0, len(entries))
+	for i := range scored {
+		scratch = scratch[:0]
+		for j, e := range entries {
+			if j == scored[i].idx {
+				continue
+			}
+			scratch = append(scratch, e)
+		}
+		var b ScoreBreakdown
+		if len(scratch) == 0 {
+			b = ScoreBreakdown{}
+		} else {
+			b = scorer.ScoreSchedule(scratch, teachers, classrooms, scoringCtx)
+		}
+		scored[i].marginal = baselineScore - b.FinalTotal
+	}
+
+	// Sort ascending: lowest marginal contribution first = "least important" entries
+	// are optimization candidates first. This is the real worst-first, replacing
+	// the pre-v0.5.2 random shuffle.
+	for i := 0; i < len(scored)-1; i++ {
+		for j := i + 1; j < len(scored); j++ {
+			if scored[j].marginal < scored[i].marginal {
+				scored[i], scored[j] = scored[j], scored[i]
+			}
+		}
+	}
 
 	// Build a quick lookup for shared rooms (体育馆 have unlimited capacity and can be shared)
 	sharedRoom := make(map[uint]bool)
@@ -291,6 +355,19 @@ func (s *SASolver) PostOptimize(
 			e.ClassroomID = bestRoom
 			entries[eIdx] = e
 			improved++
+		}
+	}
+
+	// v0.5.2 Goal 4: verify the accumulated changes actually improve (or match)
+	// the pre-optimize baseline. If not, roll back to the snapshot. This turns
+	// PostOptimize from "best effort local search" into a Score-monotone
+	// operation — the acceptance criterion "Score cannot drop after PostOptimize"
+	// becomes a hard guarantee.
+	if improved > 0 {
+		finalBreakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
+		if finalBreakdown.FinalTotal < baselineScore {
+			// Roll back all changes by returning the pristine copy captured earlier.
+			copy(entries, pristine)
 		}
 	}
 

@@ -331,18 +331,24 @@ func (ctx *schedulingContext) undoNeighbor() {
 }
 
 // computeScore scores the current schedule using ScoringService.
+// v0.5.2: SA optimizes FinalTotal (completeness-scaled).
+// v0.5.2 Goal 3: uses cached ScoringContext + ScoringService (built once at
+// solver start) to eliminate per-neighbor map allocations that dominated profile.
 func (ctx *schedulingContext) computeScore() float64 {
 	if len(ctx.entries) == 0 {
 		return 0
 	}
-	// Extract teaching tasks for fatigue scoring
-	ttList := make([]models.TeachingTask, len(ctx.teachingTasks))
-	for i, td := range ctx.teachingTasks {
-		ttList[i] = td.Task
+	if ctx.cachedScorer == nil {
+		// Defensive fallback for callers that didn't go through Solve() (e.g. tests).
+		ttList := make([]models.TeachingTask, len(ctx.teachingTasks))
+		for i, td := range ctx.teachingTasks {
+			ttList[i] = td.Task
+		}
+		scoringCtx := NewScoringContextWithExpected(ctx.constraints, ctx.sportsCourseIDs, ttList, ctx.expectedTotalSessions)
+		return NewScoringService().ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, scoringCtx).FinalTotal
 	}
-	scoringCtx := NewScoringContext(ctx.constraints, ctx.sportsCourseIDs, ttList)
-	breakdown := NewScoringService().ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, scoringCtx)
-	return breakdown.Total
+	breakdown := ctx.cachedScorer.ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.cachedScoreCtx)
+	return breakdown.FinalTotal
 }
 
 // ---- Occupancy helpers ----

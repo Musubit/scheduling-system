@@ -251,15 +251,29 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 				saResult.Iterations, float64(saResult.ElapsedMs)))
 		}
 
-		// 构建评分上下文（复用至统一评分 + CreateSnapshot）
-		scoringCtx := NewScoringContext(config.Constraints, sportsCourseIDs, teachingTasks)
+		// v0.5.2: compute expected total sessions from teaching tasks
+		// (single source of truth: resolveSessionPlan, same as SA solver uses).
+		expectedTotalSessions := 0
+		for _, tt := range teachingTasks {
+			th := tt.TotalHours
+			if th <= 0 {
+				th = tt.Course.Hours
+			}
+			plan := resolveSessionPlan(th, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+			expectedTotalSessions += plan.SessionsPerWeek()
+		}
 
-		// 统一评分：OR-Tools 和 SA 路径共用同一个 ScoreBreakdown
+		// 构建评分上下文（复用至统一评分 + CreateSnapshot）
+		scoringCtx := NewScoringContextWithExpected(config.Constraints, sportsCourseIDs, teachingTasks, expectedTotalSessions)
+
+		// v0.5.2 Goal 1 — 统一评分语义：OR-Tools 和 SA 路径的最终 Score 都来自
+		// ScoreSchedule.FinalTotal。OR-Tools 自算的 objective（output.Score）只作诊断。
+		// 这保证三个体系（OR-Tools / SA / ScoreSchedule）对同一 entries 输出完全一致。
 		{
 			scorer := NewScoringService()
 			breakdown := scorer.ScoreSchedule(saResult.Entries, teachers, classrooms, scoringCtx)
-			saResult.Score = breakdown.Total
-			result.Score = breakdown.Total
+			saResult.Score = breakdown.FinalTotal
+			result.Score = breakdown.FinalTotal
 			result.ScoreDetail = &breakdown
 		}
 

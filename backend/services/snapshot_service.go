@@ -55,6 +55,12 @@ func (s *SnapshotService) CreateSnapshot(
 		Solver:               solver,
 		PerCategoryMax:       breakdown.PerCategoryMax,
 		EnabledCategoryCount: breakdown.EnabledCategoryCount,
+
+		// v0.5.2 completeness (append-only)
+		FinalScore:       breakdown.FinalTotal,
+		PlacedSessions:   breakdown.PlacedSessions,
+		ExpectedSessions: breakdown.ExpectedSessions,
+		Completeness:     breakdown.Completeness,
 	}
 
 	// Build teacher-level details
@@ -223,7 +229,20 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 		Preload("Course").Preload("Teacher").Preload("Classes.ClassGroup").
 		Find(&teachingTasks)
 
+	// v0.5.2: for manual snapshots we don't know the "original expected total".
+	// Compute it from the linked teaching tasks so completeness reflects reality;
+	// falls back to placed-count (Completeness=1) when tasks are unavailable.
+	expectedTotalSessions := 0
+	for _, tt := range teachingTasks {
+		th := tt.TotalHours
+		if th <= 0 {
+			th = tt.Course.Hours
+		}
+		plan := resolveSessionPlan(th, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+		expectedTotalSessions += plan.SessionsPerWeek()
+	}
 	scoringCtx := ScoringContextFromStored(storedConfig, sportsCourseIDs, teachingTasks)
+	scoringCtx.ExpectedTotalSessions = expectedTotalSessions
 
 	scorer := NewScoringService()
 	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
@@ -260,6 +279,12 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 		Solver:               "manual",
 		PerCategoryMax:       breakdown.PerCategoryMax,
 		EnabledCategoryCount: breakdown.EnabledCategoryCount,
+
+		// v0.5.2 completeness
+		FinalScore:       breakdown.FinalTotal,
+		PlacedSessions:   breakdown.PlacedSessions,
+		ExpectedSessions: breakdown.ExpectedSessions,
+		Completeness:     breakdown.Completeness,
 	}
 
 	if err := s.db.Create(snapshot).Error(); err != nil {

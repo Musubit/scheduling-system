@@ -26,6 +26,16 @@ type ScoreBreakdown struct {
 	StudentFatigue       float64 `json:"studentFatigue"`
 	PerCategoryMax       float64 `json:"perCategoryMax"`
 	EnabledCategoryCount int     `json:"enabledCategoryCount"`
+
+	// v0.5.2: placement completeness fields.
+	// Total keeps its v0.4 semantics (sum of 7 soft-constraint categories).
+	// FinalTotal is Total scaled by a completeness factor so under-placed schedules
+	// receive a lower published score. When ExpectedSessions==0 or PlacedSessions
+	// equals it, FinalTotal == Total (v0.4-compatible round-trip).
+	PlacedSessions   int     `json:"placedSessions,omitempty"`
+	ExpectedSessions int     `json:"expectedSessions,omitempty"`
+	Completeness     float64 `json:"completeness,omitempty"` // ratio in [0,1]
+	FinalTotal       float64 `json:"finalTotal"`
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
@@ -124,6 +134,37 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	}
 
 	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid + breakdown.PePeriodPref + breakdown.StudentFatigue)*100) / 100
+
+	// v0.5.2: placement completeness scaling.
+	// Total keeps its v0.4 semantics (sum of soft categories). FinalTotal exposes
+	// a completeness-scaled published score: schedules that placed only half their
+	// expected sessions are penalized so they can't win by "just placing fewer".
+	//
+	// Curve (β): factor = ratio × (0.5 + 0.5 × ratio) — quadratic-linear blend.
+	//   ratio=1.0 → 1.0      (full placement leaves Total unchanged)
+	//   ratio=0.5 → 0.375    (50% completeness produces ≤37.5% × Total ≤ 60 pts)
+	//   ratio=0.0 → 0.0
+	//
+	// When ExpectedTotalSessions is 0 (not supplied by caller — legacy path)
+	// we fall through to factor=1.0 to preserve v0.4 semantic round-trip.
+	breakdown.PlacedSessions = len(entries)
+	if ctx.ExpectedTotalSessions > 0 {
+		breakdown.ExpectedSessions = ctx.ExpectedTotalSessions
+		ratio := float64(breakdown.PlacedSessions) / float64(ctx.ExpectedTotalSessions)
+		if ratio > 1 {
+			ratio = 1
+		}
+		if ratio < 0 {
+			ratio = 0
+		}
+		breakdown.Completeness = math.Round(ratio*10000) / 10000
+		factor := ratio * (0.5 + 0.5*ratio)
+		breakdown.FinalTotal = math.Round(breakdown.Total*factor*100) / 100
+	} else {
+		breakdown.ExpectedSessions = breakdown.PlacedSessions
+		breakdown.Completeness = 1.0
+		breakdown.FinalTotal = breakdown.Total
+	}
 	return breakdown
 }
 

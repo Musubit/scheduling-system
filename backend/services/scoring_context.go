@@ -14,11 +14,17 @@ import (
 //	v1 — initial version with 7 soft constraints (teacher_preference,
 //	      course_dispersed, teacher_days_limit, low_floor_preference,
 //	      avoid_saturday/avoid_sunday, pe_preferred_periods, student_fatigue)
+//	v2 — v0.5.2: added ExpectedTotalSessions for placement-completeness scaling
+//	      of FinalTotal. Total field semantics unchanged (Stable Core compat).
 type ScoringContext struct {
 	Version            int                     `json:"version"`
 	EnabledConstraints []string                `json:"enabledConstraints"`
 	SportsCourseIDs    map[uint]bool           `json:"-"` // runtime only
 	TeachingTasks      []models.TeachingTask   `json:"-"` // runtime only
+
+	// v0.5.2: expected weekly session count used by ScoreSchedule to compute
+	// FinalTotal via completeness scaling. 0 = legacy path, no scaling.
+	ExpectedTotalSessions int `json:"-"`
 }
 
 // NewScoringContext creates a scoring context for the current scheduling run.
@@ -26,6 +32,19 @@ func NewScoringContext(
 	constraints []string,
 	sportsIDs map[uint]bool,
 	tasks []models.TeachingTask,
+) ScoringContext {
+	return NewScoringContextWithExpected(constraints, sportsIDs, tasks, 0)
+}
+
+// NewScoringContextWithExpected creates a v0.5.2 scoring context that also
+// carries the total number of sessions expected to be placed. This drives
+// FinalTotal via placement-completeness scaling. Passing 0 is legacy behavior
+// (FinalTotal == Total).
+func NewScoringContextWithExpected(
+	constraints []string,
+	sportsIDs map[uint]bool,
+	tasks []models.TeachingTask,
+	expectedTotalSessions int,
 ) ScoringContext {
 	if constraints == nil {
 		constraints = []string{}
@@ -36,11 +55,15 @@ func NewScoringContext(
 	if tasks == nil {
 		tasks = []models.TeachingTask{}
 	}
+	if expectedTotalSessions < 0 {
+		expectedTotalSessions = 0
+	}
 	return ScoringContext{
-		Version:            1,
-		EnabledConstraints: constraints,
-		SportsCourseIDs:    sportsIDs,
-		TeachingTasks:      tasks,
+		Version:               2,
+		EnabledConstraints:    constraints,
+		SportsCourseIDs:       sportsIDs,
+		TeachingTasks:         tasks,
+		ExpectedTotalSessions: expectedTotalSessions,
 	}
 }
 

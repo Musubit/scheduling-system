@@ -65,6 +65,17 @@ type schedulingContext struct {
 	semester        string
 	sportsCourseIDs map[uint]bool // course IDs for sports courses
 
+	// v0.5.2: total sessions the solver expects to place across all tasks.
+	// Used by ScoreSchedule to compute FinalTotal via completeness scaling.
+	expectedTotalSessions int
+
+	// v0.5.2 Goal 3: pre-cached scoring inputs. Rebuilt once at solver start,
+	// reused across every computeScore() call to eliminate per-iteration
+	// map/slice allocations on the SA hot path.
+	cachedTTList  []models.TeachingTask
+	cachedScorer  *ScoringService
+	cachedScoreCtx ScoringContext
+
 	// Per-teacher unavailable time slots (keyed by teacher ID)
 	teacherUnavailable map[uint][]LockedTimeSlot
 	// Per-class-group student count (keyed by class group ID)
@@ -127,6 +138,7 @@ func (s *SASolver) Solve(
 
 	// Pre-load teaching task data
 	taskData := make([]teachingTaskData, len(teachingTasks))
+	expectedTotalSessions := 0
 	for i, tt := range teachingTasks {
 		classIDs := make([]uint, len(tt.Classes))
 		totalStudents := 0
@@ -144,6 +156,9 @@ func (s *SASolver) Solve(
 			TotalStudents: totalStudents,
 			CourseHours:   courseHours,
 		}
+		// v0.5.2: expected sessions from resolveSessionPlan (v0.5.1 authoritative source).
+		plan := resolveSessionPlan(courseHours, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+		expectedTotalSessions += plan.SessionsPerWeek()
 	}
 
 	// Build context
@@ -155,18 +170,29 @@ func (s *SASolver) Solve(
 	}
 
 	ctx := &schedulingContext{
-		teachingTasks:      taskData,
-		teachers:           teachers,
-		classrooms:         classrooms,
-		classGroups:        classGroups,
-		lockedSlots:        lockedSlots,
-		constraints:        constraints,
-		semester:           semester,
-		sportsCourseIDs:    sportsCourseIDs,
-		teacherUnavailable: teacherUnavailable,
-		classGroupStudents: classGroupStudents,
-		rng:                rng,
+		teachingTasks:         taskData,
+		teachers:              teachers,
+		classrooms:            classrooms,
+		classGroups:           classGroups,
+		lockedSlots:           lockedSlots,
+		constraints:           constraints,
+		semester:              semester,
+		sportsCourseIDs:       sportsCourseIDs,
+		teacherUnavailable:    teacherUnavailable,
+		classGroupStudents:    classGroupStudents,
+		expectedTotalSessions: expectedTotalSessions,
+		rng:                   rng,
 	}
+
+	// v0.5.2 Goal 3: pre-build the ScoringContext once. computeScore() reuses
+	// this cached instance to avoid per-neighbor map/slice allocations that
+	// dominated pprof samples.
+	ctx.cachedTTList = make([]models.TeachingTask, len(taskData))
+	for i, td := range taskData {
+		ctx.cachedTTList[i] = td.Task
+	}
+	ctx.cachedScorer = NewScoringService()
+	ctx.cachedScoreCtx = NewScoringContextWithExpected(constraints, sportsCourseIDs, ctx.cachedTTList, expectedTotalSessions)
 
 	// Phase 1: Generate initial solution with greedy construction
 	ctx.buildInitial()
