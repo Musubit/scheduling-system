@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { NButton, NEmpty, NSpin, NProgress, NCard, NModal, NInput, useMessage } from 'naive-ui'
+import { ref, computed, nextTick, onMounted } from 'vue'
+import { NButton, NEmpty, NSpin, NProgress, NCard, NInput, useMessage } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 import type { TeacherWorkloadInfo } from '../types'
 import { jsPDF } from 'jspdf'
@@ -15,10 +15,9 @@ const snapshots = ref<any[]>([])
 const selectedSnapshot = ref<any | null>(null)
 const workloadData = ref<TeacherWorkloadInfo[]>([])
 
-// ---- Rename State ----
-const showRenameModal = ref(false)
-const renameSnapshotRef = ref<any | null>(null)
-const renameInput = ref('')
+// ---- Inline Rename State ----
+const editingSnapshotId = ref<number | null>(null)
+const editName = ref('')
 
 // ---- Data ----
 interface Snapshot {
@@ -104,14 +103,23 @@ async function loadWorkload() {
   }
 }
 
-function openRename(snap: any) {
-  renameSnapshotRef.value = snap
-  renameInput.value = snap.name || ''
-  showRenameModal.value = true
+
+const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
+
+function startEditing(snap: any) {
+  editingSnapshotId.value = snap.ID
+  editName.value = snap.name || ''
+  // Focus input on next tick after Vue renders it
+  nextTick(() => renameInputRef.value?.focus())
 }
 
-async function handleRename() {
-  const newName = renameInput.value.trim()
+function cancelEditing() {
+  editingSnapshotId.value = null
+  editName.value = ''
+}
+
+async function commitRename(snapshotId: number) {
+  const newName = editName.value.trim()
   if (!newName) {
     message.warning('快照名称不能为空')
     return
@@ -120,14 +128,30 @@ async function handleRename() {
     message.warning('快照名称不能超过100个字符')
     return
   }
+  // Find original name to avoid unnecessary RPC
+  const snap = snapshots.value.find((s: any) => s.ID === snapshotId)
+  if (!snap || newName === (snap.name || '').trim()) {
+    cancelEditing()
+    return
+  }
   try {
     const { RenameSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
-    await RenameSnapshot(renameSnapshotRef.value.ID, newName)
-    showRenameModal.value = false
+    await RenameSnapshot(snapshotId, newName)
+    cancelEditing()
     message.success('已重命名')
     await loadSnapshots()
   } catch (e: any) {
     message.error('重命名失败: ' + (e?.message || e))
+  }
+}
+
+function handleRenameKeydown(e: KeyboardEvent, snapshotId: number) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    commitRename(snapshotId)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    cancelEditing()
   }
 }
 
@@ -404,13 +428,24 @@ onMounted(() => {
             @click="selectSnapshot(snap)"
           >
             <button class="snap-delete-btn" @click.stop="deleteSnapshot(snap)" title="删除此快照">×</button>
-            <div class="snap-name">{{ snap.name || '未命名' }}</div>
-            <button class="snap-rename-btn" @click.stop="openRename(snap)" title="重命名">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="rename-icon">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
+            <!-- Inline rename: double-click to edit, Enter/blur to save, Escape to cancel -->
+            <div v-if="editingSnapshotId === snap.ID" class="snap-rename-inline" @click.stop>
+              <n-input
+                ref="renameInputRef"
+                v-model:value="editName"
+                :maxlength="100"
+                size="tiny"
+                placeholder="输入名称"
+                @keydown="handleRenameKeydown($event, snap.ID)"
+                @blur="commitRename(snap.ID)"
+              />
+            </div>
+            <div
+              v-else
+              class="snap-name"
+              :title="'双击重命名'"
+              @dblclick.stop="startEditing(snap)"
+            >{{ snap.name || '未命名' }}</div>
             <div class="snap-meta">
               <span class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</span>
               <span class="snap-score" :style="{ color: scoreColor(snap.totalScore) }">
@@ -548,23 +583,6 @@ onMounted(() => {
         </div>
       </div>
     </n-spin>
-
-    <!-- Rename Snapshot Modal -->
-    <n-modal v-model:show="showRenameModal" preset="card" title="重命名快照" style="width: 400px;">
-      <n-input
-        v-model:value="renameInput"
-        placeholder="输入新名称"
-        :maxlength="100"
-        clearable
-        autofocus
-      />
-      <template #footer>
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <n-button @click="showRenameModal = false">取消</n-button>
-          <n-button type="primary" @click="handleRename">保存</n-button>
-        </div>
-      </template>
-    </n-modal>
   </div>
 </template>
 
@@ -651,33 +669,6 @@ onMounted(() => {
   opacity: 1;
 }
 
-.snap-rename-btn {
-  position: absolute;
-  top: 4px;
-  right: 32px;
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  color: var(--b3-text-color-3);
-  cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-}
-
-.snap-rename-btn .rename-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.snapshot-card:hover .snap-rename-btn {
-  opacity: 1;
-}
-
 .snap-delete-btn:hover {
   color: #d03050;
   background: rgba(208, 48, 80, 0.1);
@@ -700,6 +691,15 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
+}
+
+.snap-name:hover {
+  cursor: text;
+}
+
+.snap-rename-inline {
+  margin-bottom: 4px;
 }
 
 .snap-date {
