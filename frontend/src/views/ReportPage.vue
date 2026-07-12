@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NButton, NEmpty, NSpin, NProgress, NCard } from 'naive-ui'
+import { NButton, NEmpty, NSpin, NProgress, NCard, NModal, NInput, useMessage } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 import type { TeacherWorkloadInfo } from '../types'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 
 const appStore = useAppStore()
+const message = useMessage()
 
 // ---- State ----
 const loading = ref(false)
 const snapshots = ref<any[]>([])
 const selectedSnapshot = ref<any | null>(null)
 const workloadData = ref<TeacherWorkloadInfo[]>([])
+
+// ---- Rename State ----
+const showRenameModal = ref(false)
+const renameSnapshotRef = ref<any | null>(null)
+const renameInput = ref('')
 
 // ---- Data ----
 interface Snapshot {
@@ -95,6 +101,33 @@ async function loadWorkload() {
     workloadData.value = data || []
   } catch {
     workloadData.value = []
+  }
+}
+
+function openRename(snap: any) {
+  renameSnapshotRef.value = snap
+  renameInput.value = snap.name || ''
+  showRenameModal.value = true
+}
+
+async function handleRename() {
+  const newName = renameInput.value.trim()
+  if (!newName) {
+    message.warning('快照名称不能为空')
+    return
+  }
+  if (newName.length > 100) {
+    message.warning('快照名称不能超过100个字符')
+    return
+  }
+  try {
+    const { RenameSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
+    await RenameSnapshot(renameSnapshotRef.value.ID, newName)
+    showRenameModal.value = false
+    message.success('已重命名')
+    await loadSnapshots()
+  } catch (e: any) {
+    message.error('重命名失败: ' + (e?.message || e))
   }
 }
 
@@ -372,6 +405,12 @@ onMounted(() => {
           >
             <button class="snap-delete-btn" @click.stop="deleteSnapshot(snap)" title="删除此快照">×</button>
             <div class="snap-name">{{ snap.name || '未命名' }}</div>
+            <button class="snap-rename-btn" @click.stop="openRename(snap)" title="重命名">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="rename-icon">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
             <div class="snap-meta">
               <span class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</span>
               <span class="snap-score" :style="{ color: scoreColor(snap.totalScore) }">
@@ -509,6 +548,23 @@ onMounted(() => {
         </div>
       </div>
     </n-spin>
+
+    <!-- Rename Snapshot Modal -->
+    <n-modal v-model:show="showRenameModal" preset="card" title="重命名快照" style="width: 400px;">
+      <n-input
+        v-model:value="renameInput"
+        placeholder="输入新名称"
+        :maxlength="100"
+        clearable
+        autofocus
+      />
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <n-button @click="showRenameModal = false">取消</n-button>
+          <n-button type="primary" @click="handleRename">保存</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -592,6 +648,33 @@ onMounted(() => {
 }
 
 .snapshot-card:hover .snap-delete-btn {
+  opacity: 1;
+}
+
+.snap-rename-btn {
+  position: absolute;
+  top: 4px;
+  right: 32px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--b3-text-color-3);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.snap-rename-btn .rename-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.snapshot-card:hover .snap-rename-btn {
   opacity: 1;
 }
 

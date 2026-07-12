@@ -295,6 +295,23 @@ func (s *SnapshotService) DeleteSnapshot(id uint) error {
 	return s.db.Delete(&models.ScheduleSnapshot{}, id).Error()
 }
 
+// RenameSnapshot updates the Name field of an existing snapshot.
+// Validates that the name is non-empty and within the size limit.
+func (s *SnapshotService) RenameSnapshot(id uint, newName string) error {
+	if newName == "" {
+		return fmt.Errorf("快照名称不能为空")
+	}
+	if len(newName) > 100 {
+		return fmt.Errorf("快照名称不能超过100个字符")
+	}
+	var snap models.ScheduleSnapshot
+	if err := s.db.First(&snap, id).Error(); err != nil {
+		return err
+	}
+	snap.Name = newName
+	return s.db.Save(&snap).Error()
+}
+
 // SnapshotCompareResult holds the diff between two schedule snapshots.
 type SnapshotCompareResult struct {
 	A             *models.ScheduleSnapshot `json:"a"`
