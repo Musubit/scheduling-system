@@ -17,13 +17,13 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "FileVersion", "0.4.0-alpha"
+      VALUE "FileVersion", "0.4.0"
       VALUE "ProductName", "高校智能排课系统"
       VALUE "FileDescription", "高校智能排课系统"
       VALUE "CompanyName", "musubi"
-      VALUE "ProductVersion", "0.4.0-alpha"
+      VALUE "ProductVersion", "0.4.0"
       VALUE "LegalCopyright", "(c) 2026, musubi"
-      VALUE "Comments", "高校智能排课系统（内部 alpha）"
+      VALUE "Comments", "高校智能排课系统"
     END
   END
   BLOCK "VarFileInfo"

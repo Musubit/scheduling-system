@@ -203,6 +203,57 @@ func (s *VersionService) DeleteVersion(id uint) error {
 	return nil
 }
 
+// ClearSemesterVersions removes every ScheduleVersion (and its entries)
+// belonging to the given semester in a single transaction. Only affects
+// the specified semester; other semesters, courses, teachers, classrooms,
+// snapshots, and live schedule entries are untouched.
+//
+// Returns the number of versions deleted. If the semester has no versions,
+// returns 0 with a nil error.
+func (s *VersionService) ClearSemesterVersions(semester string) (int64, error) {
+	semesterID, err := s.resolveSemesterID(semester)
+	if err != nil {
+		return 0, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
+	}
+
+	var deleted int64
+	err = s.db.Transaction(func(tx database.DB) error {
+		// Collect version IDs for this semester so we can delete entries
+		// via IN (...) without relying on Raw SQL (not on our DB interface).
+		var versions []models.ScheduleVersion
+		if err := tx.Where("semester_id = ?", semesterID).
+			Find(&versions).Error(); err != nil {
+			return fmt.Errorf("version: 查询版本失败: %w", err)
+		}
+
+		if len(versions) == 0 {
+			return nil
+		}
+
+		ids := make([]uint, 0, len(versions))
+		for _, v := range versions {
+			ids = append(ids, v.ID)
+		}
+
+		// Delete entries first (FK safety, matches DeleteVersion order).
+		if err := tx.Where("version_id IN ?", ids).
+			Delete(&models.ScheduleVersionEntry{}).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本条目失败: %w", err)
+		}
+		if err := tx.Where("semester_id = ?", semesterID).
+			Delete(&models.ScheduleVersion{}).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本失败: %w", err)
+		}
+
+		deleted = int64(len(versions))
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
+}
+
 // buildScoringContext assembles all data needed to evaluate a full semester's
 // schedule. It loads teachers, classrooms, and teaching tasks, identifies
 // sports courses, reads the constraint list from the latest snapshot, and

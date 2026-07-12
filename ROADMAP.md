@@ -11,8 +11,8 @@
 
 | 项目 | 值 |
 |------|-----|
-| Current Version | v0.4.0-alpha |
-| Project Status | Epic H 排课体验优化中 — 方案管理 (H2) |
+| Current Version | v0.4.0 Release Candidate |
+| Project Status | v0.4.0 Experience & Extensibility RC 准备中；v0.4.x 维护通道开放 |
 | Architecture | Wails v3 (Go + Vue 3 + OR-Tools) |
 | Solver | SA（模拟退火）+ OR-Tools（CP-SAT）双引擎 |
 
@@ -40,6 +40,24 @@
 
 ---
 
+## Version Numbering
+
+轻量版本管理策略（个人长期开发项目）：
+
+| 版本位 | 用途 | 触发 |
+|-------|------|------|
+| `v0.x.0` — Theme Release | 一个产品主题闭环 | 主题验收完成 |
+| `v0.x.y` — Maintenance Release | 当前主题内维护 | Bug 修复 / UX 优化 / 小功能增强 |
+| 主题切换 | 升 `x`，`y` 归零 | 进入下一主题 |
+
+约定：
+
+- 不使用 alpha / beta / rc 后缀
+- 不维护 release 分支，hotfix 直接从 main 打 tag
+- 每次发布必须更新 CHANGELOG，Theme Release 附主题副标题
+
+---
+
 ## Version Roadmap
 
 ### v0.3.x — Stable Core ✅
@@ -56,7 +74,7 @@
 |----|------|
 | Theme | 用户体验、版本管理、扩展能力 |
 | Focus | 技术债清理、全局学期上下文、快照管理、约束 UI、排课页面折叠交互、Windows 发布体验、运行时数据隔离、应用元数据完善、Portable 版本工程、手动调课评分反馈、课表方案管理 |
-| Status | 🔄 In Progress — Epic H2 (方案管理) 完成后发布 |
+| Status | 🟢 Release Preparation — v0.4.0 RC，功能冻结；v0.4.x 作为维护通道接收 bug/UX 打磨补丁，直至 v0.5.0 主题启动 |
 
 ### v0.5.x — Algorithm Optimization & Adaptation
 

@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.4.0] - 2026-07-12 — Experience & Extensibility
+
+> v0.4 主题闭环版本。围绕排课日常使用的完整体验展开：从数据管理到方案沉淀，
+> 用户全流程可控。Stable Core（评分算法、快照核心字段）保持不变。
+
+### Added
+
+- **排课方案版本管理**：自动排课与手动微调均可沉淀为独立方案，每学期保留最近 50 个，可查看、恢复、删除
+- **手动保存当前课表为方案**：调整课表后一键"另存为方案"，命名支持 placeholder 建议、空名后端兜底、同名自动编号
+- **手动调课实时评分反馈**：拖动课表条目后，评分、评分明细、拖后腿排行随即刷新，硬约束违规在移动前拦截
+- **当前学期轮次方案一键清空**：课表中心新增"清空轮次方案"入口，二次确认弹窗展示学期名、方案数、影响范围；只清当前学期，不触碰其他学期与基础数据
+- **全局学期上下文**：工具栏统一学期切换器，所有页面（排课/资源/报告/历史对比）共享同一学期状态
+- **快照重命名**：报告页侧边栏支持给快照起可读名字
+- **约束卡片式配置**：约束列表改为卡片布局，硬/软约束分组，权重滑块直接内联
+- **设置页数据管理增强**：清空数据、学期日期选择器、可视化时间配置网格
+- **Windows 便携发布体验**：主 exe 走 GUI subsystem 消除黑窗、solver 子进程 `CREATE_NO_WINDOW`、WebView2 数据落 `%LOCALAPPDATA%\scheduling-system\`、exe 属性页元数据完整、Portable ZIP 版本号由 `Taskfile.yml` 统一驱动
+- **Version Numbering 策略**：ROADMAP 明确 `v0.x.0` = Theme Release、`v0.x.y` = Maintenance Release、不使用 alpha/beta/rc 长期后缀、不维护 release 分支
+
+### Changed
+
+- 排课页配置面板可折叠，排课开始后自动收起
+- 报告页 / 历史对比页 / PDF 导出 / 打印头统一使用 `snapshot.Name` 作为快照显示名
+- 手动方案默认名称从固定文本改为 placeholder 建议（不入库），保存时空值由后端兜底、同名自动编号
+
+### Fixed
+
+- 报告页教师评分明细摘要重复"周"前缀（"周周一3-4节" → "周一 3-4节"）
+- `CreateManualSnapshot` 因 `TeachingTasks` 为 nil 导致 `student_fatigue` 评分缺失
+- 静态资源 favicon 404，替换为多分辨率 `.ico`
+- `go build` 裸编译缺少 Windows 资源嵌入
+
+### Stable Core Notice
+
+- `ScoreSchedule` / `ScoreBreakdown` / `ScoringContext` / `ScheduleSnapshot` / `Snapshot.Name` 未修改；本版本所有新增能力在核心之上扩展。
+
+---
+
 ## [0.3.3] - 2026-07-11
 
 ### Removed

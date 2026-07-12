@@ -5,12 +5,12 @@
     "name": "musubi",
     "email": ""
   },
-  "version": "0.4.0-alpha",
+  "version": "0.4.0",
   "info": {
     "companyName": "musubi",
     "productName": "高校智能排课系统",
-    "productVersion": "0.4.0-alpha",
+    "productVersion": "0.4.0",
     "copyright": "(c) 2026, musubi",
-    "comments": "高校智能排课系统（内部 alpha）"
+    "comments": "高校智能排课系统"
   }
 }

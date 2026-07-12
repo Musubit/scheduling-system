@@ -23,7 +23,7 @@
 task package:portable
 ```
 
-ZIP 文件名版本号来自 `Taskfile.yml` 顶部 `VERSION` var（当前 `0.4.0-alpha`）。
+ZIP 文件名版本号来自 `Taskfile.yml` 顶部 `VERSION` var（当前 `0.4.0`）。
 Bump 版本时统一改 Taskfile 一处，`package:portable` 会自动把值透传给
 `package-portable.ps1`，产出 `bin/scheduling-system-portable-v<VERSION>.zip`。
 

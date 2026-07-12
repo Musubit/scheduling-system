@@ -15,6 +15,19 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as models$0 from "../models/models.js";
 
 /**
+ * ClearSemesterVersions removes every ScheduleVersion (and its entries)
+ * belonging to the given semester in a single transaction. Only affects
+ * the specified semester; other semesters, courses, teachers, classrooms,
+ * snapshots, and live schedule entries are untouched.
+ * 
+ * Returns the number of versions deleted. If the semester has no versions,
+ * returns 0 with a nil error.
+ */
+export function ClearSemesterVersions(semester: string): $CancellablePromise<number> {
+    return $Call.ByID(2909980406, semester);
+}
+
+/**
  * CreateManualVersion saves the current schedule as a new version with
  * source = ManualAdjust. It loads the live schedule entries from the
  * database, computes the current ScoreSchedule score, and persists a

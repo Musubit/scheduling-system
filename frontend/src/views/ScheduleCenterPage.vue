@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, h } from 'vue'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import { useScheduleStore } from '../stores/schedule'
 import { useAppStore } from '../stores/app'
@@ -21,6 +21,7 @@ const message = useMessage()
 
 const versions = ref<VersionListItem[]>([])
 const isLoading = ref(false)
+const clearing = ref(false)
 
 async function loadVersions() {
   isLoading.value = true
@@ -61,6 +62,45 @@ function confirmDelete(id: number) {
   })
 }
 
+function confirmClearAll() {
+  const semesterName = appStore.currentSemesterName || '当前学期'
+  const count = versions.value.length
+  dialog.warning({
+    title: '确认清空全部方案',
+    content: () =>
+      h('div', { style: 'line-height: 1.7' }, [
+        h('div', { style: 'margin-bottom: 8px' }, [
+          '即将删除【',
+          h('b', semesterName),
+          `】下全部 ${count} 个历史课表方案。`,
+        ]),
+        h('ul', { style: 'margin: 4px 0 8px 20px; padding: 0' }, [
+          h('li', '将删除该学期全部历史轮次方案（含最新方案）。'),
+          h('li', '不影响其他学期的方案。'),
+          h('li', '不影响课程、教师、教室等基础数据。'),
+        ]),
+        h('div', { style: 'color: var(--b3-theme-error, #d03050)' }, '此操作不可撤销。'),
+      ]),
+    positiveText: '确认清空',
+    negativeText: '取消',
+    positiveButtonProps: { type: 'error' },
+    onPositiveClick: async () => {
+      clearing.value = true
+      try {
+        const { ClearSemesterVersions } = await import('../../bindings/scheduling-system/backend/services/versionservice')
+        const deleted = await ClearSemesterVersions(appStore.currentSemesterName)
+        message.success(`已清空 ${deleted ?? count} 个方案`)
+        await loadVersions()
+      } catch (e) {
+        console.warn('Clear semester versions failed:', e)
+        message.error('清空失败')
+      } finally {
+        clearing.value = false
+      }
+    },
+  })
+}
+
 function sourceLabel(src: string): string {
   const labels: Record<string, string> = {
     AutoGenerate: '自动排课',
@@ -83,10 +123,25 @@ onMounted(loadVersions)
 
 <template>
   <div class="schedule-center-page">
-    <h2 class="page-title">课表中心</h2>
-    <p class="page-desc">
-      管理历史排课版本。点击「查看」浏览完整课表，点击「恢复」将版本设为当前课表（开发中）。
-    </p>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h2 class="page-title">课表中心</h2>
+        <p class="page-desc">
+          管理历史排课版本。点击「查看」浏览完整课表，点击「恢复」将版本设为当前课表（开发中）。
+        </p>
+      </div>
+      <div class="page-header-actions" v-if="!isLoading && versions.length > 0">
+        <n-button
+          size="small"
+          type="error"
+          ghost
+          :loading="clearing"
+          @click="confirmClearAll"
+        >
+          清空轮次方案
+        </n-button>
+      </div>
+    </div>
 
     <div v-if="isLoading" class="loading">加载中...</div>
 
@@ -128,6 +183,24 @@ onMounted(loadVersions)
   min-height: 0;
 }
 
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.page-header-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.page-header-actions {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
 .page-title {
   font-size: 18px;
   font-weight: 600;
@@ -138,7 +211,7 @@ onMounted(loadVersions)
 .page-desc {
   font-size: 13px;
   color: var(--b3-theme-on-surface-light);
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .loading {
