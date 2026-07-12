@@ -28,6 +28,17 @@ const scoreColor = computed(() => {
 // PerCategoryMax — single source: computed by Go ScoreSchedule, returned in scoreDetail
 const categoryMax = computed(() => store.result?.scoreDetail?.perCategoryMax || 25)
 
+// Config panel collapse state
+const configCollapsed = ref(false)
+
+watch(() => store.isRunning, (val) => {
+  if (val) configCollapsed.value = true
+})
+
+function toggleConfigPanel() {
+  configCollapsed.value = !configCollapsed.value
+}
+
 const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
 
 const totalConflicts = computed(() => {
@@ -97,10 +108,13 @@ const weightLabels: Record<string, string> = {
       💡 <strong>操作流程：</strong>选择范围 → 选择约束预设 → 点「开始自动排课」→ 查看课表结果
     </div>
 
-    <div class="scheduling-layout">
+    <div class="scheduling-layout" :class="{ collapsed: configCollapsed }">
       <!-- 左侧：配置面板 -->
-      <div class="config-panel">
-        <h3 class="panel-title">排课参数配置</h3>
+      <div class="config-panel" :class="{ collapsed: configCollapsed }">
+        <div class="config-header">
+          <h3 class="panel-title">排课参数配置</h3>
+          <button class="collapse-btn" @click="toggleConfigPanel" title="收起配置面板">◀</button>
+        </div>
 
         <!-- 学期选择 -->
         <div class="form-group">
@@ -193,7 +207,10 @@ const weightLabels: Record<string, string> = {
 
       <!-- 右侧：结果面板 -->
       <div class="result-panel">
-        <h3 class="panel-title">排课进度与结果</h3>
+        <div class="result-header">
+          <h3 class="panel-title">排课进度与结果</h3>
+          <button v-if="configCollapsed" class="expand-btn" @click="toggleConfigPanel">▶ 展开配置</button>
+        </div>
 
         <n-steps :current="store.progressHistory.length" size="small" style="margin-bottom: 16px;">
           <n-step
@@ -340,10 +357,14 @@ const weightLabels: Record<string, string> = {
 
 .scheduling-layout {
   flex: 1;
-  display: grid;
-  grid-template-columns: 320px 1fr;
+  display: flex;
   gap: 20px;
   min-height: 0;
+  transition: gap 0.25s ease;
+}
+
+.scheduling-layout.collapsed {
+  gap: 0;
 }
 
 .panel-title {
@@ -353,15 +374,76 @@ const weightLabels: Record<string, string> = {
   margin-bottom: 16px;
 }
 
+.config-header,
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.config-header .panel-title,
+.result-header .panel-title {
+  margin-bottom: 0;
+}
+
+.collapse-btn {
+  background: transparent;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-s);
+  cursor: pointer;
+  color: var(--b3-theme-on-surface);
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  transition: background 0.15s, color 0.15s;
+}
+
+.collapse-btn:hover {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.expand-btn {
+  background: transparent;
+  border: 1px solid var(--b3-theme-primary);
+  border-radius: var(--b3-border-radius-s);
+  cursor: pointer;
+  color: var(--b3-theme-primary);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.expand-btn:hover {
+  background: var(--b3-theme-primary-lightest);
+}
+
 .config-panel {
+  width: 320px;
+  min-width: 0;
+  flex-shrink: 0;
   background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius);
   padding: 20px;
   overflow-y: auto;
+  transition: width 0.25s ease, opacity 0.2s ease, padding 0.2s ease, border 0.2s ease;
+}
+
+.config-panel.collapsed {
+  width: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  border: none;
+  pointer-events: none;
 }
 
 .result-panel {
+  flex: 1;
+  min-width: 0;
   background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius);
