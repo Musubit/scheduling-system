@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { NButton, NEmpty, NSpin, NProgress, NCard, NInput, useMessage } from 'naive-ui'
 import { useAppStore } from '../stores/app'
 import type { TeacherWorkloadInfo } from '../types'
@@ -109,7 +109,6 @@ const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
 function startEditing(snap: any) {
   editingSnapshotId.value = snap.ID
   editName.value = snap.name || ''
-  // Focus input on next tick after Vue renders it
   nextTick(() => renameInputRef.value?.focus())
 }
 
@@ -121,14 +120,14 @@ function cancelEditing() {
 async function commitRename(snapshotId: number) {
   const newName = editName.value.trim()
   if (!newName) {
-    message.warning('快照名称不能为空')
+    cancelEditing()
     return
   }
   if (newName.length > 100) {
     message.warning('快照名称不能超过100个字符')
+    cancelEditing()
     return
   }
-  // Find original name to avoid unnecessary RPC
   const snap = snapshots.value.find((s: any) => s.ID === snapshotId)
   if (!snap || newName === (snap.name || '').trim()) {
     cancelEditing()
@@ -154,6 +153,29 @@ function handleRenameKeydown(e: KeyboardEvent, snapshotId: number) {
     cancelEditing()
   }
 }
+
+// Click-outside: commit rename when clicking outside the active card
+let removeDocListener: (() => void) | null = null
+
+watch(editingSnapshotId, (id) => {
+  if (removeDocListener) {
+    removeDocListener()
+    removeDocListener = null
+  }
+  if (id === null) return
+  const handler = (e: MouseEvent) => {
+    const editEl = document.querySelector('.snap-rename-inline')
+    if (editEl && !editEl.contains(e.target as Node)) {
+      commitRename(id)
+    }
+  }
+  document.addEventListener('mousedown', handler, true)
+  removeDocListener = () => document.removeEventListener('mousedown', handler, true)
+})
+
+onUnmounted(() => {
+  if (removeDocListener) removeDocListener()
+})
 
 async function generateManualReport() {
   try {
@@ -437,7 +459,6 @@ onMounted(() => {
                 size="tiny"
                 placeholder="输入名称"
                 @keydown="handleRenameKeydown($event, snap.ID)"
-                @blur="commitRename(snap.ID)"
               />
             </div>
             <div
