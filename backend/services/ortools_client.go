@@ -47,8 +47,13 @@ type ORToolsTask struct {
 	CourseID          uint   `json:"courseId"`
 	ClassIDs          []uint `json:"classIds"`
 	SessionsPerWeek   int    `json:"sessionsPerWeek,omitempty"`
+	// v0.5.1: per-session span shape derived by Go from course hours + preferred span.
+	// When non-empty, Python must respect these values instead of computing its own.
+	// Length == SessionsPerWeek (or, when SessionsPerWeek is 0, len(SessionSpans) drives it).
+	SessionSpans      []int  `json:"sessionSpans,omitempty"`
 	TotalHours        int    `json:"totalHours,omitempty"`
 	MaxHoursPerWeek   int    `json:"maxHoursPerWeek,omitempty"`
+	PreferredSpan     int    `json:"preferredSpan,omitempty"`
 	RequiredRoomType  string `json:"requiredRoomType,omitempty"`
 	StartWeek         int    `json:"startWeek"`
 	EndWeek           int    `json:"endWeek"`

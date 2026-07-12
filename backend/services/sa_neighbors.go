@@ -37,6 +37,8 @@ func (ctx *schedulingContext) tryNeighbor(currentScore float64) float64 {
 
 // tryMove moves one schedule entry to a new (day, period, room).
 // Teacher and teaching task (class groups) remain fixed — only time and room change.
+// v0.5.1: span is preserved from the moved entry; new starts are drawn from
+// ValidStartsForSpan(entry.Span) so the move keeps the session block-legal.
 func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	idx := ctx.rng.Intn(len(ctx.entries))
 	entry := ctx.entries[idx]
@@ -51,8 +53,17 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 	// Remove old occupancy
 	ctx.removeOccupancy(entry)
 
-	// Try new assignments
-	validStarts := []int{0, 2, 4, 6, 8}
+	span := entry.Span
+	if span < 1 {
+		span = 2 // defensive: legacy rows may have 0
+	}
+	validStarts := toIntSlice(models.ValidStartsForSpan(span))
+	if len(validStarts) == 0 {
+		// No legal start for this span — abort the move, keep current placement.
+		ctx.restoreOccupancy(entry)
+		return currentScore
+	}
+
 	// Pick day: prefer non-weekend if avoidance is on (80% chance weekdays)
 	day := ctx.rng.Intn(7)
 	if ctx.hasConstraint("avoid_saturday") || ctx.hasConstraint("avoid_sunday") {
@@ -60,20 +71,25 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 			day = ctx.rng.Intn(5) // weekday only
 		}
 	}
-	// Pick start period, with bias for sports courses
+	// Pick start period, with bias for sports courses.
+	// PE preferred starts (2, 6) are only legal for span=2; when they're absent
+	// from validStarts (e.g. span=3), the bias silently falls back to uniform.
 	var start int
 	if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[entry.CourseID] {
-		// 70% chance to pick preferred periods (2 or 6), 30% any
-		if ctx.rng.Float64() < 0.7 {
-			prefer := []int{2, 6}
-			start = prefer[ctx.rng.Intn(len(prefer))]
+		peStarts := []int{}
+		for _, s := range validStarts {
+			if s == 2 || s == 6 {
+				peStarts = append(peStarts, s)
+			}
+		}
+		if len(peStarts) > 0 && ctx.rng.Float64() < 0.7 {
+			start = peStarts[ctx.rng.Intn(len(peStarts))]
 		} else {
 			start = validStarts[ctx.rng.Intn(len(validStarts))]
 		}
 	} else {
 		start = validStarts[ctx.rng.Intn(len(validStarts))]
 	}
-	span := entry.Span
 
 		// Check locked slots
 		for _, ls := range ctx.lockedSlots {

@@ -77,6 +77,8 @@ export interface TeachingTask {
   startWeek: number
   endWeek: number
   maxHoursPerWeek: number
+  /** v0.5.1: 单次连排节次偏好（0=不指定, 1/2/3=强制） */
+  preferredSpan?: number
   course?: Course
   teacher?: Teacher
   semester?: Semester

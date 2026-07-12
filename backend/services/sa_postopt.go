@@ -81,6 +81,7 @@ func (s *SASolver) PostOptimize(
 	}
 
 	validStarts := []int{0, 2, 4, 6, 8}
+	_ = validStarts // v0.5.1: per-entry validStarts derived from entry.Span below
 
 	// Score each entry individually to find the worst ones
 	type entryScore struct {
@@ -147,6 +148,17 @@ func (s *SASolver) PostOptimize(
 		e := es.entry
 		eIdx := es.idx
 		span := e.Span
+		if span < 1 {
+			span = 2
+		}
+		// v0.5.1: legal starts depend on this entry's span (block-alignment).
+		perEntryStarts := make([]int, 0, 5)
+		for _, p := range models.ValidStartsForSpan(span) {
+			perEntryStarts = append(perEntryStarts, int(p))
+		}
+		if len(perEntryStarts) == 0 {
+			continue
+		}
 		originalDay, originalStart, originalRoom := int(e.DayOfWeek), int(e.StartPeriod), e.ClassroomID
 
 		roomOcc, teacherOcc, classOcc := buildOcc(eIdx)
@@ -174,7 +186,7 @@ func (s *SASolver) PostOptimize(
 			lsBlocked := false
 			for _, ls := range lockedSlots {
 				if int(ls.DayOfWeek) == day && periodsOverlapInt(0, 11, int(ls.StartPeriod), ls.Span) {
-					for _, start := range validStarts {
+					for _, start := range perEntryStarts {
 						if periodsOverlapInt(start, span, int(ls.StartPeriod), ls.Span) {
 							lsBlocked = true
 							break
@@ -186,7 +198,7 @@ func (s *SASolver) PostOptimize(
 				continue
 			}
 
-			for _, start := range validStarts {
+			for _, start := range perEntryStarts {
 				// Check teacher unavailable (at specific day+start)
 				if isTeacherUnavailable(e.TeacherID, day, start, span) {
 					continue

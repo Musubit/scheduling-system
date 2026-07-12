@@ -11,7 +11,7 @@ func (ctx *schedulingContext) buildInitial() {
 	ctx.teacherOcc = make(map[string]bool)
 	ctx.classOcc = make(map[string]bool)
 
-	validStarts := []int{0, 2, 4, 6, 8} // 第1/3/5/7/9节
+	// v0.5.1: valid starts are now derived per-span via IsSpanLegal.
 
 	// Shuffle teaching tasks for randomness
 	taskOrder := make([]int, len(ctx.teachingTasks))
@@ -23,22 +23,14 @@ func (ctx *schedulingContext) buildInitial() {
 	for _, ti := range taskOrder {
 		td := ctx.teachingTasks[ti]
 
-		// Calculate sessions per week based on task's actual week span
-		sessionsPerWeek := 1
-		if td.CourseHours > 0 {
-			weeks := td.Task.EndWeek - td.Task.StartWeek + 1
-			if weeks < 1 {
-				weeks = 1
-			}
-			periodsPerWeek := weeks * 2 // 2 periods per day
-			sessionsPerWeek = (td.CourseHours + periodsPerWeek - 1) / periodsPerWeek
-			if sessionsPerWeek < 1 {
-				sessionsPerWeek = 1
-			}
-			if sessionsPerWeek > 4 {
-				sessionsPerWeek = 4
-			}
-		}
+		// v0.5.1: derive per-session spans from course hours + preferred span.
+		plan := resolveSessionPlan(
+			td.CourseHours,
+			td.Task.StartWeek,
+			td.Task.EndWeek,
+			td.Task.MaxHoursPerWeek,
+			td.Task.PreferredSpan,
+		)
 
 		// Determine required room type for this task
 		requiredRoomType := ""
@@ -51,7 +43,13 @@ func (ctx *schedulingContext) buildInitial() {
 			requiredRoomType = "机房"
 		}
 
-		for s := 0; s < sessionsPerWeek; s++ {
+		for _, sessionSpan := range plan.Spans {
+			// Legal starts depend on this session's span (block-alignment rules).
+			validStarts := toIntSlice(models.ValidStartsForSpan(sessionSpan))
+			if len(validStarts) == 0 {
+				continue
+			}
+
 			placed := false
 
 			// Try days in random order, but push weekends to end if avoidance is on
@@ -80,28 +78,47 @@ func (ctx *schedulingContext) buildInitial() {
 			}
 
 			// Phase 1: Try with teacher preference enforced (soft — skip conflicting starts)
-			placed = ctx.tryPlaceSession(td, days, validStarts, requiredRoomType, true)
+			placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, requiredRoomType, true)
 
 			// Phase 2: Relax teacher preference if not placed
 			if !placed && ctx.hasConstraint("teacher_preference") {
-				placed = ctx.tryPlaceSession(td, days, validStarts, requiredRoomType, false)
+				placed = ctx.tryPlaceSession(td, days, validStarts, sessionSpan, requiredRoomType, false)
 			}
 
 			_ = placed
-		} // end sessionsPerWeek loop
+		} // end session loop
 	}
+}
+
+// toIntSlice converts a []models.Period to []int for internal solver loops.
+func toIntSlice(ps []models.Period) []int {
+	out := make([]int, len(ps))
+	for i, p := range ps {
+		out[i] = int(p)
+	}
+	return out
 }
 
 // tryPlaceSession attempts to place one session of a teaching task.
 // If enforcePref is true, teacher preference conflicts cause the start to be skipped.
 // If false, teacher preferences are ignored (relaxed phase).
-func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, starts []int, requiredRoomType string, enforcePref bool) bool {
+// v0.5.1: span is now a per-session parameter, no longer hardcoded to 2.
+func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, starts []int, span int, requiredRoomType string, enforcePref bool) bool {
 	for _, day := range days {
 		// Shuffle starts for randomness, but sports courses prefer specific starts
 		var orderedStarts []int
 		if ctx.hasConstraint("pe_preferred_periods") && ctx.sportsCourseIDs[td.Task.CourseID] {
-			prefer := []int{2, 6}
-			other := []int{0, 4, 8}
+			// Sports preferred starts are 2 and 6 (both legal only for span=2).
+			// If this session's span disallows them, fall through to shuffle.
+			prefer := []int{}
+			other := []int{}
+			for _, s := range starts {
+				if s == 2 || s == 6 {
+					prefer = append(prefer, s)
+				} else {
+					other = append(other, s)
+				}
+			}
 			ctx.rng.Shuffle(len(prefer), func(i, j int) { prefer[i], prefer[j] = prefer[j], prefer[i] })
 			ctx.rng.Shuffle(len(other), func(i, j int) { other[i], other[j] = other[j], other[i] })
 			orderedStarts = append(prefer, other...)
@@ -112,8 +129,6 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 		}
 
 		for _, start := range orderedStarts {
-			span := 2
-
 			// Check locked slots
 			locked := false
 			for _, ls := range ctx.lockedSlots {

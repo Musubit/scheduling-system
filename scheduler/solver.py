@@ -46,18 +46,72 @@ try:
 except ImportError:
     HAS_ORTOOLS = False
 
-VALID_STARTS = [0, 2, 4, 6, 8]  # course start periods
+VALID_STARTS = [0, 2, 4, 6, 8]  # course start periods (legacy — kept for compat)
 PERIODS_PER_DAY = 11
 DAYS = 7
-SPAN = 2  # each session occupies 2 consecutive periods
+SPAN = 2  # default span (legacy) — v0.5.1 tasks may override per-session via sessionSpans.
 
 # Valid positions (p = day * PERIODS_PER_DAY + start)
 VALID_POSITIONS = [d * PERIODS_PER_DAY + s for d in range(DAYS) for s in VALID_STARTS]
 
 
+# v0.5.1: HBUT block-alignment rules. MUST stay in sync with
+# backend/models/types.go IsSpanLegal + ValidStartsForSpan.
+#
+#   Morning   (period 0-3) : span ∈ {2}, start ∈ {0, 2}
+#   Afternoon (period 4-7) : span ∈ {2}, start ∈ {4, 6}
+#   Evening   (period 8-10): span ∈ {1, 2, 3}, any start within block
+def is_span_legal(start, span):
+    if span < 1 or span > 3:
+        return False
+    if start < 0 or start + span > PERIODS_PER_DAY:
+        return False
+    block_start = _block_of(start)
+    block_end = _block_of(start + span - 1)
+    if block_start is None or block_start != block_end:
+        return False
+    if block_start == "morning":
+        return span == 2 and start in (0, 2)
+    if block_start == "afternoon":
+        return span == 2 and start in (4, 6)
+    if block_start == "evening":
+        return True
+    return False
+
+
+def _block_of(period):
+    if 0 <= period <= 3:
+        return "morning"
+    if 4 <= period <= 7:
+        return "afternoon"
+    if 8 <= period <= 10:
+        return "evening"
+    return None
+
+
+def valid_starts_for_span(span):
+    return [s for s in range(PERIODS_PER_DAY) if is_span_legal(s, span)]
+
+
 def periods_overlap(s1, span1, s2, span2):
     """Check if two time spans overlap."""
     return s1 < s2 + span2 and s2 < s1 + span1
+
+
+def default_spans_from_hours(weekly_hours):
+    """v0.5.1: mirror of Go planFromWeeklyHours. Returns list of session spans."""
+    if weekly_hours <= 0:
+        return [SPAN]
+    table = {
+        1: [1],
+        2: [2],
+        3: [3],
+        4: [2, 2],
+        5: [2, 2, 1],
+        6: [2, 2, 2],
+        7: [2, 2, 2, 1],
+    }
+    return table.get(weekly_hours, [2, 2, 2, 2])
 
 
 def calc_sessions_per_week(total_hours, num_weeks, max_per_week=0):
@@ -107,23 +161,50 @@ def solve_scheduling(data):
     task_teacher_ids = [t["teacherId"] for t in tasks]
     task_course_ids = [t["courseId"] for t in tasks]
 
-    # Sessions per task (from input or computed from totalHours with actual week span)
+    # Sessions per task and per-session span (v0.5.1).
+    # Go authoritatively fills sessionSpans; if absent, we fall back to hour-derived defaults.
     task_sessions = []
+    task_span_list = []  # task_span_list[i] = list of int spans, length == task_sessions[i]
     for t in tasks:
-        spw = t.get("sessionsPerWeek", 0)
-        if spw <= 0:
+        provided_spans = t.get("sessionSpans") or []
+        if provided_spans:
+            spans = [int(x) for x in provided_spans[:4] if 1 <= int(x) <= 3]
+            if not spans:
+                spans = [2]
+        else:
             start_week = t.get("startWeek", 1)
             end_week = t.get("endWeek", 16)
-            num_weeks = end_week - start_week + 1
-            spw = calc_sessions_per_week(
-                t.get("totalHours", 0),
-                num_weeks,
-                t.get("maxHoursPerWeek", 0)
-            )
-        task_sessions.append(max(1, min(spw, 4)))
+            num_weeks = max(1, end_week - start_week + 1)
+            total_hours = t.get("totalHours", 0)
+            if total_hours > 0:
+                weekly_hours = int(round(total_hours / float(num_weeks)))
+                if weekly_hours < 1:
+                    weekly_hours = 1
+                mp = t.get("maxHoursPerWeek", 0)
+                if mp > 0 and weekly_hours > mp:
+                    weekly_hours = mp
+                spans = default_spans_from_hours(weekly_hours)
+            else:
+                spans = [SPAN]
+        # Cap 4 sessions per week (matches Go behavior)
+        spans = spans[:4]
+        task_sessions.append(len(spans))
+        task_span_list.append(spans)
 
     # Required room type per task
     task_room_type = [t.get("requiredRoomType", "") for t in tasks]
+
+    # Per-(task, session) valid positions: only positions legal for THIS session's span.
+    # This replaces the global VALID_POSITIONS for variable generation.
+    task_valid_positions = []
+    for i in range(n_tasks):
+        per_session = []
+        for s in range(task_sessions[i]):
+            span_s = task_span_list[i][s]
+            legal_starts = valid_starts_for_span(span_s)
+            positions = [d * PERIODS_PER_DAY + st for d in range(DAYS) for st in legal_starts]
+            per_session.append(positions)
+        task_valid_positions.append(per_session)
 
     # Total students per task (for capacity constraint)
     task_total_students = []
@@ -137,12 +218,13 @@ def solve_scheduling(data):
     solver.parameters.num_search_workers = 4
 
     # ===== Decision Variables: X[i][s][r][p] (binary) =====
+    # v0.5.1: p is constrained to positions legal for this session's span.
     X = {}
     for i in range(n_tasks):
         n_sess = task_sessions[i]
         for s in range(n_sess):
             for r in range(n_rooms):
-                for p in VALID_POSITIONS:
+                for p in task_valid_positions[i][s]:
                     X[(i, s, r, p)] = model.NewBoolVar(f"X_{i}_{s}_{r}_{p}")
 
     # ===== Helper Variables =====
@@ -155,7 +237,7 @@ def solve_scheduling(data):
     # Each session placed at most once
     for i in range(n_tasks):
         for s in range(task_sessions[i]):
-            x_terms = [X[(i, s, r, p)] for r in range(n_rooms) for p in VALID_POSITIONS]
+            x_terms = [X[(i, s, r, p)] for r in range(n_rooms) for p in task_valid_positions[i][s]]
             model.Add(sum(x_terms) >= placed[(i, s)]).OnlyEnforceIf(placed[(i, s)])
             model.Add(sum(x_terms) == 0).OnlyEnforceIf(placed[(i, s)].Not())
             model.Add(sum(x_terms) <= 1)
@@ -173,10 +255,11 @@ def solve_scheduling(data):
     for i in range(n_tasks):
         for s in range(task_sessions[i]):
             room_idx[(i, s)] = model.NewIntVar(0, max(0, n_rooms - 1), f"room_{i}_{s}")
+            positions_is = task_valid_positions[i][s]
             for r in range(n_rooms):
                 pr = model.NewBoolVar(f"pr_{i}_{s}_{r}")
-                model.Add(sum(X[(i, s, r, p)] for p in VALID_POSITIONS) >= pr)
-                model.Add(sum(X[(i, s, r, p)] for p in VALID_POSITIONS) <= pr * n_rooms)
+                model.Add(sum(X[(i, s, r, p)] for p in positions_is) >= pr)
+                model.Add(sum(X[(i, s, r, p)] for p in positions_is) <= pr * n_rooms)
                 model.Add(room_idx[(i, s)] == r).OnlyEnforceIf(pr)
 
     # day[i][s], start[i][s], position[i][s] for each session
@@ -185,15 +268,20 @@ def solve_scheduling(data):
     position = {}
     for i in range(n_tasks):
         for s in range(task_sessions[i]):
+            span_s = task_span_list[i][s]
+            legal_starts = valid_starts_for_span(span_s)
+            positions_is = task_valid_positions[i][s]
             day[(i, s)] = model.NewIntVar(0, DAYS - 1, f"day_{i}_{s}")
             start[(i, s)] = model.NewIntVarFromDomain(
-                cp_model.Domain.FromValues(VALID_STARTS), f"start_{i}_{s}"
+                cp_model.Domain.FromValues(legal_starts if legal_starts else [0]),
+                f"start_{i}_{s}"
             )
-            position[(i, s)] = model.NewIntVar(0, max(VALID_POSITIONS), f"pos_{i}_{s}")
+            max_pos = max(positions_is) if positions_is else 0
+            position[(i, s)] = model.NewIntVar(0, max_pos, f"pos_{i}_{s}")
             model.Add(position[(i, s)] == day[(i, s)] * PERIODS_PER_DAY + start[(i, s)])
 
             # Link position to X variables
-            for p in VALID_POSITIONS:
+            for p in positions_is:
                 at_pos = model.NewBoolVar(f"ap_{i}_{s}_{p}")
                 model.Add(sum(X[(i, s, r, p)] for r in range(n_rooms)) >= at_pos)
                 model.Add(sum(X[(i, s, r, p)] for r in range(n_rooms)) <= at_pos * n_rooms)
@@ -203,30 +291,43 @@ def solve_scheduling(data):
     # HARD CONSTRAINTS
     # =====================================================================
 
-    # HC1 — Teacher no-overlap (across all sessions of all tasks)
+    # v0.5.1: absolute period q for coverage-based hard constraints.
+    ABS_PERIODS = DAYS * PERIODS_PER_DAY
+
+    def _covers(i, s, p):
+        span_s = task_span_list[i][s]
+        return range(p, p + span_s)
+
+    # HC1 — Teacher no-overlap (absolute period coverage)
     teacher_task_map = {}
     for i, tid in enumerate(task_teacher_ids):
         teacher_task_map.setdefault(tid, []).append(i)
 
     for _, task_indices in teacher_task_map.items():
-        for p in VALID_POSITIONS:
-            model.Add(sum(
-                X[(i, s, r, p)]
-                for i in task_indices
-                for s in range(task_sessions[i])
-                for r in range(n_rooms)
-            ) <= 1)
+        for q in range(ABS_PERIODS):
+            terms = []
+            for i in task_indices:
+                for s in range(task_sessions[i]):
+                    for p in task_valid_positions[i][s]:
+                        if q in _covers(i, s, p):
+                            for r in range(n_rooms):
+                                terms.append(X[(i, s, r, p)])
+            if terms:
+                model.Add(sum(terms) <= 1)
 
-    # HC2 — Room no-overlap (skip shared venues like 体育馆)
+    # HC2 — Room no-overlap (skip shared venues like 体育馆; coverage-based)
     for r, room in enumerate(classrooms):
         if room.get("type") == "体育馆":
-            continue  # shared venues can host multiple classes simultaneously
-        for p in VALID_POSITIONS:
-            model.Add(sum(
-                X[(i, s, r, p)]
-                for i in range(n_tasks)
-                for s in range(task_sessions[i])
-            ) <= 1)
+            continue
+        for q in range(ABS_PERIODS):
+            terms = []
+            for i in range(n_tasks):
+                for s in range(task_sessions[i]):
+                    for p in task_valid_positions[i][s]:
+                        if q in _covers(i, s, p):
+                            terms.append(X[(i, s, r, p)])
+            if terms:
+                model.Add(sum(terms) <= 1)
 
     # HC3 — Class group no-overlap
     all_class_ids = set()
@@ -238,22 +339,26 @@ def solve_scheduling(data):
         class_task_map[cid] = [i for i, cids in enumerate(task_class_ids) if cid in cids]
 
     for cid, task_indices in class_task_map.items():
-        for p in VALID_POSITIONS:
-            model.Add(sum(
-                X[(i, s, r, p)]
-                for i in task_indices
-                for s in range(task_sessions[i])
-                for r in range(n_rooms)
-            ) <= 1)
+        for q in range(ABS_PERIODS):
+            terms = []
+            for i in task_indices:
+                for s in range(task_sessions[i]):
+                    for p in task_valid_positions[i][s]:
+                        if q in _covers(i, s, p):
+                            for r in range(n_rooms):
+                                terms.append(X[(i, s, r, p)])
+            if terms:
+                model.Add(sum(terms) <= 1)
 
-    # HC4 — Locked slots
+    # HC4 — Locked slots (use this session's span)
     for i in range(n_tasks):
         for s in range(task_sessions[i]):
-            for p in VALID_POSITIONS:
+            span_s = task_span_list[i][s]
+            for p in task_valid_positions[i][s]:
                 p_day = p // PERIODS_PER_DAY
                 p_start = p % PERIODS_PER_DAY
                 for ls in locked_slots:
-                    if int(ls["dayOfWeek"]) == p_day and periods_overlap(p_start, SPAN, int(ls["startPeriod"]), ls["span"]):
+                    if int(ls["dayOfWeek"]) == p_day and periods_overlap(p_start, span_s, int(ls["startPeriod"]), ls["span"]):
                         for r in range(n_rooms):
                             model.Add(X[(i, s, r, p)] == 0)
                         break
@@ -264,13 +369,13 @@ def solve_scheduling(data):
             continue
         for r, room in enumerate(classrooms):
             if room.get("type") == "体育馆":
-                continue  # sports venues have unlimited effective capacity
+                continue
             if room["capacity"] < total_students:
                 for s in range(task_sessions[i]):
-                    for p in VALID_POSITIONS:
+                    for p in task_valid_positions[i][s]:
                         model.Add(X[(i, s, r, p)] == 0)
 
-    # HC6 — Teacher unavailable slots
+    # HC6 — Teacher unavailable slots (use this session's span)
     for i, tid in enumerate(task_teacher_ids):
         teacher = teacher_map.get(tid, {})
         unavail_slots = teacher.get("unavailableSlots", "")
@@ -288,10 +393,11 @@ def solve_scheduling(data):
             us_start = us.get("startPeriod", 0)
             us_span = us.get("span", 2)
             for s in range(task_sessions[i]):
-                for p in VALID_POSITIONS:
+                span_s = task_span_list[i][s]
+                for p in task_valid_positions[i][s]:
                     p_day = p // PERIODS_PER_DAY
                     p_start = p % PERIODS_PER_DAY
-                    if us_day == p_day and periods_overlap(p_start, SPAN, us_start, us_span):
+                    if us_day == p_day and periods_overlap(p_start, span_s, us_start, us_span):
                         for r in range(n_rooms):
                             model.Add(X[(i, s, r, p)] == 0)
 
@@ -302,29 +408,30 @@ def solve_scheduling(data):
         for r, room in enumerate(classrooms):
             room_type = room.get("type", "")
             if req_type:
-                # Specialty course: only allowed in matching rooms
                 if room_type and room_type != req_type:
                     for s in range(task_sessions[i]):
-                        for p in VALID_POSITIONS:
+                        for p in task_valid_positions[i][s]:
                             model.Add(X[(i, s, r, p)] == 0)
             else:
-                # Regular course: forbidden in specialty rooms
                 if room_type in SPECIALTY_ROOM_TYPES:
                     for s in range(task_sessions[i]):
-                        for p in VALID_POSITIONS:
+                        for p in task_valid_positions[i][s]:
                             model.Add(X[(i, s, r, p)] == 0)
 
-    # HC8 — Same-task sessions don't overlap each other
+    # HC8 — Same-task sessions don't overlap each other (coverage-based)
     for i in range(n_tasks):
         n_sess = task_sessions[i]
         if n_sess <= 1:
             continue
-        for p in VALID_POSITIONS:
-            model.Add(sum(
-                X[(i, s, r, p)]
-                for s in range(n_sess)
-                for r in range(n_rooms)
-            ) <= 1)
+        for q in range(ABS_PERIODS):
+            terms = []
+            for s in range(n_sess):
+                for p in task_valid_positions[i][s]:
+                    if q in _covers(i, s, p):
+                        for r in range(n_rooms):
+                            terms.append(X[(i, s, r, p)])
+            if terms:
+                model.Add(sum(terms) <= 1)
 
     # =====================================================================
     # SOFT CONSTRAINTS (objective terms)
@@ -490,8 +597,9 @@ def solve_scheduling(data):
                         if normalized <= 0:
                             continue
                         at_room = model.NewBoolVar(f"lf_{i}_{s}_r{r_idx}")
-                        model.Add(sum(X[(i, s, r_idx, p)] for p in VALID_POSITIONS) >= at_room)
-                        model.Add(sum(X[(i, s, r_idx, p)] for p in VALID_POSITIONS) <= at_room * n_rooms)
+                        positions_is = task_valid_positions[i][s]
+                        model.Add(sum(X[(i, s, r_idx, p)] for p in positions_is) >= at_room)
+                        model.Add(sum(X[(i, s, r_idx, p)] for p in positions_is) <= at_room * n_rooms)
                         objective_terms.append(at_room * (-normalized))
 
     # SC6 — Teacher days limit
@@ -578,7 +686,7 @@ def solve_scheduling(data):
                     "classroomId": classrooms[r_idx]["id"],
                     "dayOfWeek": solver.Value(day[(i, s)]),
                     "startPeriod": solver.Value(start[(i, s)]),
-                    "span": SPAN,
+                    "span": task_span_list[i][s],
                     "sessionIndex": s,
                 })
                 sessions_placed += 1

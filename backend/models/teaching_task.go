@@ -18,6 +18,11 @@ type TeachingTask struct {
 	EndWeek          int `gorm:"default:16" json:"endWeek"`         // 结束周（默认16）
 	MaxHoursPerWeek  int `gorm:"default:0" json:"maxHoursPerWeek"`  // 周最大学时（0=不限）
 
+	// v0.5.1: single-session span preference (HBUT). 0 = 不指定, 1/2/3 = 强制单次连排节次.
+	// When >0 and legal under IsSpanLegal for at least one start, overrides the
+	// hour-derived default from resolveSessionPlan. Illegal values fall back silently.
+	PreferredSpan    int `gorm:"default:0" json:"preferredSpan"`
+
 	// Associations
 	Course   Course              `gorm:"foreignKey:CourseID" json:"course,omitempty"`
 	Teacher  Teacher             `gorm:"foreignKey:TeacherID" json:"teacher,omitempty"`

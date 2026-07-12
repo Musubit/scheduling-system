@@ -505,14 +505,20 @@ func (s *SchedulingService) tryORTools(
 				totalHours = tt.Course.Hours
 			}
 
+			// v0.5.1: Go-side authoritative session plan.
+			// Python mirrors the same rules for legality but must accept these spans as-is.
+			plan := resolveSessionPlan(totalHours, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+
 		input.TeachingTasks = append(input.TeachingTasks, ORToolsTask{
 			ID:               tt.ID,
 			TeacherID:        tt.TeacherID,
 			CourseID:         tt.CourseID,
 			ClassIDs:         classIDs,
-			SessionsPerWeek:  0, // let solver.py compute from TotalHours
+			SessionsPerWeek:  plan.SessionsPerWeek(),
+			SessionSpans:     append([]int{}, plan.Spans...),
 			TotalHours:       totalHours,
 			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
+			PreferredSpan:    tt.PreferredSpan,
 			RequiredRoomType: requiredRoomType,
 			StartWeek:        tt.StartWeek,
 			EndWeek:          tt.EndWeek,
