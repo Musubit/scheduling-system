@@ -224,7 +224,7 @@ async function handleRestore() {
 </template>
 
 <style scoped>
-.settings-page { max-width: 680px; }
+.settings-page { max-width: 820px; }
 .page-title { font-size: 18px; font-weight: 600; color: var(--b3-theme-on-background); margin-bottom: 24px; }
 .settings-section { background: var(--b3-theme-surface); border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); padding: 20px; margin-bottom: 16px; }
 .section-title { font-size: 14px; font-weight: 600; color: var(--b3-theme-on-background); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--b3-border-color); }

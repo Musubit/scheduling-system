@@ -89,6 +89,7 @@ onMounted(loadLockedSlots)
   grid-template-columns: 60px repeat(7, 1fr);
   gap: 2px;
   user-select: none;
+  width: 100%;
 }
 
 .lg-corner {
