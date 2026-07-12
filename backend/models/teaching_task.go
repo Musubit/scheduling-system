@@ -23,6 +23,11 @@ type TeachingTask struct {
 	// hour-derived default from resolveSessionPlan. Illegal values fall back silently.
 	PreferredSpan    int `gorm:"default:0" json:"preferredSpan"`
 
+	// +v0.5.3: 显式指定教室类型。空=由 Course.Category 推导。
+	RequiredRoomType  string `gorm:"size:30;default:''" json:"requiredRoomType"`
+	// +v0.5.3: 显式指定所需设备 JSON array，如 ["projector"]
+	RequiredEquipment string `gorm:"type:text" json:"requiredEquipment"`
+
 	// Associations
 	Course   Course              `gorm:"foreignKey:CourseID" json:"course,omitempty"`
 	Teacher  Teacher             `gorm:"foreignKey:TeacherID" json:"teacher,omitempty"`

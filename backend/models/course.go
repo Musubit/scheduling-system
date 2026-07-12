@@ -16,6 +16,9 @@ type Course struct {
 	Type   string  `gorm:"size:20" json:"type"` // 专业必修, 全校选修, etc.
 	Hours  int     `json:"hours"`
 	Status string  `gorm:"size:20;default:active" json:"status"` // active, inactive
+
+	// +v0.5.3: 课程类别，用于资源匹配。空值=由名称推断(兼容, Deprecated)。
+	Category string `gorm:"size:30;default:''" json:"category"`
 }
 
 // IsSportsCourse returns true if the course name indicates a PE/sports course.

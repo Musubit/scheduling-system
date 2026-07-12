@@ -12,4 +12,7 @@ type Classroom struct {
 	Capacity int    `json:"capacity"`
 	Type     string `gorm:"size:20" json:"type"` // 普通教室, 实验室, 体育馆, etc.
 	Status   string `gorm:"size:20;default:available" json:"status"`
+
+	// +v0.5.3: 设备列表 JSON array，如 ["projector","smartboard","aircon"]
+	Equipment string `gorm:"type:text" json:"equipment"`
 }
