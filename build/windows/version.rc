@@ -1,8 +1,13 @@
 #include <windows.h>
 
-// Windows version info resource
+// Windows version info + icon + manifest resource
 // Compiled with: windres -i build/windows/version.rc -o wails_windows_amd64.syso -O coff
-// Go linker embeds *.syso files automatically.
+// Go linker embeds *.syso files automatically at the repo root.
+//
+// windres may emit "duplicate value" warning for lang 1033 (0x0409) — this is
+// a benign over-diagnosis: StringFileInfo's codepage suffix and VarFileInfo's
+// Translation entry both mention lang 0x0409, which is spec-compliant. The
+// produced .syso is valid; FileVersionInfo API reads all fields correctly.
 
 1 VERSIONINFO
 FILEVERSION 0,4,0,0
@@ -13,10 +18,12 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "FileVersion", "0.4.0-alpha"
-      VALUE "ProductName", "高校排课系统"
-      VALUE "FileDescription", "高校智能排课管理系统"
-      VALUE "CompanyName", "高校排课系统"
+      VALUE "ProductName", "高校智能排课系统"
+      VALUE "FileDescription", "高校智能排课系统"
+      VALUE "CompanyName", "musubi"
       VALUE "ProductVersion", "0.4.0-alpha"
+      VALUE "LegalCopyright", "(c) 2026, musubi"
+      VALUE "Comments", "高校智能排课系统（内部 alpha）"
     END
   END
   BLOCK "VarFileInfo"
@@ -24,5 +31,13 @@ BEGIN
     VALUE "Translation", 0x0409, 1200
   END
 END
+
+// Application icon (32-bit multi-resolution .ico produced by wails3 generate icons).
+1 ICON "build/windows/icon.ico"
+
+// Side-by-side manifest — enables Common Controls v6 + PerMonitorV2 DPI awareness
+// (asInvoker execution level). Resource type 24 = RT_MANIFEST, resource ID 1 =
+// CREATEPROCESS_MANIFEST_RESOURCE_ID (main executable).
+1 24 "build/windows/wails.exe.manifest"
 
 1 ICON "build/windows/icon.ico"

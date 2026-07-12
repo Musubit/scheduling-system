@@ -57,8 +57,8 @@ func Run(assets embed.FS) {
 
 	// Create Wails application
 	app := application.New(application.Options{
-		Name:        "高校排课系统",
-		Description: "高校智能排课管理系统",
+		Name:        "高校智能排课系统",
+		Description: "高校智能排课系统",
 		Services: []application.Service{
 			application.NewService(resources),
 			application.NewService(teachingTasks),
@@ -86,7 +86,7 @@ func Run(assets embed.FS) {
 
 	// Create main window
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "高校排课系统",
+		Title:     "高校智能排课系统",
 		Width:     1440,
 		Height:    900,
 		MinWidth:  1024,

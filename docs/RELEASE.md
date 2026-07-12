@@ -173,14 +173,32 @@ powershell .../package-portable.ps1
 
 发布新版本时检查：
 
+- [ ] **版本号同步 4 处**（bump 时必改；windres 路径下 `info.json` 已停用）：
+  1. `wails.json` `version`
+  2. `wails.json` `info.productVersion`
+  3. `build/windows/version.rc` `FILEVERSION` / `PRODUCTVERSION`（逗号分隔数字段）
+  4. `build/windows/version.rc` 字符串 `FileVersion` / `ProductVersion`
+- [ ] 产品名 / 描述 / 公司名一致（`wails.json`、`build/windows/version.rc`、`backend/app.go` 的 `Name` / `Description` / `Title`）
 - [ ] `go build` 通过
 - [ ] `npm run build` 通过
 - [ ] `task windows:build` 通过（含 `-H windowsgui`，构建末尾自动校验 exe 为 GUI subsystem）
-- [ ] `windres` 手动构建验证
-- [ ] exe 版本信息正确（右键 → 属性 → 详细信息）
+- [ ] exe 版本信息正确（右键 → 属性 → 详细信息）：ProductName / FileDescription / CompanyName / ProductVersion / FileVersion
 - [ ] exe 图标正确显示
 - [ ] 双击启动无 CMD 黑窗、开始排课无 solver 闪窗
 - [ ] 便携版 ZIP 生成成功
 - [ ] SHA256 校验码已记录
 - [ ] CHANGELOG.md 已更新
 - [ ] Git tag 已创建
+
+### 元数据来源说明
+
+自 v0.4.0-alpha 起 Windows 资源嵌入统一走 **windres**（Epic G3）。原因：`wails3 generate syso` 在 Go 1.26+ 下产出的 VERSIONINFO 无法被 Windows `FileVersionInfo` API 读取（属性页字段全空）。
+
+| exe 属性页字段 | 权威来源 |
+|----|----|
+| ProductName / FileDescription / CompanyName / LegalCopyright / Comments / ProductVersion / FileVersion | `build/windows/version.rc` → `windres` → `wails_windows_amd64.syso` → Go 链接器嵌入 |
+| 应用图标 | `build/windows/icon.ico`（由 `wails3 generate icons` 从 `build/appicon.png` 生成），rc 中 `1 ICON` 引用 |
+| DPI awareness + Common Controls v6 | `build/windows/wails.exe.manifest`，rc 中 `1 24` 引用 |
+| 窗口标题 / Wails 应用 Name / Description | `backend/app.go` `application.Options` + `WebviewWindowOptions.Title` |
+| Wails 工具链元数据（非 exe 嵌入） | `wails.json` |
+| `build/windows/info.json` | **已停用**（Epic G3 前 `wails3 generate syso` 消费；保留仅作历史记录，不再影响构建） |

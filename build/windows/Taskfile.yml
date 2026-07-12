@@ -110,10 +110,22 @@ tasks:
       INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
 
   generate:syso:
-    summary: Generates Windows `.syso` file
-    dir: build
+    summary: Generates Windows `.syso` file (VERSIONINFO + icon) via windres.
+    desc: |
+      Uses MinGW-w64 `windres` to compile build/windows/version.rc into a COFF
+      object placed at the repo root. Go's linker auto-embeds any `*.syso` file
+      it finds during `go build`.
+
+      Rationale: `wails3 generate syso` produced version resources whose fields
+      were unreadable by Windows' FileVersionInfo API on Go 1.26+ (empty
+      ProductName / FileDescription / CompanyName in the Properties dialog).
+      `windres` produces a spec-compliant VERSIONINFO that the OS parses
+      correctly. Icon is embedded via the `1 ICON ...` directive in version.rc.
+
+      Requires: MinGW-w64 (windres in PATH). Install via MSYS2 or the standalone
+      Binutils build.
     cmds:
-      - wails3 generate syso -arch {{.ARCH}} -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_{{.ARCH}}.syso
+      - windres -i build/windows/version.rc -o wails_windows_{{.ARCH}}.syso -O coff
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
 
