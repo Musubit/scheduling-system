@@ -196,6 +196,11 @@ powershell .../package-portable.ps1
   3. `wails.json` `info.productVersion`
   4. `build/windows/version.rc` `FILEVERSION` / `PRODUCTVERSION`（逗号分隔数字段）
   5. `build/windows/version.rc` 字符串 `FileVersion` / `ProductVersion`
+- [ ] **assemblyIdentity 版本同步**：`build/windows/wails.exe.manifest` 的 `assemblyIdentity version="X.Y.Z.W"`
+  - 必须是 **major.minor.build.revision 四段十进制**（Windows SxS 硬性要求）
+  - **不包含** `-alpha` / `-beta` / `-rc` 等 semver 预发布后缀（SxS spec 不识别）
+  - 与产品 semver 的 `major.minor.patch` 对齐，`revision` 通常置 `0`（例如产品 `0.4.0-alpha` → manifest `0.4.0.0`）
+  - 违反四段规范会触发运行时错误：`The application has failed to start because its side-by-side configuration is incorrect`
 - [ ] 产品名 / 描述 / 公司名一致（`wails.json`、`build/windows/version.rc`、`backend/app.go` 的 `Name` / `Description` / `Title`）
 - [ ] `go build` 通过
 - [ ] `npm run build` 通过
