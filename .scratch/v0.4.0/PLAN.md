@@ -11,13 +11,21 @@
 
 | Epic | 优先级 | 内容 | 影响 |
 |------|--------|------|------|
-| A - Technical Debt | P0 | 消除 5 项遗留重复代码 | ✅ Completed (Sprint 1) |
-| B - Global State & Navigation | P0 | 全局学期上下文 + 导航统一 | ✅ Completed (Sprint 2-3) |
-| C - Snapshot Management | P1 | 快照重命名 ✅ + Trigger 扩展 ⬜ | 🔄 In Progress |
-| D - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | Planned |
-| E - Settings & Data | P2 | 设置页增强 + 时间配置 | Planned |
-| F - Scheduling UX | P2 | 排课页面交互优化 | Planned |
-| G - Release Experience | P2 | Windows 发布体验（GUI 构建 + 元数据 + 文档） | ✅ Completed |
+| A - Technical Debt | P0 | 消除 5 项遗留重复代码 | ✅ Completed |
+| B - Global State & Navigation | P0 | 全局学期上下文 + 导航统一 | ✅ Completed |
+| C - Snapshot Management | P1 | 快照重命名 + Trigger 扩展 | ✅ Completed |
+| D - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | ✅ Completed |
+| E - Settings & Data | P2 | 锁定时段网格统一 UI + 学期日期选择器 | ✅ Completed |
+| F1 - Scheduling UX: Config Collapse | P2 | 排课页配置面板可折叠 | ✅ Completed |
+| F2 - Scoring Pipeline | P0 | 评分链路统一验证 | ✅ Verified (no-change) |
+| G1 - Windows GUI Build | P1 | GUI subsystem + solver CREATE_NO_WINDOW | ✅ Completed |
+| G2 - Runtime Data Isolation | P1 | WebView2 数据迁至 %LOCALAPPDATA% | ✅ Completed |
+| G3 - Application Metadata | P1 | 应用元数据完善（windres + 属性页）| ✅ Completed |
+| G4 - Release Engineering | P2 | Portable 版本一致性 + 工程整理 | ✅ Completed |
+| H1 - Manual Adjustment Scoring | P0 | 手动调课实时评分反馈 | ✅ Completed |
+| H2 - Undo/Redo | P1 | 拖拽撤销恢复 | Planned |
+| H3 - Adjustment Snapshot | P2 | 手动调整后保存快照 | Planned |
+| H4 - Constraint Violation Detail | P2 | 约束违反详情/可解释性 | Planned |
 
 ---
 

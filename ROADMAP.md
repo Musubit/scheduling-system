@@ -11,8 +11,8 @@
 
 | 项目 | 值 |
 |------|-----|
-| Current Version | v0.4.0 (Sprint 3) |
-| Project Status | Global Semester Context 已上线，页面全面接入 |
+| Current Version | v0.4.0-alpha |
+| Project Status | Epic H1 完成 — 手动调课实时评分反馈上线 |
 | Architecture | Wails v3 (Go + Vue 3 + OR-Tools) |
 | Solver | SA（模拟退火）+ OR-Tools（CP-SAT）双引擎 |
 
@@ -46,9 +46,9 @@
 
 | 项 | 内容 |
 |----|------|
-| Theme | 用户体验提升、可扩展性增强、约束体系完善 |
-| Focus | 消除 v0.3 遗留技术债（Backup/Restore 重构、导航数据统一、DEFAULT_LOCKED 统一、fuzzyFilter 优化）；全局学期上下文（Global Semester Context）；快照重命名 UI；新增 Trigger 类型支持；约束体系扩展预留 |
-| Status | In Progress — Epic A (Technical Debt) ✅ · Epic B (Global Semester Context) ✅ · 当前焦点: Epic C (Snapshot Management) |
+| Theme | 用户体验提升、排课体验优化、发布工程完善 |
+| Focus | 技术债清理、全局学期上下文、快照管理、约束 UI、发布工程（G1-G4）、手动调课评分反馈（H1） |
+| Status | ✅ Epic A (Technical Debt) · ✅ Epic B (Global Semester Context) · ✅ Epic C (Snapshot) · ✅ Epic D (Constraint) · ✅ Epic E (Settings) · ✅ Epic F1/F2 (Scheduling UX) · ✅ Epic G1-G4 (Release Engineering) · ✅ Epic H1 (Adjustment Scoring) · **当前焦点：Epic H2 (Undo/Redo) — 规划中** |
 
 ### v0.5.x - Intelligent Scheduling
 
