@@ -15,6 +15,16 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as models$0 from "../models/models.js";
 
 /**
+ * CreateManualVersion saves the current schedule as a new version with
+ * source = ManualAdjust. It loads the live schedule entries from the
+ * database, computes the current ScoreSchedule score, and persists a
+ * new ScheduleVersion (with entries) in a single transaction.
+ */
+export function CreateManualVersion(semester: string, name: string): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(443717862, semester, name);
+}
+
+/**
  * CreateVersion stores a new historical version from the given schedule entries.
  * It automatically enforces the per-semester retention limit (DefaultMaxVersions).
  * 

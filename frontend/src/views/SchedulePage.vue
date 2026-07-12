@@ -2,10 +2,11 @@
 import { ref, computed } from 'vue'
 import { useScheduleStore } from '../stores/schedule'
 import { useResourceStore } from '../stores/resource'
+import { useAppStore } from '../stores/app'
 import WeekView from '../components/schedule/WeekView.vue'
 import TimelineView from '../components/schedule/TimelineView.vue'
 import MonthView from '../components/schedule/MonthView.vue'
-import { NButton, NDropdown, NSelect } from 'naive-ui'
+import { NButton, NDropdown, NSelect, NModal, NInput, NSpace, useMessage } from 'naive-ui'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -13,7 +14,35 @@ import { DAY_NAMES, DEPARTMENTS } from '../types'
 
 const scheduleStore = useScheduleStore()
 const resourceStore = useResourceStore()
+const appStore = useAppStore()
 const exporting = ref(false)
+const message = useMessage()
+
+// Save-as-version modal
+const showSaveModal = ref(false)
+const versionName = ref('')
+const savingVersion = ref(false)
+const defaultVersionName = computed(() => {
+  const now = new Date()
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `手动方案 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+})
+
+async function handleSaveVersion() {
+  const name = versionName.value.trim() || defaultVersionName.value
+  savingVersion.value = true
+  try {
+    const { CreateManualVersion } = await import('../../bindings/scheduling-system/backend/services/versionservice')
+    await CreateManualVersion(appStore.currentSemesterName, name)
+    message.success('课表方案已保存')
+    showSaveModal.value = false
+    versionName.value = ''
+  } catch (err: any) {
+    message.error('保存失败：' + (err?.message || err))
+  } finally {
+    savingVersion.value = false
+  }
+}
 
 // Perspective state — three dimensions
 const perspectives = [
@@ -347,6 +376,7 @@ function handleExportSelect(key: string) {
           </button>
         </div>
         <span class="stat-badge">已排 {{ scheduleStore.filteredCount }} 门课</span>
+        <n-button size="small" @click="showSaveModal = true" :disabled="scheduleStore.viewMode === 'version'">另存为方案</n-button>
         <n-dropdown trigger="click" :options="combinedExportOptions" @select="handleExportSelect">
           <n-button size="small" :loading="exporting">导出</n-button>
         </n-dropdown>
@@ -422,6 +452,26 @@ function handleExportSelect(key: string) {
     </div>
     <div v-else-if="hintText" class="perspective-hint">{{ hintText }}</div>
   </div>
+
+  <!-- Save-as-version modal -->
+  <n-modal v-model:show="showSaveModal" preset="card" title="保存当前课表方案" style="width: 420px;">
+    <n-form label-placement="top">
+      <n-form-item label="方案名称">
+        <n-input
+          v-model:value="versionName"
+          :placeholder="defaultVersionName"
+          clearable
+          @keyup.enter="handleSaveVersion"
+        />
+      </n-form-item>
+    </n-form>
+    <template #footer>
+      <n-space justify="end">
+        <n-button :loading="savingVersion" @click="showSaveModal = false">取消</n-button>
+        <n-button type="primary" :loading="savingVersion" @click="handleSaveVersion">保存</n-button>
+      </n-space>
+    </template>
+  </n-modal>
 </template>
 
 <style scoped>

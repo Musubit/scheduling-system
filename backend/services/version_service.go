@@ -1,7 +1,9 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
@@ -70,9 +72,83 @@ func (s *VersionService) CreateVersion(semester, name, source string, score floa
 	}
 
 	// Enforce retention limit
-	s.enforceRetention(semesterID)
+	s.enforceRetention(s.db, semesterID)
 
 	return version, nil
+}
+
+// CreateManualVersion saves the current schedule as a new version with
+// source = ManualAdjust. It loads the live schedule entries from the
+// database, computes the current ScoreSchedule score, and persists a
+// new ScheduleVersion (with entries) in a single transaction.
+func (s *VersionService) CreateManualVersion(semester, name string) (*models.ScheduleVersion, error) {
+	semesterID, err := s.resolveSemesterID(semester)
+	if err != nil {
+		return nil, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
+	}
+
+	// Load current schedule entries
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester = ?", semester).
+		Preload("Course").Preload("Teacher").Preload("Classroom").
+		Preload("TeachingTask.Classes.ClassGroup").
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("version: 加载当前课表失败: %w", err)
+	}
+
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("version: 当前学期无课表数据，请先运行自动排课")
+	}
+
+	// Build scoring context and reference data
+	scoringCtx, teachers, classrooms, err := s.buildScoringContext(semesterID, semester)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compute score using the unified scoring pipeline
+	breakdown := NewScoringService().ScoreSchedule(entries, teachers, classrooms, scoringCtx)
+
+	// Build version entry rows
+	versionEntries := make([]models.ScheduleVersionEntry, 0, len(entries))
+	for _, e := range entries {
+		originalID := e.ID
+		ve := models.ScheduleVersionEntry{
+			OriginalEntry:  &originalID,
+			TeachingTaskID: e.TeachingTaskID,
+			CourseID:       e.CourseID,
+			TeacherID:      e.TeacherID,
+			ClassroomID:    e.ClassroomID,
+			DayOfWeek:      int(e.DayOfWeek),
+			StartPeriod:    int(e.StartPeriod),
+			Span:           e.Span,
+			Weeks:          e.Weeks,
+		}
+		versionEntries = append(versionEntries, ve)
+	}
+
+	// Persist version + enforce retention in a single transaction
+	var version *models.ScheduleVersion
+	err = s.db.Transaction(func(tx database.DB) error {
+		v := &models.ScheduleVersion{
+			SemesterID: semesterID,
+			Name:       name,
+			Source:     models.VersionSourceManualAdjust,
+			Score:      breakdown.Total,
+			EntryCount: len(versionEntries),
+			Entries:    versionEntries,
+		}
+		if err := tx.Create(v).Error(); err != nil {
+			return fmt.Errorf("version: 创建版本失败: %w", err)
+		}
+		version = v
+
+		// Enforce retention within the same transaction
+		s.enforceRetention(tx, semesterID)
+		return nil
+	})
+
+	return version, err
 }
 
 // ListVersions returns all versions for the given semester, ordered by
@@ -112,11 +188,62 @@ func (s *VersionService) DeleteVersion(id uint) error {
 	return nil
 }
 
+// buildScoringContext assembles all data needed to evaluate a full semester's
+// schedule. It loads teachers, classrooms, and teaching tasks, identifies
+// sports courses, reads the constraint list from the latest snapshot, and
+// returns a ready-to-use ScoringContext together with the teacher and
+// classroom slices required by ScoreSchedule.
+func (s *VersionService) buildScoringContext(semesterID uint, semester string) (ScoringContext, []models.Teacher, []models.Classroom, error) {
+	var teachers []models.Teacher
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return ScoringContext{}, nil, nil, fmt.Errorf("version: 加载教师数据失败: %w", err)
+	}
+
+	var classrooms []models.Classroom
+	if err := s.db.Find(&classrooms).Error(); err != nil {
+		return ScoringContext{}, nil, nil, fmt.Errorf("version: 加载教室数据失败: %w", err)
+	}
+
+	// Load teaching tasks for sports course detection and student_fatigue
+	var teachingTasks []models.TeachingTask
+	if semesterID > 0 {
+		if err := s.db.Where("semester_id = ?", semesterID).
+			Preload("Course").Preload("Teacher").
+			Preload("Classes.ClassGroup").
+			Find(&teachingTasks).Error(); err != nil {
+			return ScoringContext{}, nil, nil, fmt.Errorf("version: 加载教学任务失败: %w", err)
+		}
+	}
+
+	// Build sports course IDs
+	sportsCourseIDs := make(map[uint]bool)
+	for _, tt := range teachingTasks {
+		if tt.CourseID > 0 && strings.Contains(tt.Course.Name, "体育") {
+			sportsCourseIDs[tt.CourseID] = true
+		}
+	}
+
+	// Read constraints from latest snapshot; fall back to all constraints
+	constraints := FullDefaultConstraints()
+	var snap models.ScheduleSnapshot
+	if err := s.db.Where("semester = ?", semester).
+		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
+		var parsed []string
+		if json.Unmarshal([]byte(snap.EnabledConstraints), &parsed) == nil && len(parsed) > 0 {
+			constraints = parsed
+		}
+	}
+
+	ctx := NewScoringContext(constraints, sportsCourseIDs, teachingTasks)
+	return ctx, teachers, classrooms, nil
+}
+
 // enforceRetention ensures the per-semester version count does not exceed
 // DefaultMaxVersions by deleting the oldest version(s) if necessary.
-func (s *VersionService) enforceRetention(semesterID uint) {
+// Accepts a DB argument so it can be called inside a transaction.
+func (s *VersionService) enforceRetention(tx database.DB, semesterID uint) {
 	var count int64
-	if err := s.db.Model(&models.ScheduleVersion{}).
+	if err := tx.Model(&models.ScheduleVersion{}).
 		Where("semester_id = ?", semesterID).
 		Count(&count).Error(); err != nil {
 		return
@@ -130,7 +257,7 @@ func (s *VersionService) enforceRetention(semesterID uint) {
 
 	// Load all versions for this semester ordered oldest-first
 	var allVersions []models.ScheduleVersion
-	if err := s.db.Where("semester_id = ?", semesterID).
+	if err := tx.Where("semester_id = ?", semesterID).
 		Order("created_at ASC").Find(&allVersions).Error(); err != nil {
 		return
 	}
@@ -138,8 +265,8 @@ func (s *VersionService) enforceRetention(semesterID uint) {
 	// Delete the N oldest
 	for i := 0; i < excess && i < len(allVersions); i++ {
 		v := allVersions[i]
-		s.db.Where("version_id = ?", v.ID).Delete(&models.ScheduleVersionEntry{})
-		s.db.Delete(&v)
+		tx.Where("version_id = ?", v.ID).Delete(&models.ScheduleVersionEntry{})
+		tx.Delete(&v)
 	}
 }
 
