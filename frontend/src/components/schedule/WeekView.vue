@@ -6,6 +6,7 @@ import { useScheduleStore } from '../../stores/schedule'
 import { useMessage } from 'naive-ui'
 import { courseColorStyle } from '../../utils/courseColor'
 import { DEFAULT_LOCKED } from '../../stores/scheduling'
+import LockedTimeGrid from '../scheduling/LockedTimeGrid.vue'
 
 const scheduleStore = useScheduleStore()
 const drawerRef = inject<any>('drawerRef')
@@ -277,7 +278,10 @@ function isDropBlockedByLock(day: number, period: number, span: number): boolean
       </button>
     </div>
 
-    <div v-if="displayEntries.length === 0 && !editMode" class="empty-state">暂无排课数据，请先运行自动排课</div>
+    <div v-if="editMode" class="edit-mode-container">
+      <locked-time-grid @change="lockedSlots = $event" />
+    </div>
+    <div v-else-if="displayEntries.length === 0 && !editMode" class="empty-state">暂无排课数据，请先运行自动排课</div>
     <div v-else class="schedule-grid" :class="{ 'edit-mode': editMode }">
       <div class="grid-corner">节次</div>
       <div v-for="(name, di) in DAY_NAMES" :key="di" class="grid-header" :class="{ today: di === todayDow }">

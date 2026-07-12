@@ -1,7 +1,8 @@
-<script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { NSwitch, NButton, NInput, NModal, NForm, NFormItem, NSpace } from 'naive-ui'
-import { useAppStore } from '../stores/app'
+	<script setup lang="ts">
+	import { reactive, ref, onMounted } from 'vue'
+	import { NSwitch, NButton, NInput, NModal, NForm, NFormItem, NSpace } from 'naive-ui'
+	import { useAppStore } from '../stores/app'
+	import LockedTimeGrid from '../components/scheduling/LockedTimeGrid.vue'
 
 const appStore = useAppStore()
 
@@ -144,6 +145,13 @@ async function handleRestore() {
         </div>
         <n-switch v-model:value="settings.realtimeCheck" />
       </div>
+    </div>
+
+    <!-- 时间配置 -->
+    <div class="settings-section">
+      <h3 class="section-title">时间配置</h3>
+      <div class="setting-desc" style="margin-bottom:12px">设置全局锁定时段，排课引擎将避免在这些时段安排课程。</div>
+      <locked-time-grid />
     </div>
 
     <!-- 学期管理 -->
