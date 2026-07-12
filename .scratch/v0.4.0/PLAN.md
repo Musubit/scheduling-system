@@ -17,6 +17,7 @@
 | D - Constraint System | P1 | 约束配置 UI 优化 + 扩展预留 | Planned |
 | E - Settings & Data | P2 | 设置页增强 + 时间配置 | Planned |
 | F - Scheduling UX | P2 | 排课页面交互优化 | Planned |
+| G - Release Experience | P2 | Windows 发布体验（GUI 构建 + 元数据 + 文档） | ✅ Completed |
 
 ---
 
