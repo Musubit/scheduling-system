@@ -67,15 +67,15 @@ onMounted(loadLockedSlots)
       <span class="lg-corner"></span>
       <span v-for="(name, di) in DAY_NAMES" :key="di" class="lg-col-label">{{ name }}</span>
     </div>
-    <div v-for="(pi) in PERIODS" :key="pi" class="lg-row">
-      <span class="lg-row-label">第{{ pi + 1 }}节</span>
+    <div v-for="(p) in PERIODS" :key="p.num" class="lg-row">
+      <span class="lg-row-label">第{{ p.num }}节</span>
       <div
-        v-for="(di) in 7"
+        v-for="(_, di) in 7"
         :key="di"
         class="lg-cell"
-        :class="{ locked: isLocked(di, pi) }"
-        @click="toggleCell(di, pi)"
-        :title="(isLocked(di, pi) ? '解锁' : '锁定') + ' ' + DAY_NAMES[di] + ' 第' + (pi + 1) + '节'"
+        :class="{ locked: isLocked(di, p.num - 1) }"
+        @click="toggleCell(di, p.num - 1)"
+        :title="(isLocked(di, p.num - 1) ? '解锁' : '锁定') + ' ' + DAY_NAMES[di] + ' 第' + p.num + '节'"
       ></div>
     </div>
   </div>
