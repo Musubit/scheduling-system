@@ -27,19 +27,13 @@ func NewVersionService(db database.DB) *VersionService {
 // CreateVersion stores a new historical version from the given schedule entries.
 // It automatically enforces the per-semester retention limit (DefaultMaxVersions).
 //
-// semester — semester name string, used to look up Semester.ID.
-// name     — user-visible version label (e.g. "自动方案 #3").
-// source   — one of the VersionSource* constants.
-// score    — final ScoreSchedule total at the time of capture.
-// solver   — solver identifier ("simulated_annealing", "ortools", etc.).
-// entries  — current schedule entries to copy into the version.
-func (s *VersionService) CreateVersion(semester, name, source string, score float64, solver string, entries []models.ScheduleEntry) (*models.ScheduleVersion, error) {
-	// Resolve semester ID from name
-	semesterID, err := s.resolveSemesterID(semester)
-	if err != nil {
-		return nil, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
-	}
-
+// semesterID — Semester.ID (v0.5.5 起改为直接传 FK，取代旧的 name 查找).
+// name       — user-visible version label (e.g. "自动方案 #3").
+// source     — one of the VersionSource* constants.
+// score      — final ScoreSchedule total at the time of capture.
+// solver     — solver identifier ("simulated_annealing", "ortools", etc.).
+// entries    — current schedule entries to copy into the version.
+func (s *VersionService) CreateVersion(semesterID uint, name, source string, score float64, solver string, entries []models.ScheduleEntry) (*models.ScheduleVersion, error) {
 	// Build version entry rows from current schedule entries
 	versionEntries := make([]models.ScheduleVersionEntry, 0, len(entries))
 	for _, e := range entries {
@@ -82,12 +76,7 @@ func (s *VersionService) CreateVersion(semester, name, source string, score floa
 // source = ManualAdjust. It loads the live schedule entries from the
 // database, computes the current ScoreSchedule score, and persists a
 // new ScheduleVersion (with entries) in a single transaction.
-func (s *VersionService) CreateManualVersion(semester, name string) (*models.ScheduleVersion, error) {
-	semesterID, err := s.resolveSemesterID(semester)
-	if err != nil {
-		return nil, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
-	}
-
+func (s *VersionService) CreateManualVersion(semesterID uint, name string) (*models.ScheduleVersion, error) {
 	// Guard against empty name — generate a default so callers that forget
 	// to provide one (e.g. old RPC callers, test code) still produce a valid version.
 	if strings.TrimSpace(name) == "" {
@@ -104,7 +93,7 @@ func (s *VersionService) CreateManualVersion(semester, name string) (*models.Sch
 
 	// Load current schedule entries
 	var entries []models.ScheduleEntry
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classroom").
 		Preload("TeachingTask.Classes.ClassGroup").
 		Find(&entries).Error(); err != nil {
@@ -116,7 +105,7 @@ func (s *VersionService) CreateManualVersion(semester, name string) (*models.Sch
 	}
 
 	// Build scoring context and reference data
-	scoringCtx, teachers, classrooms, err := s.buildScoringContext(semesterID, semester)
+	scoringCtx, teachers, classrooms, err := s.buildScoringContext(semesterID)
 	if err != nil {
 		return nil, err
 	}
@@ -168,12 +157,7 @@ func (s *VersionService) CreateManualVersion(semester, name string) (*models.Sch
 
 // ListVersions returns all versions for the given semester, ordered by
 // created_at descending (newest first).
-func (s *VersionService) ListVersions(semester string) ([]models.ScheduleVersion, error) {
-	semesterID, err := s.resolveSemesterID(semester)
-	if err != nil {
-		return nil, fmt.Errorf("version: 找不到学期 '%s'", semester)
-	}
-
+func (s *VersionService) ListVersions(semesterID uint) ([]models.ScheduleVersion, error) {
 	var versions []models.ScheduleVersion
 	if err := s.db.Where("semester_id = ?", semesterID).
 		Order("created_at DESC").Find(&versions).Error(); err != nil {
@@ -210,14 +194,9 @@ func (s *VersionService) DeleteVersion(id uint) error {
 //
 // Returns the number of versions deleted. If the semester has no versions,
 // returns 0 with a nil error.
-func (s *VersionService) ClearSemesterVersions(semester string) (int64, error) {
-	semesterID, err := s.resolveSemesterID(semester)
-	if err != nil {
-		return 0, fmt.Errorf("version: 未找到学期 '%s': %w", semester, err)
-	}
-
+func (s *VersionService) ClearSemesterVersions(semesterID uint) (int64, error) {
 	var deleted int64
-	err = s.db.Transaction(func(tx database.DB) error {
+	err := s.db.Transaction(func(tx database.DB) error {
 		// Collect version IDs for this semester so we can delete entries
 		// via IN (...) without relying on Raw SQL (not on our DB interface).
 		var versions []models.ScheduleVersion
@@ -259,7 +238,7 @@ func (s *VersionService) ClearSemesterVersions(semester string) (int64, error) {
 // sports courses, reads the constraint list from the latest snapshot, and
 // returns a ready-to-use ScoringContext together with the teacher and
 // classroom slices required by ScoreSchedule.
-func (s *VersionService) buildScoringContext(semesterID uint, semester string) (ScoringContext, []models.Teacher, []models.Classroom, error) {
+func (s *VersionService) buildScoringContext(semesterID uint) (ScoringContext, []models.Teacher, []models.Classroom, error) {
 	var teachers []models.Teacher
 	if err := s.db.Find(&teachers).Error(); err != nil {
 		return ScoringContext{}, nil, nil, fmt.Errorf("version: 加载教师数据失败: %w", err)
@@ -292,7 +271,7 @@ func (s *VersionService) buildScoringContext(semesterID uint, semester string) (
 	// Read constraints from latest snapshot; fall back to all constraints
 	constraints := FullDefaultConstraints()
 	var snap models.ScheduleSnapshot
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
 		var parsed []string
 		if json.Unmarshal([]byte(snap.EnabledConstraints), &parsed) == nil && len(parsed) > 0 {
@@ -334,13 +313,4 @@ func (s *VersionService) enforceRetention(tx database.DB, semesterID uint) {
 		tx.Where("version_id = ?", v.ID).Delete(&models.ScheduleVersionEntry{})
 		tx.Delete(&v)
 	}
-}
-
-// resolveSemesterID returns the Semester.ID for a given semester name.
-func (s *VersionService) resolveSemesterID(name string) (uint, error) {
-	var sem models.Semester
-	if err := s.db.Where("name = ?", name).First(&sem).Error(); err != nil {
-		return 0, err
-	}
-	return sem.ID, nil
 }

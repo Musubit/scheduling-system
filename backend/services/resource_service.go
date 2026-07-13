@@ -185,15 +185,15 @@ func (s *ResourceService) DeleteClassGroup(id uint) error {
 
 // ===== Schedule =====
 
-func (s *ResourceService) GetScheduleEntries(semester string) ([]models.ScheduleEntry, error) {
+func (s *ResourceService) GetScheduleEntries(semesterID uint) ([]models.ScheduleEntry, error) {
 	var entries []models.ScheduleEntry
 	// Preload TeachingTask + its Classes so the schedule-center class filter can
 	// resolve entries by class group (auto-scheduled entries carry TeachingTaskID,
 	// not the legacy single ClassGroupID; 合班 tasks have multiple classes).
 	query := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
-			Preload("TeachingTask.Classes.ClassGroup")
-	if semester != "" {
-		query = query.Where("semester = ?", semester)
+		Preload("TeachingTask.Classes.ClassGroup")
+	if semesterID > 0 {
+		query = query.Where("semester_id = ?", semesterID)
 	}
 	result := query.Find(&entries)
 	return entries, result.Error()
@@ -236,48 +236,21 @@ func (s *ResourceService) GetSemesters() ([]models.Semester, error) {
 	return semesters, result.Error()
 }
 
+// GetActiveSemester returns the first semester with Status="active".
+// v0.5.5: 替代旧 IsActive 布尔逻辑，改用 Status 字段。
 func (s *ResourceService) GetActiveSemester() (*models.Semester, error) {
 	var semester models.Semester
-	if err := s.db.Where("is_active = ?", true).First(&semester).Error(); err != nil {
+	if err := s.db.Where("status = ?", models.SemesterStatusActive).First(&semester).Error(); err != nil {
 		return nil, err
 	}
 	return &semester, nil
 }
 
 func (s *ResourceService) CreateSemester(sem models.Semester) error {
-	// If this is the first semester or marked active, deactivate all others
-	if sem.IsActive {
-		var active []models.Semester
-		if err := s.db.Where("is_active = ?", true).Find(&active).Error(); err != nil {
-			return err
-		}
-		for _, a := range active {
-			a.IsActive = false
-			if err := s.db.Save(&a).Error(); err != nil {
-				return err
-			}
-		}
-	}
 	return s.db.Create(&sem).Error()
 }
 
 func (s *ResourceService) UpdateSemester(sem models.Semester) error {
-	// If activating this semester, deactivate all others
-	if sem.IsActive {
-		var active []models.Semester
-		if err := s.db.Where("is_active = ?", true).Find(&active).Error(); err != nil {
-			return err
-		}
-		for _, a := range active {
-			if a.ID == sem.ID {
-				continue
-			}
-			a.IsActive = false
-			if err := s.db.Save(&a).Error(); err != nil {
-				return err
-			}
-		}
-	}
 	return s.db.Save(&sem).Error()
 }
 

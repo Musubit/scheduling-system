@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -69,20 +69,32 @@ export function DeleteTeacher(id: number): $CancellablePromise<void> {
     return $Call.ByID(3486932189, id);
 }
 
+/**
+ * GetActiveSemester returns the first semester with Status="active".
+ * v0.5.5: 替代旧 IsActive 布尔逻辑，改用 Status 字段。
+ */
 export function GetActiveSemester(): $CancellablePromise<models$0.Semester | null> {
-    return $Call.ByID(1572033238);
+    return $Call.ByID(1572033238).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
-export function GetClassGroups(): $CancellablePromise<models$0.ClassGroup[] | null> {
-    return $Call.ByID(738541606);
+export function GetClassGroups(): $CancellablePromise<models$0.ClassGroup[]> {
+    return $Call.ByID(738541606).then(($result: any) => {
+        return $$createType3($result);
+    });
 }
 
-export function GetClassrooms(): $CancellablePromise<models$0.Classroom[] | null> {
-    return $Call.ByID(625788786);
+export function GetClassrooms(): $CancellablePromise<models$0.Classroom[]> {
+    return $Call.ByID(625788786).then(($result: any) => {
+        return $$createType5($result);
+    });
 }
 
-export function GetCourses(): $CancellablePromise<models$0.Course[] | null> {
-    return $Call.ByID(1247827488);
+export function GetCourses(): $CancellablePromise<models$0.Course[]> {
+    return $Call.ByID(1247827488).then(($result: any) => {
+        return $$createType7($result);
+    });
 }
 
 /**
@@ -92,24 +104,32 @@ export function GetDatabasePath(): $CancellablePromise<string> {
     return $Call.ByID(4115972420);
 }
 
-export function GetDepartments(): $CancellablePromise<models$0.Department[] | null> {
-    return $Call.ByID(359877501);
+export function GetDepartments(): $CancellablePromise<models$0.Department[]> {
+    return $Call.ByID(359877501).then(($result: any) => {
+        return $$createType9($result);
+    });
 }
 
-export function GetScheduleEntries(semester: string): $CancellablePromise<models$0.ScheduleEntry[] | null> {
-    return $Call.ByID(1541252201, semester);
+export function GetScheduleEntries(semesterID: number): $CancellablePromise<models$0.ScheduleEntry[]> {
+    return $Call.ByID(1541252201, semesterID).then(($result: any) => {
+        return $$createType11($result);
+    });
 }
 
-export function GetSemesters(): $CancellablePromise<models$0.Semester[] | null> {
-    return $Call.ByID(4004272785);
+export function GetSemesters(): $CancellablePromise<models$0.Semester[]> {
+    return $Call.ByID(4004272785).then(($result: any) => {
+        return $$createType12($result);
+    });
 }
 
 export function GetSetting(key: string): $CancellablePromise<string> {
     return $Call.ByID(2106596506, key);
 }
 
-export function GetTeachers(): $CancellablePromise<models$0.Teacher[] | null> {
-    return $Call.ByID(4028316649);
+export function GetTeachers(): $CancellablePromise<models$0.Teacher[]> {
+    return $Call.ByID(4028316649).then(($result: any) => {
+        return $$createType14($result);
+    });
 }
 
 /**
@@ -155,3 +175,20 @@ export function UpdateSemester(sem: models$0.Semester): $CancellablePromise<void
 export function UpdateTeacher(t: models$0.Teacher): $CancellablePromise<void> {
     return $Call.ByID(702117399, t);
 }
+
+// Private type creation functions
+const $$createType0 = models$0.Semester.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = models$0.ClassGroup.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = models$0.Classroom.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = models$0.Course.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = models$0.Department.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = models$0.ScheduleEntry.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $Create.Array($$createType0);
+const $$createType13 = models$0.Teacher.createFrom;
+const $$createType14 = $Create.Array($$createType13);

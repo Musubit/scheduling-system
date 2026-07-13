@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -23,8 +23,8 @@ import * as models$0 from "../models/models.js";
  * Returns the number of versions deleted. If the semester has no versions,
  * returns 0 with a nil error.
  */
-export function ClearSemesterVersions(semester: string): $CancellablePromise<number> {
-    return $Call.ByID(2909980406, semester);
+export function ClearSemesterVersions(semesterID: number): $CancellablePromise<number> {
+    return $Call.ByID(2909980406, semesterID);
 }
 
 /**
@@ -33,23 +33,27 @@ export function ClearSemesterVersions(semester: string): $CancellablePromise<num
  * database, computes the current ScoreSchedule score, and persists a
  * new ScheduleVersion (with entries) in a single transaction.
  */
-export function CreateManualVersion(semester: string, name: string): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(443717862, semester, name);
+export function CreateManualVersion(semesterID: number, name: string): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(443717862, semesterID, name).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
  * CreateVersion stores a new historical version from the given schedule entries.
  * It automatically enforces the per-semester retention limit (DefaultMaxVersions).
  * 
- * semester — semester name string, used to look up Semester.ID.
- * name     — user-visible version label (e.g. "自动方案 #3").
- * source   — one of the VersionSource* constants.
- * score    — final ScoreSchedule total at the time of capture.
- * solver   — solver identifier ("simulated_annealing", "ortools", etc.).
- * entries  — current schedule entries to copy into the version.
+ * semesterID — Semester.ID (v0.5.5 起改为直接传 FK，取代旧的 name 查找).
+ * name       — user-visible version label (e.g. "自动方案 #3").
+ * source     — one of the VersionSource* constants.
+ * score      — final ScoreSchedule total at the time of capture.
+ * solver     — solver identifier ("simulated_annealing", "ortools", etc.).
+ * entries    — current schedule entries to copy into the version.
  */
-export function CreateVersion(semester: string, name: string, source: string, score: number, solver: string, entries: models$0.ScheduleEntry[] | null): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(523734880, semester, name, source, score, solver, entries);
+export function CreateVersion(semesterID: number, name: string, source: string, score: number, solver: string, entries: models$0.ScheduleEntry[]): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(523734880, semesterID, name, source, score, solver, entries).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
@@ -63,13 +67,22 @@ export function DeleteVersion(id: number): $CancellablePromise<void> {
  * GetVersion retrieves a single version with its entries preloaded.
  */
 export function GetVersion(id: number): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(2988749672, id);
+    return $Call.ByID(2988749672, id).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
  * ListVersions returns all versions for the given semester, ordered by
  * created_at descending (newest first).
  */
-export function ListVersions(semester: string): $CancellablePromise<models$0.ScheduleVersion[] | null> {
-    return $Call.ByID(1900345469, semester);
+export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[]> {
+    return $Call.ByID(1900345469, semesterID).then(($result: any) => {
+        return $$createType2($result);
+    });
 }
+
+// Private type creation functions
+const $$createType0 = models$0.ScheduleVersion.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = $Create.Array($$createType0);

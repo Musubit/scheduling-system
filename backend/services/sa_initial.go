@@ -237,7 +237,7 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 					ClassroomID:    room.ID,
 					TeachingTaskID: &td.Task.ID,
 					ClassGroupID:   nil,
-					Semester:       ctx.semester,
+					SemesterID:     ctx.semesterID,
 					DayOfWeek:      models.DayOfWeek(day),
 					StartPeriod:    models.Period(start),
 					Span:           span,

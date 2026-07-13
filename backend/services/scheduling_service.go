@@ -22,7 +22,6 @@ func NewSchedulingService(db database.DB, snapshots *SnapshotService, versions *
 
 type SchedulingConfig struct {
 		Scope            string            `json:"scope"`
-		Semester         string            `json:"semester"`
 		Strategy         string            `json:"strategy"`
 		Iterations       int               `json:"iterations"`
 		TimeLimit        int               `json:"timeLimit"` // max solve time in seconds, default 60
@@ -62,8 +61,8 @@ type LockedTimeSlot struct {
 }
 
 func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingResult {
-	log.Printf("[SCHED] RunScheduling CALLED: scope=%q semester=%q semesterId=%d lockedSlotsJsonLen=%d constraints=%v",
-		config.Scope, config.Semester, config.SemesterID, len(config.LockedSlotsJSON), config.Constraints)
+	log.Printf("[SCHED] RunScheduling CALLED: scope=%q semesterId=%d lockedSlotsJsonLen=%d constraints=%v",
+		config.Scope, config.SemesterID, len(config.LockedSlotsJSON), config.Constraints)
 
 	result := &SchedulingResult{Logs: []string{}}
 	addLog := func(msg string) {
@@ -233,7 +232,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		solver := NewSASolver()
 		saResult = solver.SolveMultiRun(
 			teachingTasks, teachers, classrooms, classGroups,
-			lockedSlots, config.Constraints, config.Semester,
+			lockedSlots, config.Constraints, config.SemesterID,
 			saConfig,
 			3, // 3 runs with different seeds
 			nil,
@@ -284,7 +283,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	addProgress(85, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
 		// Hard-delete old entries for the semester
-		if err := tx.Unscoped().Where("semester = ?", config.Semester).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+		if err := tx.Unscoped().Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
 			return fmt.Errorf("清空旧课表失败: %w", err)
 		}
 		if len(saResult.Entries) > 0 {
@@ -331,7 +330,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		// Auto-snapshot after scheduling
 		if s.snapshots != nil && len(saResult.Entries) > 0 {
 				_, snapErr := s.snapshots.CreateSnapshot(
-						config.Semester, config.Scope, models.TriggerAuto, "simulated_annealing",
+						config.SemesterID, config.Scope, models.TriggerAuto, "simulated_annealing",
 					saResult.Entries, teachers, classrooms,
 					scoringCtx,
 					saResult.ElapsedMs, result.Conflicts,
@@ -346,8 +345,8 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		// Auto-version after scheduling — persist a user-facing version entry
 		if s.versions != nil && len(saResult.Entries) > 0 {
 			versionName := fmt.Sprintf("自动方案 #%d", time.Now().Unix())
-			_, verErr := s.versions.CreateVersion(
-				config.Semester, versionName, models.VersionSourceAutoGenerate,
+				_, verErr := s.versions.CreateVersion(
+					config.SemesterID, versionName, models.VersionSourceAutoGenerate,
 				result.Score, "simulated_annealing", saResult.Entries,
 			)
 			if verErr != nil {
@@ -605,7 +604,7 @@ func (s *SchedulingService) tryORTools(
 			TeacherID:      e.TeacherID,
 			ClassroomID:    e.ClassroomID,
 			TeachingTaskID: &e.TaskID,
-			Semester:       config.Semester,
+			SemesterID:     config.SemesterID,
 			DayOfWeek:      models.DayOfWeek(e.DayOfWeek),
 			StartPeriod:    models.Period(e.StartPeriod),
 			Span:           e.Span,

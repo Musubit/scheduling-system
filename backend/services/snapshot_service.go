@@ -20,7 +20,7 @@ func NewSnapshotService(db database.DB) *SnapshotService {
 
 // CreateSnapshot generates a snapshot from a scheduling result.
 func (s *SnapshotService) CreateSnapshot(
-	semester, dept, trigger, solver string,
+	semesterID uint, dept, trigger, solver string,
 	entries []models.ScheduleEntry,
 	teachers []models.Teacher,
 	classrooms []models.Classroom,
@@ -32,10 +32,10 @@ func (s *SnapshotService) CreateSnapshot(
 	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
 
 	snapshot := &models.ScheduleSnapshot{
-		Name:      models.DefaultSnapshotName(trigger, time.Now()),
-		Semester:  semester,
-		Dept:      dept,
-		Trigger:   trigger,
+		Name:       models.DefaultSnapshotName(trigger, time.Now()),
+		SemesterID: semesterID,
+		Dept:       dept,
+		Trigger:    trigger,
 		HardPassed: conflictCount == 0,
 
 		TotalScore:        breakdown.Total,
@@ -166,9 +166,9 @@ func (s *SnapshotService) CreateSnapshot(
 
 // GetSnapshots returns all snapshots for a semester.
 // Backfills Name for legacy snapshots that were created before the Name field existed.
-func (s *SnapshotService) GetSnapshots(semester string) ([]models.ScheduleSnapshot, error) {
+func (s *SnapshotService) GetSnapshots(semesterID uint) ([]models.ScheduleSnapshot, error) {
 	var snapshots []models.ScheduleSnapshot
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Order("created_at DESC").
 		Find(&snapshots).Error(); err != nil {
 		return nil, err
@@ -196,15 +196,15 @@ func (s *SnapshotService) GetSnapshotWithDetails(id uint) (*models.ScheduleSnaps
 
 // CreateManualSnapshot generates a snapshot from the current schedule in the database.
 // It reads EnabledConstraints from the latest auto-snapshot (falling back to full defaults).
-func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.ScheduleSnapshot, error) {
+func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.ScheduleSnapshot, error) {
 	var entries []models.ScheduleEntry
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classroom").
 		Find(&entries).Error(); err != nil {
 		return nil, fmt.Errorf("load entries: %w", err)
 	}
 	if len(entries) == 0 {
-		return nil, fmt.Errorf("no schedule entries for semester %s", semester)
+		return nil, fmt.Errorf("no schedule entries for semester %d", semesterID)
 	}
 
 	var teachers []models.Teacher
@@ -213,7 +213,7 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	s.db.Find(&classrooms)
 
 	// Read EnabledConstraints from the latest auto-snapshot
-	storedConfig := readLatestStoredConfig(s.db, semester)
+	storedConfig := readLatestStoredConfig(s.db, semesterID)
 
 	// Build sports course IDs from entries
 	sportsCourseIDs := make(map[uint]bool)
@@ -225,7 +225,7 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 
 	// Load teaching tasks for student_fatigue scoring
 	var teachingTasks []models.TeachingTask
-	s.db.Where("semester_id IN (SELECT id FROM semesters WHERE name = ?)", semester).
+	s.db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classes.ClassGroup").
 		Find(&teachingTasks)
 
@@ -258,11 +258,11 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 	}
 
 	snapshot := &models.ScheduleSnapshot{
-		Name:          models.DefaultSnapshotName(models.TriggerManual, time.Now()),
-		Semester:      semester,
-		Dept:          "全校",
-		Trigger:       models.TriggerManual,
-		HardPassed:    conflicts == 0,
+		Name:           models.DefaultSnapshotName(models.TriggerManual, time.Now()),
+		SemesterID:     semesterID,
+		Dept:           "全校",
+		Trigger:        models.TriggerManual,
+		HardPassed:     conflicts == 0,
 		TotalScore:    breakdown.Total,
 		TeacherPref:   breakdown.TeacherPref,
 		CourseSpacing: breakdown.CourseSpacing,
@@ -297,9 +297,9 @@ func (s *SnapshotService) CreateManualSnapshot(semester string) (*models.Schedul
 // readLatestStoredConfig reads EnabledConstraints from the most recent snapshot
 // that has stored constraints. Decoupled from trigger value — works for any
 // trigger type (auto, manual, import, restore, copy, etc.).
-func readLatestStoredConfig(db database.DB, semester string) StoredConfig {
+func readLatestStoredConfig(db database.DB, semesterID uint) StoredConfig {
 	var snap models.ScheduleSnapshot
-	err := db.Where("semester = ? AND enabled_constraints != ''", semester).
+	err := db.Where("semester_id = ? AND enabled_constraints != ''", semesterID).
 		Order("created_at DESC").
 		First(&snap).Error
 	if err != nil {
@@ -468,9 +468,9 @@ func (s *SnapshotService) CompareSnapshots(aID, bID uint) (*SnapshotCompareResul
 
 // AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
 // Pure post-hoc analysis — does not affect scoring or solver behaviour.
-func (s *SnapshotService) AnalyzeTeacherWorkload(semester string) ([]TeacherWorkloadInfo, error) {
+func (s *SnapshotService) AnalyzeTeacherWorkload(semesterID uint) ([]TeacherWorkloadInfo, error) {
 	var entries []models.ScheduleEntry
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Find(&entries).Error(); err != nil {
 		return nil, fmt.Errorf("load entries: %w", err)
 	}

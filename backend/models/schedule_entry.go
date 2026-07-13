@@ -10,7 +10,7 @@ type ScheduleEntry struct {
 	ClassroomID uint   `gorm:"uniqueIndex:idx_schedule_room;not null" json:"classroomId"`
 	ClassGroupID   *uint `gorm:"index" json:"classGroupId"`       // legacy FK, kept for backward compatibility
 	TeachingTaskID *uint `gorm:"index" json:"teachingTaskId"`     // FK to TeachingTask, enables combined classes
-	Semester    string `gorm:"size:50;uniqueIndex:idx_schedule_room" json:"semester"`
+	SemesterID  uint      `gorm:"uniqueIndex:idx_schedule_room;not null" json:"semesterId"`
 	DayOfWeek   DayOfWeek `gorm:"uniqueIndex:idx_schedule_room;not null" json:"dayOfWeek"`   // 0=周一..6=周日
 	StartPeriod Period    `gorm:"uniqueIndex:idx_schedule_room;not null" json:"startPeriod"` // 0=第1节..10=第11节
 	Span        int       `gorm:"default:2" json:"span"`      // consecutive periods
@@ -22,4 +22,5 @@ type ScheduleEntry struct {
 	Classroom    Classroom     `gorm:"foreignKey:ClassroomID" json:"classroom,omitempty"`
 	ClassGroup   *ClassGroup   `gorm:"foreignKey:ClassGroupID" json:"classGroup,omitempty"`
 	TeachingTask *TeachingTask `gorm:"foreignKey:TeachingTaskID" json:"teachingTask,omitempty"`
+	Semester     Semester      `gorm:"foreignKey:SemesterID" json:"semester,omitempty"`
 }

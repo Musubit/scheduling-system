@@ -3,12 +3,16 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import { Create as $Create } from "@wailsio/runtime";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as gorm$0 from "../../../gorm.io/gorm/models.js";
 
 /**
  * ClassGroup represents a student class/group (e.g., 计算机2301).
  */
-export interface ClassGroup {
+export class ClassGroup {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -31,12 +35,56 @@ export interface ClassGroup {
      * active, inactive
      */
     "status": string;
+
+    /** Creates a new ClassGroup instance. */
+    constructor($$source: Partial<ClassGroup> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("dept" in $$source)) {
+            this["dept"] = "";
+        }
+        if (!("grade" in $$source)) {
+            this["grade"] = 0;
+        }
+        if (!("students" in $$source)) {
+            this["students"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ClassGroup instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ClassGroup {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ClassGroup($$parsedSource as Partial<ClassGroup>);
+    }
 }
 
 /**
  * Classroom represents a physical room for teaching.
  */
-export interface Classroom {
+export class Classroom {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -61,12 +109,62 @@ export interface Classroom {
      * +v0.5.3: 设备列表 JSON array，如 ["projector","smartboard","aircon"]
      */
     "equipment": string;
+
+    /** Creates a new Classroom instance. */
+    constructor($$source: Partial<Classroom> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("building" in $$source)) {
+            this["building"] = "";
+        }
+        if (!("floor" in $$source)) {
+            this["floor"] = 0;
+        }
+        if (!("capacity" in $$source)) {
+            this["capacity"] = 0;
+        }
+        if (!("type" in $$source)) {
+            this["type"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("equipment" in $$source)) {
+            this["equipment"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Classroom instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Classroom {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Classroom($$parsedSource as Partial<Classroom>);
+    }
 }
 
 /**
  * Course represents a course in the curriculum.
  */
-export interface Course {
+export class Course {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -91,6 +189,56 @@ export interface Course {
      * +v0.5.3: 课程类别，用于资源匹配。空值=由名称推断(兼容, Deprecated)。
      */
     "category": string;
+
+    /** Creates a new Course instance. */
+    constructor($$source: Partial<Course> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("dept" in $$source)) {
+            this["dept"] = "";
+        }
+        if (!("credit" in $$source)) {
+            this["credit"] = 0;
+        }
+        if (!("type" in $$source)) {
+            this["type"] = "";
+        }
+        if (!("hours" in $$source)) {
+            this["hours"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Course instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Course {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Course($$parsedSource as Partial<Course>);
+    }
 }
 
 /**
@@ -116,7 +264,7 @@ export enum DayOfWeek {
 /**
  * Department represents a college/faculty (e.g., 计算机学院, 材料科学与工程学院).
  */
-export interface Department {
+export class Department {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -131,6 +279,38 @@ export interface Department {
      * 院系名称，如 "计算机学院"
      */
     "name": string;
+
+    /** Creates a new Department instance. */
+    constructor($$source: Partial<Department> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Department instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Department {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Department($$parsedSource as Partial<Department>);
+    }
 }
 
 /**
@@ -142,7 +322,7 @@ export type Period = number;
 /**
  * ScheduleEntry represents a single scheduled course slot.
  */
-export interface ScheduleEntry {
+export class ScheduleEntry {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -160,7 +340,7 @@ export interface ScheduleEntry {
      * FK to TeachingTask, enables combined classes
      */
     "teachingTaskId": number | null;
-    "semester": string;
+    "semesterId": number;
 
     /**
      * 0=周一..6=周日
@@ -186,13 +366,94 @@ export interface ScheduleEntry {
     "classroom"?: Classroom;
     "classGroup"?: ClassGroup | null;
     "teachingTask"?: TeachingTask | null;
+    "semester"?: Semester;
+
+    /** Creates a new ScheduleEntry instance. */
+    constructor($$source: Partial<ScheduleEntry> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("courseId" in $$source)) {
+            this["courseId"] = 0;
+        }
+        if (!("teacherId" in $$source)) {
+            this["teacherId"] = 0;
+        }
+        if (!("classroomId" in $$source)) {
+            this["classroomId"] = 0;
+        }
+        if (!("classGroupId" in $$source)) {
+            this["classGroupId"] = null;
+        }
+        if (!("teachingTaskId" in $$source)) {
+            this["teachingTaskId"] = null;
+        }
+        if (!("semesterId" in $$source)) {
+            this["semesterId"] = 0;
+        }
+        if (!("dayOfWeek" in $$source)) {
+            this["dayOfWeek"] = DayOfWeek.$zero;
+        }
+        if (!("startPeriod" in $$source)) {
+            this["startPeriod"] = 0;
+        }
+        if (!("span" in $$source)) {
+            this["span"] = 0;
+        }
+        if (!("weeks" in $$source)) {
+            this["weeks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScheduleEntry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScheduleEntry {
+        const $$createField14_0 = $$createType0;
+        const $$createField15_0 = $$createType1;
+        const $$createField16_0 = $$createType2;
+        const $$createField17_0 = $$createType4;
+        const $$createField18_0 = $$createType6;
+        const $$createField19_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("course" in $$parsedSource) {
+            $$parsedSource["course"] = $$createField14_0($$parsedSource["course"]);
+        }
+        if ("teacher" in $$parsedSource) {
+            $$parsedSource["teacher"] = $$createField15_0($$parsedSource["teacher"]);
+        }
+        if ("classroom" in $$parsedSource) {
+            $$parsedSource["classroom"] = $$createField16_0($$parsedSource["classroom"]);
+        }
+        if ("classGroup" in $$parsedSource) {
+            $$parsedSource["classGroup"] = $$createField17_0($$parsedSource["classGroup"]);
+        }
+        if ("teachingTask" in $$parsedSource) {
+            $$parsedSource["teachingTask"] = $$createField18_0($$parsedSource["teachingTask"]);
+        }
+        if ("semester" in $$parsedSource) {
+            $$parsedSource["semester"] = $$createField19_0($$parsedSource["semester"]);
+        }
+        return new ScheduleEntry($$parsedSource as Partial<ScheduleEntry>);
+    }
 }
 
 /**
  * ScheduleSnapshot captures a point-in-time evaluation of a schedule.
  * Generated automatically after scheduling or manually by user request.
  */
-export interface ScheduleSnapshot {
+export class ScheduleSnapshot {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -202,7 +463,7 @@ export interface ScheduleSnapshot {
      * 快照名称，创建时自动生成
      */
     "name": string;
-    "semester": string;
+    "semesterId": number;
 
     /**
      * 院系范围，空=全校
@@ -279,7 +540,124 @@ export interface ScheduleSnapshot {
     /**
      * Linked details
      */
-    "details"?: SnapshotDetail[] | null;
+    "details"?: SnapshotDetail[];
+
+    /** Creates a new ScheduleSnapshot instance. */
+    constructor($$source: Partial<ScheduleSnapshot> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("semesterId" in $$source)) {
+            this["semesterId"] = 0;
+        }
+        if (!("dept" in $$source)) {
+            this["dept"] = "";
+        }
+        if (!("trigger" in $$source)) {
+            this["trigger"] = "";
+        }
+        if (!("hardPassed" in $$source)) {
+            this["hardPassed"] = false;
+        }
+        if (!("teacherConflicts" in $$source)) {
+            this["teacherConflicts"] = 0;
+        }
+        if (!("roomConflicts" in $$source)) {
+            this["roomConflicts"] = 0;
+        }
+        if (!("classConflicts" in $$source)) {
+            this["classConflicts"] = 0;
+        }
+        if (!("lockedViolations" in $$source)) {
+            this["lockedViolations"] = 0;
+        }
+        if (!("totalScore" in $$source)) {
+            this["totalScore"] = 0;
+        }
+        if (!("teacherPref" in $$source)) {
+            this["teacherPref"] = 0;
+        }
+        if (!("courseSpacing" in $$source)) {
+            this["courseSpacing"] = 0;
+        }
+        if (!("teacherDays" in $$source)) {
+            this["teacherDays"] = 0;
+        }
+        if (!("lowFloorPref" in $$source)) {
+            this["lowFloorPref"] = 0;
+        }
+        if (!("weekendAvoid" in $$source)) {
+            this["weekendAvoid"] = 0;
+        }
+        if (!("pePeriodPref" in $$source)) {
+            this["pePeriodPref"] = 0;
+        }
+        if (!("studentFatigue" in $$source)) {
+            this["studentFatigue"] = 0;
+        }
+        if (!("capacityWarn" in $$source)) {
+            this["capacityWarn"] = 0;
+        }
+        if (!("enabledConstraints" in $$source)) {
+            this["enabledConstraints"] = "";
+        }
+        if (!("scoreVersion" in $$source)) {
+            this["scoreVersion"] = 0;
+        }
+        if (!("totalEntries" in $$source)) {
+            this["totalEntries"] = 0;
+        }
+        if (!("solveTimeMs" in $$source)) {
+            this["solveTimeMs"] = 0;
+        }
+        if (!("solver" in $$source)) {
+            this["solver"] = "";
+        }
+        if (!("perCategoryMax" in $$source)) {
+            this["perCategoryMax"] = 0;
+        }
+        if (!("enabledCategoryCount" in $$source)) {
+            this["enabledCategoryCount"] = 0;
+        }
+        if (!("finalScore" in $$source)) {
+            this["finalScore"] = 0;
+        }
+        if (!("placedSessions" in $$source)) {
+            this["placedSessions"] = 0;
+        }
+        if (!("expectedSessions" in $$source)) {
+            this["expectedSessions"] = 0;
+        }
+        if (!("completeness" in $$source)) {
+            this["completeness"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScheduleSnapshot instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScheduleSnapshot {
+        const $$createField33_0 = $$createType9;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("details" in $$parsedSource) {
+            $$parsedSource["details"] = $$createField33_0($$parsedSource["details"]);
+        }
+        return new ScheduleSnapshot($$parsedSource as Partial<ScheduleSnapshot>);
+    }
 }
 
 /**
@@ -289,7 +667,7 @@ export interface ScheduleSnapshot {
  * ScheduleVersion stores the full entry set so versions can be viewed,
  * restored, and compared independently of current schedule data.
  */
-export interface ScheduleVersion {
+export class ScheduleVersion {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -308,7 +686,55 @@ export interface ScheduleVersion {
      * optional: which solver produced it
      */
     "solver": string;
-    "entries"?: ScheduleVersionEntry[] | null;
+    "entries"?: ScheduleVersionEntry[];
+
+    /** Creates a new ScheduleVersion instance. */
+    constructor($$source: Partial<ScheduleVersion> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("semesterId" in $$source)) {
+            this["semesterId"] = 0;
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("source" in $$source)) {
+            this["source"] = "";
+        }
+        if (!("score" in $$source)) {
+            this["score"] = 0;
+        }
+        if (!("entryCount" in $$source)) {
+            this["entryCount"] = 0;
+        }
+        if (!("solver" in $$source)) {
+            this["solver"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScheduleVersion instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScheduleVersion {
+        const $$createField10_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField10_0($$parsedSource["entries"]);
+        }
+        return new ScheduleVersion($$parsedSource as Partial<ScheduleVersion>);
+    }
 }
 
 /**
@@ -317,7 +743,7 @@ export interface ScheduleVersion {
  * independently so historical versions remain valid even if current
  * resource data (teachers, classrooms, etc.) is later modified or deleted.
  */
-export interface ScheduleVersionEntry {
+export class ScheduleVersionEntry {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -336,29 +762,139 @@ export interface ScheduleVersionEntry {
     "startPeriod": number;
     "span": number;
     "weeks": string;
+
+    /** Creates a new ScheduleVersionEntry instance. */
+    constructor($$source: Partial<ScheduleVersionEntry> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("versionId" in $$source)) {
+            this["versionId"] = 0;
+        }
+        if (!("courseId" in $$source)) {
+            this["courseId"] = 0;
+        }
+        if (!("teacherId" in $$source)) {
+            this["teacherId"] = 0;
+        }
+        if (!("classroomId" in $$source)) {
+            this["classroomId"] = 0;
+        }
+        if (!("dayOfWeek" in $$source)) {
+            this["dayOfWeek"] = 0;
+        }
+        if (!("startPeriod" in $$source)) {
+            this["startPeriod"] = 0;
+        }
+        if (!("span" in $$source)) {
+            this["span"] = 0;
+        }
+        if (!("weeks" in $$source)) {
+            this["weeks"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScheduleVersionEntry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScheduleVersionEntry {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ScheduleVersionEntry($$parsedSource as Partial<ScheduleVersionEntry>);
+    }
 }
 
 /**
  * Semester represents an academic semester.
+ * v0.5.5: 重构为结构化学期模型，删除 Name/IsActive/string StartDate。
  */
-export interface Semester {
+export class Semester {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
     "DeletedAt": gorm$0.DeletedAt;
-    "name": string;
-    "isActive": boolean;
 
     /**
-     * e.g. "2025-09-01", determines day-to-date mapping
+     * "2025-2026"
+     */
+    "academicYear": string;
+
+    /**
+     * FIRST, SECOND
+     */
+    "term": string;
+
+    /**
+     * 学期第一周周一
      */
     "startDate": string;
+
+    /**
+     * 学期最后一天
+     */
+    "endDate": string;
+
+    /**
+     * active, archived, planned
+     */
+    "status": string;
+
+    /** Creates a new Semester instance. */
+    constructor($$source: Partial<Semester> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("academicYear" in $$source)) {
+            this["academicYear"] = "";
+        }
+        if (!("term" in $$source)) {
+            this["term"] = "";
+        }
+        if (!("startDate" in $$source)) {
+            this["startDate"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("endDate" in $$source)) {
+            this["endDate"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Semester instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Semester {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Semester($$parsedSource as Partial<Semester>);
+    }
 }
 
 /**
  * SnapshotDetail stores per-teacher/course score contributions for the report.
  */
-export interface SnapshotDetail {
+export class SnapshotDetail {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -392,12 +928,77 @@ export interface SnapshotDetail {
      * e.g. "周一1-2节,周三3-4节"
      */
     "summary": string;
+
+    /** Creates a new SnapshotDetail instance. */
+    constructor($$source: Partial<SnapshotDetail> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("snapshotId" in $$source)) {
+            this["snapshotId"] = 0;
+        }
+        if (!("entityType" in $$source)) {
+            this["entityType"] = "";
+        }
+        if (!("entityCode" in $$source)) {
+            this["entityCode"] = "";
+        }
+        if (!("entityName" in $$source)) {
+            this["entityName"] = "";
+        }
+        if (!("earlyPenalty" in $$source)) {
+            this["earlyPenalty"] = 0;
+        }
+        if (!("latePenalty" in $$source)) {
+            this["latePenalty"] = 0;
+        }
+        if (!("daysActual" in $$source)) {
+            this["daysActual"] = 0;
+        }
+        if (!("daysTarget" in $$source)) {
+            this["daysTarget"] = 0;
+        }
+        if (!("avgFloor" in $$source)) {
+            this["avgFloor"] = 0;
+        }
+        if (!("capacityWarning" in $$source)) {
+            this["capacityWarning"] = false;
+        }
+        if (!("entryCount" in $$source)) {
+            this["entryCount"] = 0;
+        }
+        if (!("daysCount" in $$source)) {
+            this["daysCount"] = 0;
+        }
+        if (!("summary" in $$source)) {
+            this["summary"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SnapshotDetail instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SnapshotDetail {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SnapshotDetail($$parsedSource as Partial<SnapshotDetail>);
+    }
 }
 
 /**
  * Teacher represents a teaching staff member.
  */
-export interface Teacher {
+export class Teacher {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -437,6 +1038,59 @@ export interface Teacher {
      * Each element: {"dayOfWeek":0-6, "startPeriod":0-10, "span":2-4}
      */
     "unavailableSlots": string;
+
+    /** Creates a new Teacher instance. */
+    constructor($$source: Partial<Teacher> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("dept" in $$source)) {
+            this["dept"] = "";
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("preferNoEarly" in $$source)) {
+            this["preferNoEarly"] = false;
+        }
+        if (!("preferNoLate" in $$source)) {
+            this["preferNoLate"] = false;
+        }
+        if (!("maxDaysPerWeek" in $$source)) {
+            this["maxDaysPerWeek"] = 0;
+        }
+        if (!("preferLowFloor" in $$source)) {
+            this["preferLowFloor"] = false;
+        }
+        if (!("unavailableSlots" in $$source)) {
+            this["unavailableSlots"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Teacher instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Teacher {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Teacher($$parsedSource as Partial<Teacher>);
+    }
 }
 
 /**
@@ -444,7 +1098,7 @@ export interface Teacher {
  * for one or more class groups in a specific semester.
  * This replaces the implicit department-based matching with explicit relationships.
  */
-export interface TeachingTask {
+export class TeachingTask {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -502,14 +1156,89 @@ export interface TeachingTask {
     "course"?: Course;
     "teacher"?: Teacher;
     "semester"?: Semester;
-    "classes"?: TeachingTaskClass[] | null;
+    "classes"?: TeachingTaskClass[];
+
+    /** Creates a new TeachingTask instance. */
+    constructor($$source: Partial<TeachingTask> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("courseId" in $$source)) {
+            this["courseId"] = 0;
+        }
+        if (!("teacherId" in $$source)) {
+            this["teacherId"] = 0;
+        }
+        if (!("semesterId" in $$source)) {
+            this["semesterId"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+        if (!("totalHours" in $$source)) {
+            this["totalHours"] = 0;
+        }
+        if (!("startWeek" in $$source)) {
+            this["startWeek"] = 0;
+        }
+        if (!("endWeek" in $$source)) {
+            this["endWeek"] = 0;
+        }
+        if (!("maxHoursPerWeek" in $$source)) {
+            this["maxHoursPerWeek"] = 0;
+        }
+        if (!("preferredSpan" in $$source)) {
+            this["preferredSpan"] = 0;
+        }
+        if (!("requiredRoomType" in $$source)) {
+            this["requiredRoomType"] = "";
+        }
+        if (!("requiredEquipment" in $$source)) {
+            this["requiredEquipment"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TeachingTask instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TeachingTask {
+        const $$createField15_0 = $$createType0;
+        const $$createField16_0 = $$createType1;
+        const $$createField17_0 = $$createType7;
+        const $$createField18_0 = $$createType13;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("course" in $$parsedSource) {
+            $$parsedSource["course"] = $$createField15_0($$parsedSource["course"]);
+        }
+        if ("teacher" in $$parsedSource) {
+            $$parsedSource["teacher"] = $$createField16_0($$parsedSource["teacher"]);
+        }
+        if ("semester" in $$parsedSource) {
+            $$parsedSource["semester"] = $$createField17_0($$parsedSource["semester"]);
+        }
+        if ("classes" in $$parsedSource) {
+            $$parsedSource["classes"] = $$createField18_0($$parsedSource["classes"]);
+        }
+        return new TeachingTask($$parsedSource as Partial<TeachingTask>);
+    }
 }
 
 /**
  * TeachingTaskClass links a TeachingTask to its enrolled ClassGroups.
  * A composite unique index prevents duplicate bindings.
  */
-export interface TeachingTaskClass {
+export class TeachingTaskClass {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
@@ -517,4 +1246,56 @@ export interface TeachingTaskClass {
     "teachingTaskId": number;
     "classGroupId": number;
     "classGroup"?: ClassGroup;
+
+    /** Creates a new TeachingTaskClass instance. */
+    constructor($$source: Partial<TeachingTaskClass> = {}) {
+        if (!("ID" in $$source)) {
+            this["ID"] = 0;
+        }
+        if (!("CreatedAt" in $$source)) {
+            this["CreatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("UpdatedAt" in $$source)) {
+            this["UpdatedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("DeletedAt" in $$source)) {
+            this["DeletedAt"] = null;
+        }
+        if (!("teachingTaskId" in $$source)) {
+            this["teachingTaskId"] = 0;
+        }
+        if (!("classGroupId" in $$source)) {
+            this["classGroupId"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TeachingTaskClass instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TeachingTaskClass {
+        const $$createField6_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("classGroup" in $$parsedSource) {
+            $$parsedSource["classGroup"] = $$createField6_0($$parsedSource["classGroup"]);
+        }
+        return new TeachingTaskClass($$parsedSource as Partial<TeachingTaskClass>);
+    }
 }
+
+// Private type creation functions
+const $$createType0 = Course.createFrom;
+const $$createType1 = Teacher.createFrom;
+const $$createType2 = Classroom.createFrom;
+const $$createType3 = ClassGroup.createFrom;
+const $$createType4 = $Create.Nullable($$createType3);
+const $$createType5 = TeachingTask.createFrom;
+const $$createType6 = $Create.Nullable($$createType5);
+const $$createType7 = Semester.createFrom;
+const $$createType8 = SnapshotDetail.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = ScheduleVersionEntry.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = TeachingTaskClass.createFrom;
+const $$createType13 = $Create.Array($$createType12);

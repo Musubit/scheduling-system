@@ -11,10 +11,10 @@ import (
 // Generated automatically after scheduling or manually by user request.
 type ScheduleSnapshot struct {
 	gorm.Model
-	Name     string `gorm:"size:100" json:"name"`     // 快照名称，创建时自动生成
-	Semester string `gorm:"index;size:50" json:"semester"`
-	Dept     string `gorm:"size:50" json:"dept"`     // 院系范围，空=全校
-	Trigger  string `gorm:"size:20" json:"trigger"`   // "auto" | "manual"
+	Name       string `gorm:"size:100" json:"name"`     // 快照名称，创建时自动生成
+	SemesterID uint   `gorm:"index" json:"semesterId"`
+	Dept       string `gorm:"size:50" json:"dept"`     // 院系范围，空=全校
+	Trigger    string `gorm:"size:20" json:"trigger"`   // "auto" | "manual"
 
 	// Hard constraint pass/fail
 	HardPassed       bool `json:"hardPassed"`

@@ -112,7 +112,7 @@ func BenchmarkSASolve(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		start := time.Now()
 		result := solver.Solve(tasks, teachers, classrooms, classGroups,
-			nil, FullDefaultConstraints(), "2025-S2", config, nil, nil)
+			nil, FullDefaultConstraints(), uint(1), config, nil, nil)
 		elapsed := time.Since(start).Seconds()
 		if elapsed > 0 {
 			b.ReportMetric(float64(result.Iterations)/elapsed, "iter/s")
