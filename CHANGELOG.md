@@ -1,5 +1,97 @@
 # Changelog
 
+## [0.5.5] - 2026-07-13 — Academic Calendar Foundation (Phase 1)
+
+> v0.5.5 Epic B 第一阶段：Semester 领域模型稳定化。
+> 后续 Phase 2 / Phase 3（AcademicTerm、TeachingWeek、前端硬编码清理）未包含在本阶段。
+
+### Added
+
+- **Semester 结构化字段**：`AcademicYear`（"2025-2026"）、`Term`（FIRST/SECOND 枚举）、`Status`（active/archived/planned）、`EndDate`（time.Time）
+- **Semester `DisplayName()` 派生方法**：由 `AcademicYear + Term` 派生显示名，取代旧 `Name` 字段
+- **`docs/release/V0.5.5_EPIC_B_ACADEMIC_CALENDAR_DESIGN.md`**：Epic B 学期日历基础设计
+- **`docs/release/V0.5.5_EPIC_B_ARCHITECTURE_REVIEW.md`**：架构审查
+- **`docs/release/V0.5.5_SEED_ALIGNMENT_REVIEW.md`**：Seed 演进对齐审查
+- **`docs/release/V0.5.5_PHASE1_IMPLEMENT_REPORT.md`**：Phase 1 实施报告
+
+### Changed
+
+- **Semester.StartDate 类型**：`string` → `time.Time`
+- **ScheduleEntry.Semester**：`string`（唯一索引依赖字符串）→ `SemesterID uint`（FK 到 `semesters.id`），复合唯一索引 `idx_schedule_room` 迁移
+- **ScheduleSnapshot.Semester**：`string` → `SemesterID uint`（普通索引）
+- **Seed 复合唯一键**：`FirstOrCreate` 以 `(academic_year, term)` 为幂等键，取代旧 `Name` 单字段
+- **SchedulingService / SnapshotService / VersionService / MoveService**：签名参数从 `semester string` 全面改为 `semesterID uint`；删除 `VersionService.resolveSemesterID(name)` 名字查找辅助函数
+- **SASolver.Solve / SolveMultiRun**：内部 `schedulingContext.semesterID` 取代 `semester string`
+- **Wails Bindings**：重新生成，`Semester` 类新增 `academicYear/term/startDate/endDate/status`
+
+### Removed
+
+- **Semester.Name**：由 `DisplayName()` 派生取代
+- **Semester.IsActive**：由 `Status == "active"` 派生取代（`ResourceService.GetActiveSemester` 同步改造）
+
+### Migration Notes
+
+- 数据库 schema 有破坏性变更（`ScheduleEntry.Semester` 列类型变更、`Semester` 表字段重命名）。**首次升级时需删除旧 `schedule.db` 重新初始化**（v0.5.5 起要求，无生产数据迁移风险）
+- 前端 5 个文件、10+ 处 `s.name` / `s.isActive` 引用**未在本阶段清理**（明确延后至 Phase 3）
+
+### Stable Core Notice
+
+- `ScoreSchedule` / `ScoreBreakdown` / `ScoringContext` / `Snapshot` 核心字段（除 `Semester`→`SemesterID` 之外）未修改；仅 Semester 域完成结构化
+
+---
+
+## [0.5.4] - 2026-07-13 — Teaching Task Domain Stabilization
+
+> v0.5.4 主题：清理 TeachingTask 自动合并推断的历史包袱，稳定教学任务领域模型；配套 Seed 幂等性修复。
+
+### Removed
+
+- **TeachingTask 自动合并推断**：删除 `teaching_task_service.go` 中基于 `courseId + teacherId + semesterId` 的自动合班推断逻辑（139 行），改为完全依赖 `TeachingTaskClass` 显式关联
+- **`ResourcePage.vue` 相关合并 UI**：删除对应前端 UI（94 行），教学任务创建/编辑仅呈现显式多班关联
+
+### Fixed
+
+- **Seed 初始化幂等性**：`SeedData` 从 `Count + Create` 迁移到 `FirstOrCreate`，避免 GORM 错误状态传播导致的重复 seed 失败（详见 `docs/release/SEED_IDEMPOTENCY_FIX_REPORT.md`）
+
+### Docs
+
+- `docs/release/V0.5.4_IMPLEMENT_REPORT.md`：实施报告
+- `docs/release/V0.5.4_RELEASE_REVIEW.md`：发布 review
+- `docs/release/V0.5.4_FINAL_RELEASE_REPORT.md`：最终发布报告
+- `docs/release/SEED_IDEMPOTENCY_FIX_REPORT.md`：seed 幂等修复报告
+
+### Release
+
+- tag `v0.5.4`（`79c5493`）
+
+---
+
+## [0.5.3] - 2026-07-12 — Unified Resource Matching Framework (URMF)
+
+> v0.5.3 主题：统一教室资源匹配框架，消除 SA / OR-Tools / MoveService 三处散落的教室类型判断，改用一份纯函数决策。
+
+### Added
+
+- **ResourceMatcher V1**（`ee93fb4`）：纯函数核心，`MatchResult` + `Explain` 结构；单一 `AllowedRooms(task, course, classrooms)` 决策入口
+- **`InferRoomType(task, course)`**：由课程/任务字段派生 `RequiredRoomType`
+- **ADR-0006**：URMF 架构决策
+
+### Changed
+
+- **SA 求解器**（`01ef918` P3）：`sa_solver.go` 中散落的教室类型 if-else 全部替换为 `AllowedRooms` 调用
+- **OR-Tools + MoveService**（`86d6fbf` P4）：统一走 `AllowedRooms`；OR-Tools payload 里 `AllowedRoomIDs` 由 Go 侧计算，Python solver 只读列表
+- **v0.5.3 P6 前端 review**（`docs/review/v0.5.3-p6-frontend-review.md`）：识别到 `Classroom.RoomType` 与 URMF 设计冲突
+
+### Fixed
+
+- **`Classroom.RoomType` 字段冲突**（`b2d722b`）：删除新增字段，复用现有 `Classroom.Type` 承载 URMF 类型语义
+
+### Notes
+
+- 未打 release tag（v0.5.3 主题内容以 P2/P3/P4/P6 系列 commit 合入）
+
+---
+
 ## [0.4.0] - 2026-07-12 — Experience & Extensibility
 
 > v0.4 主题闭环版本。围绕排课日常使用的完整体验展开：从数据管理到方案沉淀，

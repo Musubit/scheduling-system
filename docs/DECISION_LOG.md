@@ -4,6 +4,50 @@
 
 ---
 
+## 2026-07-13 — v0.5.5 Phase 1 Semester 领域 FK 化
+
+**决策**: 将 Semester 从"三重用途字符串 Name"重构为结构化字段（AcademicYear + Term + StartDate:time.Time + EndDate + Status）；`ScheduleEntry.Semester` / `ScheduleSnapshot.Semester` 由字符串迁移为 `SemesterID uint` FK
+
+**理由**: 旧模型 `Name` 同时承担显示名、唯一约束、查找键三个职责——改名即破坏全链路；`IsActive` 布尔无法表达"按时间自动判定当前学期"；`StartDate string` 前端被迫伪计算日期
+
+**范围**: 仅 Phase 1（模型 + FK + Seed + Bindings）。AcademicTerm / TeachingWeek / Holiday / Solver 感知 / 前端 `s.name`/`s.isActive` 清理**均延后**至 Phase 2 / Phase 3
+
+**兼容性**: 破坏性 schema 变更；无生产数据，首次升级删除旧 db 重建
+
+---
+
+## 2026-07-13 — v0.5.4 删除 TeachingTask 自动合并推断
+
+**决策**: 移除 `teaching_task_service.go` 中基于 `(courseId, teacherId, semesterId)` 的自动合班推断（-139 行），完全依赖 `TeachingTaskClass` 显式关联
+
+**理由**: 自动推断在合班场景下产生误合并；显式关联更清晰、更可预测；配合 ADR-0004（TeachingTask 实体化）意图
+
+**影响**: 前端 `ResourcePage.vue` 移除 -94 行相关 UI；教学任务创建/编辑仅呈现显式多班关联
+
+---
+
+## 2026-07-13 — v0.5.4 Seed 幂等性修复
+
+**决策**: `SeedData` 从 `Count + Create` 迁移到 `FirstOrCreate`
+
+**理由**: `Count + Create` 存在 GORM 错误状态传播风险——第一次 Create 因唯一约束失败后，同一 session 的后续 Count 也会返回错误，导致 seed 中途放弃；`FirstOrCreate` 是原子操作，天然幂等
+
+**详见**: `docs/release/SEED_IDEMPOTENCY_FIX_REPORT.md`
+
+---
+
+## 2026-07-12 — v0.5.3 统一资源匹配框架 (URMF, ADR-0006)
+
+**决策**: 建立 `ResourceMatcher` 纯函数核心，SA / OR-Tools / MoveService 三处统一走 `AllowedRooms(task, course, classrooms)`
+
+**理由**: 原先三处独立判断教室类型，if-else 散落且大小写不一致；URMF 让教室能力（Type + Equipment）与课程需求（派生 RequiredRoomType + RequiredEquipment）在单一决策点匹配
+
+**实现**: `ee93fb4` P2（核心）→ `01ef918` P3（SA 接入）→ `86d6fbf` P4（OR-Tools/MoveService 接入）→ `b2d722b`（`Classroom.RoomType` 冲突修复，复用现有 `Classroom.Type`）
+
+**副产品**: OR-Tools payload 中 `AllowedRoomIDs` 由 Go 侧计算好，Python solver 只读列表——彻底消除 Go/Python 匹配规则不同步风险
+
+---
+
 ## 2026-07-10 — v0.5.2 评分统一语义
 
 **决策**: 引入 `Completeness` + `FinalTotal` 字段，排课完成度作为评分惩罚因子
