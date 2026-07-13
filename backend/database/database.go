@@ -170,6 +170,14 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 	// One-time migration: import departments from legacy settings JSON if table is empty
 	MigrateDepartmentsFromSettings(adapter)
 
+	// v0.5.5 Stage B — Course category enum migration.
+	// 将 v0.5.3 中文 category 值迁移到 v0.5.5 英文枚举。必须在 courses 表已存在（AutoMigrate 之后）
+	// 且在 SeedData 之前调用 —— seed 直接使用英文常量，不受此迁移影响。
+	if err := MigrateCourseCategoryV055(adapter); err != nil {
+		log.Printf("[migrate] course category migration failed: %v", err)
+		return nil, err
+	}
+
 	// Seed default data if empty
 	SeedData(adapter)
 
@@ -380,4 +388,77 @@ func markMigration(db DB, key string) error {
 	return db.Save(&s).Error()
 }
 
+// MigrateCourseCategoryV055 一次性迁移：将 courses.category 从 v0.5.3 中文枚举
+// 迁移到 v0.5.5 英文枚举，值空间与 models.CourseCategory* 常量对齐。
+//
+// 背景：v0.5.3 前端下拉写入中文（"实验"/"上机"/"体育"/…），而 seed 与后端 SSOT
+// 使用英文枚举（"lab"/"computer"/"pe"/…），CategoryRoomTypeMap 只能命中英文。
+// Stage B 顺带修复这个数据层不一致。
+//
+// 幂等：通过 settings 表 key "course_category_v055_migrated" 标记。
+// 未知中文值保留原样并 log 提示（不覆盖为空值，避免破坏用户自建数据）。
+func MigrateCourseCategoryV055(db DB) error {
+	const markerKey = "course_category_v055_migrated"
+	if isMigrationMarked(db, markerKey) {
+		return nil
+	}
 
+	// zh → en 迁移映射；覆盖 v0.5.3 前端下拉曾提供的中文值。
+	// "普通" → "theory"（历史遗留：v0.5.3 下拉里 "普通" 对应无特殊教室需求，
+	// 与 v0.5.5 CategoryTheory 语义一致）。
+	// "外语" 未在后端 CourseCategory 中定义 → 迁移为空串（不限定教室类型），
+	// 同时 log 提示以便运维排查。
+	mapping := map[string]string{
+		"普通": models.CategoryTheory,
+		"实验": models.CategoryLab,
+		"上机": models.CategoryComputer,
+		"体育": models.CategoryPE,
+		"艺术": models.CategoryArt,
+		"外语": "", // 无对应枚举，清空以避免非法值
+	}
+
+	adapter, ok := db.(*GormAdapter)
+	if !ok {
+		return errors.New("MigrateCourseCategoryV055 requires *GormAdapter (raw UPDATE)")
+	}
+	raw := adapter.db
+
+	// courses 表可能尚未存在（首次启动、AutoMigrate 之前调用）—— 跳过并标记。
+	if !raw.Migrator().HasTable("courses") {
+		return markMigration(db, markerKey)
+	}
+
+	total := int64(0)
+	for zh, en := range mapping {
+		res := raw.Model(&models.Course{}).Where("category = ?", zh).Update("category", en)
+		if res.Error != nil {
+			return fmt.Errorf("update category %q → %q: %w", zh, en, res.Error)
+		}
+		if res.RowsAffected > 0 {
+			log.Printf("[migrate] course_category: %q → %q (%d rows)", zh, en, res.RowsAffected)
+			total += res.RowsAffected
+		}
+	}
+
+	// 记录残留：不在 mapping 中且不在英文枚举中的行，仅 log，不改动。
+	validEn := map[string]bool{
+		models.CategoryTheory:   true,
+		models.CategoryLab:      true,
+		models.CategoryPE:       true,
+		models.CategoryComputer: true,
+		models.CategorySeminar:  true,
+		models.CategoryArt:      true,
+		"":                      true, // 空值合法
+	}
+	var stragglers []models.Course
+	raw.Where("category IS NOT NULL AND category <> ''").Find(&stragglers)
+	for _, c := range stragglers {
+		if !validEn[c.Category] {
+			log.Printf("[migrate] course_category: course %q (id=%d) has unmapped value %q — left untouched",
+				c.Code, c.ID, c.Category)
+		}
+	}
+	log.Printf("[migrate] course_category_v055: %d rows migrated", total)
+
+	return markMigration(db, markerKey)
+}
