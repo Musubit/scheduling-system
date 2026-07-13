@@ -42,13 +42,11 @@ func SeedData(db DB) {
 
 // seedIfAbsent creates each item only if a row with the same key does not
 // already exist, making the seed idempotent without clobbering user data.
+// Uses FirstOrCreate for atomic "find or create" semantics — unlike Count+Create,
+// this does not suffer from GORM error-state propagation on repeated calls.
 func seedIfAbsent[T any](db DB, items []T, keyField string, keyVal func(T) interface{}) {
 	for _, it := range items {
-		var cnt int64
-		db.Model(new(T)).Where(keyField+" = ?", keyVal(it)).Count(&cnt)
-		if cnt == 0 {
-			db.Create(&it)
-		}
+		_ = db.FirstOrCreate(&it, keyField+" = ?", keyVal(it))
 	}
 }
 
@@ -239,14 +237,12 @@ func seedTeachingTasks(db DB) {
 	for _, spec := range tasksSpec {
 		courseID := courses[spec.CourseIdx-1].ID
 		teacherID := teachers[spec.TeacherIdx-1].ID
-		var existing int64
-		db.Model(&models.TeachingTask{}).Where("course_id = ? AND teacher_id = ? AND semester_id = ?", courseID, teacherID, activeSemesterID).Count(&existing)
-		if existing > 0 {
-			continue
-		}
+		classGroupID := groups[spec.GroupIdx-1].ID
+
+		// FirstOrCreate: 按 (course_id, teacher_id, semester_id) 查找或创建教学任务
 		task := models.TeachingTask{
-			CourseID:        courses[spec.CourseIdx-1].ID,
-			TeacherID:       teachers[spec.TeacherIdx-1].ID,
+			CourseID:        courseID,
+			TeacherID:       teacherID,
 			SemesterID:      activeSemesterID,
 			Status:          "active",
 			TotalHours:      spec.Hours,
@@ -254,17 +250,20 @@ func seedTeachingTasks(db DB) {
 			EndWeek:         16,
 			MaxHoursPerWeek: 0,
 		}
-		if err := db.Create(&task).Error(); err != nil {
-			log.Printf("Seed: create teaching task failed: %v", err)
+		result := db.Where("course_id = ? AND teacher_id = ? AND semester_id = ?",
+			courseID, teacherID, activeSemesterID).FirstOrCreate(&task)
+		if result.Error() != nil {
+			log.Printf("Seed: create teaching task failed: %v", result.Error())
 			continue
 		}
+
+		// TeachingTaskClass 也使用 FirstOrCreate，确保多班关联幂等
 		class := models.TeachingTaskClass{
 			TeachingTaskID: task.ID,
-			ClassGroupID:   groups[spec.GroupIdx-1].ID,
+			ClassGroupID:   classGroupID,
 		}
-		if err := db.Create(&class).Error(); err != nil {
-			log.Printf("Seed: create teaching task class failed: %v", err)
-		}
+		_ = db.Where("teaching_task_id = ? AND class_group_id = ?",
+			task.ID, classGroupID).FirstOrCreate(&class)
 	}
 }
 
@@ -302,5 +301,7 @@ func seedDemoEntries(db DB) {
 		{CourseID: 13, TeacherID: 13, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 产品设计 黄蕾
 		{CourseID: 2, TeacherID: 1, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 数控技术 张建国
 	}
-	db.Create(&entries)
+	if err := db.Create(&entries).Error(); err != nil {
+		log.Printf("Seed: demo schedule entries already exist or creation failed: %v", err)
+	}
 }

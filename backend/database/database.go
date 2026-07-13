@@ -30,6 +30,7 @@ type DB interface {
 	Order(value interface{}) DB
 	Unscoped() DB
 	Count(count *int64) DB
+	FirstOrCreate(dest interface{}, conds ...interface{}) DB
 	Transaction(fc func(tx DB) error) error
 	AutoMigrate(dst ...interface{}) error
 	Error() error
@@ -81,6 +82,13 @@ func (g *GormAdapter) Order(value interface{}) DB {
 
 func (g *GormAdapter) Unscoped() DB {
 	return &GormAdapter{db: g.db.Unscoped()}
+}
+
+func (g *GormAdapter) FirstOrCreate(dest interface{}, conds ...interface{}) DB {
+	if len(conds) > 0 {
+		return &GormAdapter{db: g.db.Where(conds[0], conds[1:]...).FirstOrCreate(dest)}
+	}
+	return &GormAdapter{db: g.db.FirstOrCreate(dest)}
 }
 
 func (g *GormAdapter) Count(count *int64) DB {
