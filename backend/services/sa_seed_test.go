@@ -51,7 +51,7 @@ func TestSASeedLikePlacesAll(t *testing.T) {
 	cfg.MaxTimeSeconds = 15
 	cfg.Seed = 12345
 	solver := NewSASolver()
-	result := solver.SolveMultiRun(tasks, teachers, classrooms, groups, nil, []string{}, "2025-S2", cfg, 3, nil, nil)
+	result := solver.SolveMultiRun(tasks, teachers, classrooms, groups, nil, []string{}, uint(1), cfg, 3, nil, nil)
 
 	if len(result.Entries) < expectedSessions {
 		t.Errorf("SA silently dropped sessions: placed %d, expected %d", len(result.Entries), expectedSessions)

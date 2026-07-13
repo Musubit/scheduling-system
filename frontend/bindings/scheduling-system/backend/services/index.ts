@@ -16,7 +16,7 @@ export {
     VersionService
 };
 
-export type {
+export {
     CheckMoveRequest,
     CheckMoveResult,
     MoveAndScoreResult,

@@ -61,7 +61,7 @@ type schedulingContext struct {
 	classGroups     []models.ClassGroup
 	lockedSlots     []LockedTimeSlot
 	constraints     []string
-	semester        string
+	semesterID      uint
 	sportsCourseIDs map[uint]bool // course IDs for sports courses
 
 	// v0.5.2: total sessions the solver expects to place across all tasks.
@@ -112,7 +112,7 @@ func (s *SASolver) Solve(
 	classGroups []models.ClassGroup,
 	lockedSlots []LockedTimeSlot,
 	constraints []string,
-	semester string,
+	semesterID uint,
 	config SAConfig,
 	cancelCh <-chan struct{},
 	progressFn func(iter, total int, currentScore, bestScore, temp float64),
@@ -185,7 +185,7 @@ func (s *SASolver) Solve(
 		classGroups:           classGroups,
 		lockedSlots:           lockedSlots,
 		constraints:           constraints,
-		semester:              semester,
+		semesterID:            semesterID,
 		sportsCourseIDs:       sportsCourseIDs,
 		teacherUnavailable:    teacherUnavailable,
 		classGroupStudents:    classGroupStudents,
@@ -389,7 +389,7 @@ func (s *SASolver) SolveMultiRun(
 	classGroups []models.ClassGroup,
 	lockedSlots []LockedTimeSlot,
 	constraints []string,
-	semester string,
+	semesterID uint,
 	config SAConfig,
 	runs int,
 	cancelCh <-chan struct{},
@@ -419,7 +419,7 @@ func (s *SASolver) SolveMultiRun(
 		runConfig.Seed = time.Now().UnixNano() + int64(i*31337)
 
 		result := s.Solve(teachingTasks, teachers, classrooms, classGroups,
-			lockedSlots, constraints, semester, runConfig, cancelCh, nil)
+			lockedSlots, constraints, semesterID, runConfig, cancelCh, nil)
 
 		totalIterations += result.Iterations
 

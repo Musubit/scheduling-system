@@ -18,7 +18,7 @@ func TestDeltaScoreMatchesFullScore(t *testing.T) {
 	}
 	solver := NewSASolver()
 	result := solver.Solve(tasks, teachers, classrooms, classGroups,
-		nil, FullDefaultConstraints(), "2025-S2", config, nil, nil)
+		nil, FullDefaultConstraints(), uint(1), config, nil, nil)
 	if len(result.Entries) == 0 {
 		t.Fatalf("no entries produced")
 	}
@@ -113,7 +113,7 @@ func freshContextFromEntries(
 		classrooms:            classrooms,
 		classGroups:           classGroups,
 		constraints:           FullDefaultConstraints(),
-		semester:              "2025-S2",
+		semesterID:            uint(1),
 		sportsCourseIDs:       sports,
 		teacherUnavailable:    make(map[uint][]LockedTimeSlot),
 		classGroupStudents:    classGroupStudents,

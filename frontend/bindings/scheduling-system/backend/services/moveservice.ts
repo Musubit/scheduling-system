@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -18,7 +18,9 @@ import * as $models from "./models.js";
  * CheckMove validates whether a schedule entry can be moved to a new time/room.
  */
 export function CheckMove(req: $models.CheckMoveRequest): $CancellablePromise<$models.CheckMoveResult | null> {
-    return $Call.ByID(3592166944, req);
+    return $Call.ByID(3592166944, req).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
@@ -39,5 +41,13 @@ export function MoveEntry(req: $models.CheckMoveRequest): $CancellablePromise<vo
  * callers are unaffected (backward compatible).
  */
 export function MoveEntryAndScore(req: $models.CheckMoveRequest): $CancellablePromise<$models.MoveAndScoreResult | null> {
-    return $Call.ByID(3988363451, req);
+    return $Call.ByID(3988363451, req).then(($result: any) => {
+        return $$createType3($result);
+    });
 }
+
+// Private type creation functions
+const $$createType0 = $models.CheckMoveResult.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = $models.MoveAndScoreResult.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);

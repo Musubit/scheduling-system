@@ -17,7 +17,7 @@ func TestPostOptimizeMonotoneScore(t *testing.T) {
 	}
 	solver := NewSASolver()
 	result := solver.Solve(tasks, teachers, classrooms, classGroups,
-		nil, FullDefaultConstraints(), "2025-S2", config, nil, nil)
+		nil, FullDefaultConstraints(), uint(1), config, nil, nil)
 
 	if len(result.Entries) == 0 {
 		t.Fatalf("SA produced no entries")
@@ -72,7 +72,7 @@ func TestPostOptimizeDeterministicOrdering(t *testing.T) {
 	}
 	solver := NewSASolver()
 	base := solver.Solve(tasks, teachers, classrooms, classGroups,
-		nil, FullDefaultConstraints(), "2025-S2", config, nil, nil)
+		nil, FullDefaultConstraints(), uint(1), config, nil, nil)
 
 	// Snapshot entries for two independent PostOptimize passes.
 	entries1 := make([]models.ScheduleEntry, len(base.Entries))

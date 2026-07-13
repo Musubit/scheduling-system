@@ -4,6 +4,7 @@ package database
 
 import (
 	"log"
+	"time"
 
 	"scheduling-system/backend/models"
 )
@@ -54,12 +55,15 @@ func seedIfAbsent[T any](db DB, items []T, keyField string, keyVal func(T) inter
 // Safe to call only when these tables are empty.
 func seedBaseData(db DB) {
 	// ===== Semesters =====
+	// v0.5.5: 使用 AcademicYear + Term 复合唯一键，删除 Name/IsActive
 	semesters := []models.Semester{
-		{Name: "2025-2026 第二学期", IsActive: true},
-		{Name: "2025-2026 第一学期", IsActive: false},
-		{Name: "2024-2025 第二学期", IsActive: false},
+		{AcademicYear: "2025-2026", Term: models.SemesterTermSecond, StartDate: time.Date(2026, 2, 23, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2026, 7, 26, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusActive},
+		{AcademicYear: "2025-2026", Term: models.SemesterTermFirst, StartDate: time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusArchived},
+		{AcademicYear: "2024-2025", Term: models.SemesterTermSecond, StartDate: time.Date(2025, 2, 24, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2025, 7, 27, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusArchived},
 	}
-	seedIfAbsent(db, semesters, "name", func(s models.Semester) interface{} { return s.Name })
+	for _, s := range semesters {
+		_ = db.FirstOrCreate(&s, "academic_year = ? AND term = ?", s.AcademicYear, s.Term)
+	}
 
 	// ===== Teachers =====
 	teachers := []models.Teacher{
@@ -179,14 +183,9 @@ func seedTeachingTasks(db DB) {
 		return
 	}
 
+	// v0.5.5: 固定取第一个学期（seed 创建顺序中第一个为最新学期）
 	activeSemesterID := uint(0)
-	for _, s := range semesters {
-		if s.IsActive {
-			activeSemesterID = s.ID
-			break
-		}
-	}
-	if activeSemesterID == 0 && len(semesters) > 0 {
+	if len(semesters) > 0 {
 		activeSemesterID = semesters[0].ID
 	}
 
@@ -271,35 +270,44 @@ func seedTeachingTasks(db DB) {
 // teaching tasks above. When the user clicks "开始自动排课", RunScheduling
 // clears this semester's entries and writes the engine output instead.
 func seedDemoEntries(db DB) {
+	// v0.5.5: 查询第一个学期（seed 创建顺序中第一个为最新学期）
+	var semesters []models.Semester
+	db.Order("id asc").Find(&semesters)
+	if len(semesters) == 0 {
+		log.Println("Seed: skip demo entries (no semesters)")
+		return
+	}
+	semesterID := semesters[0].ID
+
 	// Monday: 1-2=0, 3-4=2, 5-6=4, 7-8=6, 9-10=8
 	entries := []models.ScheduleEntry{
-		{CourseID: 18, TeacherID: 5, ClassroomID: 1, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 高等数学 赵秀英
-		{CourseID: 9, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 数据结构 周海
-		{CourseID: 16, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 大学英语 刘芳
-		{CourseID: 23, TeacherID: 11, ClassroomID: 11, Semester: "2025-2026 第二学期", DayOfWeek: 0, StartPeriod: 8, Span: 2, Weeks: "1-16"}, // 体育 陈刚
+		{CourseID: 18, TeacherID: 5, ClassroomID: 1, SemesterID: semesterID, DayOfWeek: 0, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 高等数学 赵秀英
+		{CourseID: 9, TeacherID: 7, ClassroomID: 7, SemesterID: semesterID, DayOfWeek: 0, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 数据结构 周海
+		{CourseID: 16, TeacherID: 4, ClassroomID: 4, SemesterID: semesterID, DayOfWeek: 0, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 大学英语 刘芳
+		{CourseID: 23, TeacherID: 11, ClassroomID: 11, SemesterID: semesterID, DayOfWeek: 0, StartPeriod: 8, Span: 2, Weeks: "1-16"}, // 体育 陈刚
 		// Tuesday
-		{CourseID: 19, TeacherID: 5, ClassroomID: 3, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 线性代数 赵秀英
-		{CourseID: 3, TeacherID: 2, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 电路原理 李明远
-		{CourseID: 20, TeacherID: 8, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 大学物理 钱学林
-		{CourseID: 14, TeacherID: 6, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 1, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 西方经济学 孙志强
+		{CourseID: 19, TeacherID: 5, ClassroomID: 3, SemesterID: semesterID, DayOfWeek: 1, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 线性代数 赵秀英
+		{CourseID: 3, TeacherID: 2, ClassroomID: 2, SemesterID: semesterID, DayOfWeek: 1, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 电路原理 李明远
+		{CourseID: 20, TeacherID: 8, ClassroomID: 6, SemesterID: semesterID, DayOfWeek: 1, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 大学物理 钱学林
+		{CourseID: 14, TeacherID: 6, ClassroomID: 9, SemesterID: semesterID, DayOfWeek: 1, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 西方经济学 孙志强
 		// Wednesday
-		{CourseID: 10, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 操作系统 周海
-		{CourseID: 6, TeacherID: 8, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 生物化学 钱学林
-		{CourseID: 21, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 马原 吴芳
-		{CourseID: 12, TeacherID: 10, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 2, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 设计素描 郑美
+		{CourseID: 10, TeacherID: 7, ClassroomID: 7, SemesterID: semesterID, DayOfWeek: 2, StartPeriod: 0, Span: 2, Weeks: "1-16"}, // 操作系统 周海
+		{CourseID: 6, TeacherID: 8, ClassroomID: 6, SemesterID: semesterID, DayOfWeek: 2, StartPeriod: 2, Span: 2, Weeks: "1-16"},  // 生物化学 钱学林
+		{CourseID: 21, TeacherID: 9, ClassroomID: 9, SemesterID: semesterID, DayOfWeek: 2, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 马原 吴芳
+		{CourseID: 12, TeacherID: 10, ClassroomID: 10, SemesterID: semesterID, DayOfWeek: 2, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 设计素描 郑美
 		// Thursday
-		{CourseID: 1, TeacherID: 1, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 机械设计 张建国
-		{CourseID: 7, TeacherID: 12, ClassroomID: 6, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 结构力学 杨华
-		{CourseID: 11, TeacherID: 7, ClassroomID: 7, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 计算机网络 周海
-		{CourseID: 15, TeacherID: 6, ClassroomID: 8, Semester: "2025-2026 第二学期", DayOfWeek: 3, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 财务管理 孙志强
+		{CourseID: 1, TeacherID: 1, ClassroomID: 5, SemesterID: semesterID, DayOfWeek: 3, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 机械设计 张建国
+		{CourseID: 7, TeacherID: 12, ClassroomID: 6, SemesterID: semesterID, DayOfWeek: 3, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 结构力学 杨华
+		{CourseID: 11, TeacherID: 7, ClassroomID: 7, SemesterID: semesterID, DayOfWeek: 3, StartPeriod: 4, Span: 2, Weeks: "1-16"}, // 计算机网络 周海
+		{CourseID: 15, TeacherID: 6, ClassroomID: 8, SemesterID: semesterID, DayOfWeek: 3, StartPeriod: 6, Span: 2, Weeks: "1-16"}, // 财务管理 孙志强
 		// Friday
-		{CourseID: 4, TeacherID: 2, ClassroomID: 2, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 电力系统 李明远
-		{CourseID: 17, TeacherID: 4, ClassroomID: 4, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 英语听说 刘芳
-		{CourseID: 5, TeacherID: 3, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 有机化学 王伟
-		{CourseID: 22, TeacherID: 9, ClassroomID: 9, Semester: "2025-2026 第二学期", DayOfWeek: 4, StartPeriod: 6, Span: 1, Weeks: "1-16"}, // 形势与政策 吴芳
+		{CourseID: 4, TeacherID: 2, ClassroomID: 2, SemesterID: semesterID, DayOfWeek: 4, StartPeriod: 0, Span: 2, Weeks: "1-16"},  // 电力系统 李明远
+		{CourseID: 17, TeacherID: 4, ClassroomID: 4, SemesterID: semesterID, DayOfWeek: 4, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 英语听说 刘芳
+		{CourseID: 5, TeacherID: 3, ClassroomID: 10, SemesterID: semesterID, DayOfWeek: 4, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 有机化学 王伟
+		{CourseID: 22, TeacherID: 9, ClassroomID: 9, SemesterID: semesterID, DayOfWeek: 4, StartPeriod: 6, Span: 1, Weeks: "1-16"}, // 形势与政策 吴芳
 		// Saturday
-		{CourseID: 13, TeacherID: 13, ClassroomID: 10, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 产品设计 黄蕾
-		{CourseID: 2, TeacherID: 1, ClassroomID: 5, Semester: "2025-2026 第二学期", DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 数控技术 张建国
+		{CourseID: 13, TeacherID: 13, ClassroomID: 10, SemesterID: semesterID, DayOfWeek: 5, StartPeriod: 2, Span: 2, Weeks: "1-16"}, // 产品设计 黄蕾
+		{CourseID: 2, TeacherID: 1, ClassroomID: 5, SemesterID: semesterID, DayOfWeek: 5, StartPeriod: 4, Span: 2, Weeks: "1-16"},  // 数控技术 张建国
 	}
 	if err := db.Create(&entries).Error(); err != nil {
 		log.Printf("Seed: demo schedule entries already exist or creation failed: %v", err)

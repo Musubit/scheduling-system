@@ -79,7 +79,7 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 
 	// Load all other entries for the same semester (excluding this one)
 	var others []models.ScheduleEntry
-	s.db.Where("semester = ? AND id != ?", entry.Semester, entry.ID).Find(&others)
+	s.db.Where("semester_id = ? AND id != ?", entry.SemesterID, entry.ID).Find(&others)
 
 	// Load locked slots via shared package-level function
 	lockedSlots := loadLockedSlotsDB(s.db)
@@ -292,7 +292,7 @@ func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResu
 	}
 
 	// Compute score BEFORE the move (entry still at old position)
-	beforeBD, err := s.computeScore(entry.Semester)
+	beforeBD, err := s.computeScore(entry.SemesterID)
 	if err != nil {
 		return nil, fmt.Errorf("评分计算失败: %w", err)
 	}
@@ -322,7 +322,7 @@ func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResu
 	}
 
 	// Compute score AFTER the move
-	afterBD, err := s.computeScore(entry.Semester)
+	afterBD, err := s.computeScore(entry.SemesterID)
 	if err != nil {
 		return nil, fmt.Errorf("重评分失败: %w", err)
 	}
@@ -421,10 +421,10 @@ func weeksOverlap(a, b string) bool {
 // it against ScoreSchedule. It uses the constraint list from the most recent
 // snapshot so the score is directly comparable to what the user saw after
 // the last full scheduling run.
-func (s *MoveService) computeScore(semester string) (*ScoreBreakdown, error) {
+func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 	// Load all entries for the semester
 	var entries []models.ScheduleEntry
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classroom").
 		Preload("TeachingTask.Classes.ClassGroup").
 		Find(&entries).Error(); err != nil {
@@ -445,12 +445,9 @@ func (s *MoveService) computeScore(semester string) (*ScoreBreakdown, error) {
 
 	// Load teaching tasks for this semester (needed for PE course detection
 	// and student_fatigue calculation)
-	var sem models.Semester
-	s.db.Where("name = ?", semester).First(&sem)
-
 	var teachingTasks []models.TeachingTask
-	if sem.ID > 0 {
-		s.db.Where("semester_id = ?", sem.ID).
+	if semesterID > 0 {
+		s.db.Where("semester_id = ?", semesterID).
 			Preload("Course").Preload("Teacher").
 			Preload("Classes.ClassGroup").
 			Find(&teachingTasks)
@@ -460,7 +457,7 @@ func (s *MoveService) computeScore(semester string) (*ScoreBreakdown, error) {
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 
 	// Use the same constraints that were active during the original scheduling run
-	constraints := s.loadLatestConstraints(semester)
+	constraints := s.loadLatestConstraints(semesterID)
 
 	scoringCtx := NewScoringContext(constraints, sportsCourseIDs, teachingTasks)
 	breakdown := NewScoringService().ScoreSchedule(entries, teachers, classrooms, scoringCtx)
@@ -470,9 +467,9 @@ func (s *MoveService) computeScore(semester string) (*ScoreBreakdown, error) {
 // loadLatestConstraints reads the constraint list from the most recent
 // auto-snapshot for the given semester. Falls back to FullDefaultConstraints
 // when no snapshot exists.
-func (s *MoveService) loadLatestConstraints(semester string) []string {
+func (s *MoveService) loadLatestConstraints(semesterID uint) []string {
 	var snap models.ScheduleSnapshot
-	if err := s.db.Where("semester = ?", semester).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
 		var constraints []string
 		if err := json.Unmarshal([]byte(snap.EnabledConstraints), &constraints); err == nil && len(constraints) > 0 {

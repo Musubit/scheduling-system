@@ -45,7 +45,7 @@ func TestLockedSlotsAreRespected(t *testing.T) {
 	solver := NewSASolver()
 	result := solver.Solve(
 		teachingTasks, teachers, classrooms, classGroups,
-		lockedSlots, []string{}, "2025-S2",
+		lockedSlots, []string{}, uint(1),
 		config,
 		nil, nil,
 	)

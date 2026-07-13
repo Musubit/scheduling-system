@@ -3,12 +3,16 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import { Create as $Create } from "@wailsio/runtime";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
 
 /**
  * CheckMoveRequest is the input for CheckMove.
  */
-export interface CheckMoveRequest {
+export class CheckMoveRequest {
     /**
      * the schedule entry being moved
      */
@@ -33,32 +37,115 @@ export interface CheckMoveRequest {
      * 0 = keep current
      */
     "newClassroom": number;
+
+    /** Creates a new CheckMoveRequest instance. */
+    constructor($$source: Partial<CheckMoveRequest> = {}) {
+        if (!("entryId" in $$source)) {
+            this["entryId"] = 0;
+        }
+        if (!("newDay" in $$source)) {
+            this["newDay"] = 0;
+        }
+        if (!("newPeriod" in $$source)) {
+            this["newPeriod"] = 0;
+        }
+        if (!("newSpan" in $$source)) {
+            this["newSpan"] = 0;
+        }
+        if (!("newClassroom" in $$source)) {
+            this["newClassroom"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CheckMoveRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CheckMoveRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CheckMoveRequest($$parsedSource as Partial<CheckMoveRequest>);
+    }
 }
 
 /**
  * CheckMoveResult is the output of the move validation.
  */
-export interface CheckMoveResult {
+export class CheckMoveResult {
     "valid": boolean;
-    "conflicts": MoveConflict[] | null;
+    "conflicts": MoveConflict[];
+
+    /** Creates a new CheckMoveResult instance. */
+    constructor($$source: Partial<CheckMoveResult> = {}) {
+        if (!("valid" in $$source)) {
+            this["valid"] = false;
+        }
+        if (!("conflicts" in $$source)) {
+            this["conflicts"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CheckMoveResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CheckMoveResult {
+        const $$createField1_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("conflicts" in $$parsedSource) {
+            $$parsedSource["conflicts"] = $$createField1_0($$parsedSource["conflicts"]);
+        }
+        return new CheckMoveResult($$parsedSource as Partial<CheckMoveResult>);
+    }
 }
 
 /**
  * MoveAndScoreResult is the output of MoveEntryAndScore.
  */
-export interface MoveAndScoreResult {
+export class MoveAndScoreResult {
     "success": boolean;
     "error"?: string;
     "beforeScore": number;
     "newScore": number;
     "delta": number;
     "scoreDetail"?: ScoreBreakdown | null;
+
+    /** Creates a new MoveAndScoreResult instance. */
+    constructor($$source: Partial<MoveAndScoreResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("beforeScore" in $$source)) {
+            this["beforeScore"] = 0;
+        }
+        if (!("newScore" in $$source)) {
+            this["newScore"] = 0;
+        }
+        if (!("delta" in $$source)) {
+            this["delta"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoveAndScoreResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MoveAndScoreResult {
+        const $$createField5_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("scoreDetail" in $$parsedSource) {
+            $$parsedSource["scoreDetail"] = $$createField5_0($$parsedSource["scoreDetail"]);
+        }
+        return new MoveAndScoreResult($$parsedSource as Partial<MoveAndScoreResult>);
+    }
 }
 
 /**
  * MoveConflict describes a conflict found when checking a move.
  */
-export interface MoveConflict {
+export class MoveConflict {
     /**
      * "teacher" | "room" | "class" | "locked"
      */
@@ -78,12 +165,38 @@ export interface MoveConflict {
      * Optional suggestion
      */
     "suggestion": string;
+
+    /** Creates a new MoveConflict instance. */
+    constructor($$source: Partial<MoveConflict> = {}) {
+        if (!("type" in $$source)) {
+            this["type"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+        if (!("entity" in $$source)) {
+            this["entity"] = "";
+        }
+        if (!("suggestion" in $$source)) {
+            this["suggestion"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MoveConflict instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MoveConflict {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MoveConflict($$parsedSource as Partial<MoveConflict>);
+    }
 }
 
 /**
  * ScheduleProgress records a scheduling phase milestone.
  */
-export interface ScheduleProgress {
+export class ScheduleProgress {
     /**
      * 0-100 percentage
      */
@@ -93,11 +206,30 @@ export interface ScheduleProgress {
      * human-readable phase name
      */
     "stage": string;
+
+    /** Creates a new ScheduleProgress instance. */
+    constructor($$source: Partial<ScheduleProgress> = {}) {
+        if (!("progress" in $$source)) {
+            this["progress"] = 0;
+        }
+        if (!("stage" in $$source)) {
+            this["stage"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScheduleProgress instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScheduleProgress {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ScheduleProgress($$parsedSource as Partial<ScheduleProgress>);
+    }
 }
 
-export interface SchedulingConfig {
+export class SchedulingConfig {
     "scope": string;
-    "semester": string;
     "strategy": string;
     "iterations": number;
 
@@ -105,7 +237,7 @@ export interface SchedulingConfig {
      * max solve time in seconds, default 60
      */
     "timeLimit": number;
-    "constraints": string[] | null;
+    "constraints": string[];
 
     /**
      * JSON string, avoids Wails enum serialization pitfall
@@ -120,10 +252,47 @@ export interface SchedulingConfig {
     /**
      * per-constraint weights (0-100)
      */
-    "constraintWeights"?: { [_ in string]?: number } | null;
+    "constraintWeights"?: { [_ in string]?: number };
+
+    /** Creates a new SchedulingConfig instance. */
+    constructor($$source: Partial<SchedulingConfig> = {}) {
+        if (!("scope" in $$source)) {
+            this["scope"] = "";
+        }
+        if (!("strategy" in $$source)) {
+            this["strategy"] = "";
+        }
+        if (!("iterations" in $$source)) {
+            this["iterations"] = 0;
+        }
+        if (!("timeLimit" in $$source)) {
+            this["timeLimit"] = 0;
+        }
+        if (!("constraints" in $$source)) {
+            this["constraints"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SchedulingConfig instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SchedulingConfig {
+        const $$createField4_0 = $$createType4;
+        const $$createField7_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("constraints" in $$parsedSource) {
+            $$parsedSource["constraints"] = $$createField4_0($$parsedSource["constraints"]);
+        }
+        if ("constraintWeights" in $$parsedSource) {
+            $$parsedSource["constraintWeights"] = $$createField7_0($$parsedSource["constraintWeights"]);
+        }
+        return new SchedulingConfig($$parsedSource as Partial<SchedulingConfig>);
+    }
 }
 
-export interface SchedulingResult {
+export class SchedulingResult {
     "totalCourses": number;
     "scheduled": number;
     "tasksScheduled": number;
@@ -134,15 +303,71 @@ export interface SchedulingResult {
     "utilization": number;
     "score": number;
     "scoreDetail"?: ScoreBreakdown | null;
-    "logs": string[] | null;
+    "logs": string[];
     "error"?: string;
-    "progressHistory"?: ScheduleProgress[] | null;
+    "progressHistory"?: ScheduleProgress[];
+
+    /** Creates a new SchedulingResult instance. */
+    constructor($$source: Partial<SchedulingResult> = {}) {
+        if (!("totalCourses" in $$source)) {
+            this["totalCourses"] = 0;
+        }
+        if (!("scheduled" in $$source)) {
+            this["scheduled"] = 0;
+        }
+        if (!("tasksScheduled" in $$source)) {
+            this["tasksScheduled"] = 0;
+        }
+        if (!("conflicts" in $$source)) {
+            this["conflicts"] = 0;
+        }
+        if (!("teacherConflicts" in $$source)) {
+            this["teacherConflicts"] = 0;
+        }
+        if (!("roomConflicts" in $$source)) {
+            this["roomConflicts"] = 0;
+        }
+        if (!("classConflicts" in $$source)) {
+            this["classConflicts"] = 0;
+        }
+        if (!("utilization" in $$source)) {
+            this["utilization"] = 0;
+        }
+        if (!("score" in $$source)) {
+            this["score"] = 0;
+        }
+        if (!("logs" in $$source)) {
+            this["logs"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SchedulingResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SchedulingResult {
+        const $$createField9_0 = $$createType3;
+        const $$createField10_0 = $$createType4;
+        const $$createField12_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("scoreDetail" in $$parsedSource) {
+            $$parsedSource["scoreDetail"] = $$createField9_0($$parsedSource["scoreDetail"]);
+        }
+        if ("logs" in $$parsedSource) {
+            $$parsedSource["logs"] = $$createField10_0($$parsedSource["logs"]);
+        }
+        if ("progressHistory" in $$parsedSource) {
+            $$parsedSource["progressHistory"] = $$createField12_0($$parsedSource["progressHistory"]);
+        }
+        return new SchedulingResult($$parsedSource as Partial<SchedulingResult>);
+    }
 }
 
 /**
  * ScoreBreakdown holds the detailed scoring result.
  */
-export interface ScoreBreakdown {
+export class ScoreBreakdown {
     "total": number;
 
     /**
@@ -193,6 +418,53 @@ export interface ScoreBreakdown {
      */
     "completeness"?: number;
     "finalTotal": number;
+
+    /** Creates a new ScoreBreakdown instance. */
+    constructor($$source: Partial<ScoreBreakdown> = {}) {
+        if (!("total" in $$source)) {
+            this["total"] = 0;
+        }
+        if (!("teacherPref" in $$source)) {
+            this["teacherPref"] = 0;
+        }
+        if (!("courseSpacing" in $$source)) {
+            this["courseSpacing"] = 0;
+        }
+        if (!("teacherDays" in $$source)) {
+            this["teacherDays"] = 0;
+        }
+        if (!("lowFloorPref" in $$source)) {
+            this["lowFloorPref"] = 0;
+        }
+        if (!("weekendAvoid" in $$source)) {
+            this["weekendAvoid"] = 0;
+        }
+        if (!("pePeriodPref" in $$source)) {
+            this["pePeriodPref"] = 0;
+        }
+        if (!("studentFatigue" in $$source)) {
+            this["studentFatigue"] = 0;
+        }
+        if (!("perCategoryMax" in $$source)) {
+            this["perCategoryMax"] = 0;
+        }
+        if (!("enabledCategoryCount" in $$source)) {
+            this["enabledCategoryCount"] = 0;
+        }
+        if (!("finalTotal" in $$source)) {
+            this["finalTotal"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScoreBreakdown instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScoreBreakdown {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ScoreBreakdown($$parsedSource as Partial<ScoreBreakdown>);
+    }
 }
 
 /**
@@ -208,15 +480,39 @@ export interface ScoreBreakdown {
  * 	v2 — v0.5.2: added ExpectedTotalSessions for placement-completeness scaling
  * 	      of FinalTotal. Total field semantics unchanged (Stable Core compat).
  */
-export interface ScoringContext {
+export class ScoringContext {
     "version": number;
-    "enabledConstraints": string[] | null;
+    "enabledConstraints": string[];
+
+    /** Creates a new ScoringContext instance. */
+    constructor($$source: Partial<ScoringContext> = {}) {
+        if (!("version" in $$source)) {
+            this["version"] = 0;
+        }
+        if (!("enabledConstraints" in $$source)) {
+            this["enabledConstraints"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScoringContext instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ScoringContext {
+        const $$createField1_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("enabledConstraints" in $$parsedSource) {
+            $$parsedSource["enabledConstraints"] = $$createField1_0($$parsedSource["enabledConstraints"]);
+        }
+        return new ScoringContext($$parsedSource as Partial<ScoringContext>);
+    }
 }
 
 /**
  * SnapshotCompareResult holds the diff between two schedule snapshots.
  */
-export interface SnapshotCompareResult {
+export class SnapshotCompareResult {
     "a": models$0.ScheduleSnapshot | null;
     "b": models$0.ScheduleSnapshot | null;
     "scoreDelta": number;
@@ -226,13 +522,57 @@ export interface SnapshotCompareResult {
      */
     "conflictDelta": number;
     "entryDelta": number;
-    "teacherDiffs": TeacherSnapshotDiff[] | null;
+    "teacherDiffs": TeacherSnapshotDiff[];
+
+    /** Creates a new SnapshotCompareResult instance. */
+    constructor($$source: Partial<SnapshotCompareResult> = {}) {
+        if (!("a" in $$source)) {
+            this["a"] = null;
+        }
+        if (!("b" in $$source)) {
+            this["b"] = null;
+        }
+        if (!("scoreDelta" in $$source)) {
+            this["scoreDelta"] = 0;
+        }
+        if (!("conflictDelta" in $$source)) {
+            this["conflictDelta"] = 0;
+        }
+        if (!("entryDelta" in $$source)) {
+            this["entryDelta"] = 0;
+        }
+        if (!("teacherDiffs" in $$source)) {
+            this["teacherDiffs"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SnapshotCompareResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SnapshotCompareResult {
+        const $$createField0_0 = $$createType9;
+        const $$createField1_0 = $$createType9;
+        const $$createField5_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("a" in $$parsedSource) {
+            $$parsedSource["a"] = $$createField0_0($$parsedSource["a"]);
+        }
+        if ("b" in $$parsedSource) {
+            $$parsedSource["b"] = $$createField1_0($$parsedSource["b"]);
+        }
+        if ("teacherDiffs" in $$parsedSource) {
+            $$parsedSource["teacherDiffs"] = $$createField5_0($$parsedSource["teacherDiffs"]);
+        }
+        return new SnapshotCompareResult($$parsedSource as Partial<SnapshotCompareResult>);
+    }
 }
 
 /**
  * TeacherSnapshotDiff summarizes per-teacher changes between two snapshots.
  */
-export interface TeacherSnapshotDiff {
+export class TeacherSnapshotDiff {
     "code": string;
     "name": string;
     "entryDelta": number;
@@ -247,12 +587,56 @@ export interface TeacherSnapshotDiff {
      * improved / regressed / unchanged / added / removed
      */
     "status": string;
+
+    /** Creates a new TeacherSnapshotDiff instance. */
+    constructor($$source: Partial<TeacherSnapshotDiff> = {}) {
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("entryDelta" in $$source)) {
+            this["entryDelta"] = 0;
+        }
+        if (!("earlyDelta" in $$source)) {
+            this["earlyDelta"] = 0;
+        }
+        if (!("lateDelta" in $$source)) {
+            this["lateDelta"] = 0;
+        }
+        if (!("daysActualA" in $$source)) {
+            this["daysActualA"] = 0;
+        }
+        if (!("daysActualB" in $$source)) {
+            this["daysActualB"] = 0;
+        }
+        if (!("daysTarget" in $$source)) {
+            this["daysTarget"] = 0;
+        }
+        if (!("avgFloorDelta" in $$source)) {
+            this["avgFloorDelta"] = 0;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TeacherSnapshotDiff instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TeacherSnapshotDiff {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TeacherSnapshotDiff($$parsedSource as Partial<TeacherSnapshotDiff>);
+    }
 }
 
 /**
  * TeacherWorkloadInfo holds per-teacher workload analysis (post-hoc, does not affect scoring).
  */
-export interface TeacherWorkloadInfo {
+export class TeacherWorkloadInfo {
     "teacherId": number;
     "teacherName": string;
     "totalSessions": number;
@@ -260,7 +644,7 @@ export interface TeacherWorkloadInfo {
     /**
      * 7 elements, sessions per day Mon-Sun
      */
-    "dailyDistribution": number[] | null;
+    "dailyDistribution": number[];
     "busyDays": number;
     "maxDaily": number;
 
@@ -274,4 +658,64 @@ export interface TeacherWorkloadInfo {
      */
     "balanceScore": number;
     "suggestion": string;
+
+    /** Creates a new TeacherWorkloadInfo instance. */
+    constructor($$source: Partial<TeacherWorkloadInfo> = {}) {
+        if (!("teacherId" in $$source)) {
+            this["teacherId"] = 0;
+        }
+        if (!("teacherName" in $$source)) {
+            this["teacherName"] = "";
+        }
+        if (!("totalSessions" in $$source)) {
+            this["totalSessions"] = 0;
+        }
+        if (!("dailyDistribution" in $$source)) {
+            this["dailyDistribution"] = [];
+        }
+        if (!("busyDays" in $$source)) {
+            this["busyDays"] = 0;
+        }
+        if (!("maxDaily" in $$source)) {
+            this["maxDaily"] = 0;
+        }
+        if (!("minDaily" in $$source)) {
+            this["minDaily"] = 0;
+        }
+        if (!("balanceScore" in $$source)) {
+            this["balanceScore"] = 0;
+        }
+        if (!("suggestion" in $$source)) {
+            this["suggestion"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TeacherWorkloadInfo instance from a string or object.
+     */
+    static createFrom($$source: any = {}): TeacherWorkloadInfo {
+        const $$createField3_0 = $$createType12;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("dailyDistribution" in $$parsedSource) {
+            $$parsedSource["dailyDistribution"] = $$createField3_0($$parsedSource["dailyDistribution"]);
+        }
+        return new TeacherWorkloadInfo($$parsedSource as Partial<TeacherWorkloadInfo>);
+    }
 }
+
+// Private type creation functions
+const $$createType0 = MoveConflict.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = ScoreBreakdown.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = $Create.Map($Create.Any, $Create.Any);
+const $$createType6 = ScheduleProgress.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = models$0.ScheduleSnapshot.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = TeacherSnapshotDiff.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $Create.Array($Create.Any);

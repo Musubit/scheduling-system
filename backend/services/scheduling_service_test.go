@@ -129,7 +129,7 @@ func TestLockedSlotsInBuildInitial(t *testing.T) {
 
 	solver := NewSASolver()
 	result := solver.Solve(tasks, teachers, classrooms, classGroups,
-		locked, []string{}, "2025-S2", config, nil, nil)
+		locked, []string{}, uint(1), config, nil, nil)
 
 	for _, e := range result.Entries {
 		if e.DayOfWeek == 0 || e.DayOfWeek == 1 {
