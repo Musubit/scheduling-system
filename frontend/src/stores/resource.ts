@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Teacher, Classroom, Course, ClassGroup, TeachingTask } from '@/types'
-import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups } from '../../bindings/scheduling-system/backend/services/resourceservice'
+import type { Teacher, Classroom, Course, ClassGroup, TeachingTask, Building } from '@/types'
+import { GetTeachers, GetClassrooms, GetCourses, GetClassGroups, GetBuildings } from '../../bindings/scheduling-system/backend/services/resourceservice'
 import { ListTeachingTasks } from '../../bindings/scheduling-system/backend/services/teachingtaskservice'
 import { useAppStore } from './app'
 
@@ -26,6 +26,7 @@ export const useResourceStore = defineStore('resource', () => {
 	  // ===== Data =====
 	  const teachers = ref<Teacher[]>([])
 	  const classrooms = ref<Classroom[]>([])
+	  const buildings = ref<Building[]>([])
 	  const courses = ref<Course[]>([])
 	  const classGroups = ref<ClassGroup[]>([])
 	  const teachingTasks = ref<TeachingTask[]>([])
@@ -90,16 +91,18 @@ export const useResourceStore = defineStore('resource', () => {
 	  async function loadAll() {
 	    isLoading.value = true
 	    try {
-	      const [t, c, co, cg] = await Promise.all([
+	      const [t, c, co, cg, b] = await Promise.all([
 	        GetTeachers(),
 	        GetClassrooms(),
 	        GetCourses(),
 	        GetClassGroups(),
+	        GetBuildings(),
 	      ])
 	      teachers.value = (t || []) as Teacher[]
 	      classrooms.value = (c || []) as Classroom[]
 	      courses.value = (co || []) as Course[]
 	      classGroups.value = (cg || []) as ClassGroup[]
+	      buildings.value = (b || []) as Building[]
 	    } catch (e) {
 	      console.warn('Failed to load resources from Go backend, using empty data:', e)
 	    } finally {
@@ -119,7 +122,7 @@ export const useResourceStore = defineStore('resource', () => {
 	    activeTab,
 	    isLoading,
 	    switchTab,
-	    teachers, classrooms, courses, classGroups, teachingTasks,
+	    teachers, classrooms, buildings, courses, classGroups, teachingTasks,
 	    filteredTeachers, filteredClassrooms, filteredCourses, filteredClasses, filteredTeachingTasks,
 	    teacherSearch, classroomSearch, courseSearch, classSearch, teachingTaskSearch,
 	    loadAll, loadTeachingTasks,

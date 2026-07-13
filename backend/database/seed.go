@@ -91,6 +91,47 @@ func seedDepartments(db DB) {
 	}
 }
 
+// hbutBuildings 代表性教学楼 seed（Stage B 最终闭环 B5-Final）。
+//
+// 覆盖 3 种 Building.Category：
+//   - teaching：1 教 / 2 教 / 3 教 / 5 教 A 区 / 5 教 B 区 / 7 教 A 区 / 7 教 B 区
+//   - lab     ：6 教实验楼 A 区 / 6 教实验楼 B 区
+//   - sports  ：中区操场 / 西区操场
+//
+// 不追求完整录入 —— 仅提供演示排课所需的最小教学楼多样性。
+// 编号 "1" / "5A" / "6A" 等格式是 HBUT 约定，解析规则位于 backend/adapters/hbut。
+var hbutBuildings = []models.Building{
+	{Code: "1", Name: "1 教", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "2", Name: "2 教", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "3", Name: "3 教", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "5A", Name: "5 教 A 区", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "5B", Name: "5 教 B 区", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "6A", Name: "6 教实验楼 A 区", Category: models.BuildingCategoryLab, Status: models.BuildingStatusActive},
+	{Code: "6B", Name: "6 教实验楼 B 区", Category: models.BuildingCategoryLab, Status: models.BuildingStatusActive},
+	{Code: "7A", Name: "7 教 A 区", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "7B", Name: "7 教 B 区", Category: models.BuildingCategoryTeaching, Status: models.BuildingStatusActive},
+	{Code: "FIELD_M", Name: "中区操场", Category: models.BuildingCategorySports, Status: models.BuildingStatusActive},
+	{Code: "FIELD_W", Name: "西区操场", Category: models.BuildingCategorySports, Status: models.BuildingStatusActive},
+}
+
+// seedBuildings 首次将代表性教学楼写入 buildings 表，FirstOrCreate by code 保证幂等。
+// 必须在 seedBaseData 中先于 Classrooms seed 调用，供 Classroom BuildingID FK 查找。
+//
+// Stage B B5-Final：先清理历史遗留的虚拟 "GYM" 教学楼（若存在），
+// 该 code 在早期开发 seed 中曾用于承载"体育馆"教室，B5-Final 后统一使用
+// 独立 sports Building（FIELD_M / FIELD_W）+ 场地本身作为 Classroom。
+func seedBuildings(db DB) {
+	// 清理旧 dev 数据库残留：GYM building 与其名下的 GYM_MAIN classroom。
+	// 幂等：不存在时无副作用。ScheduleEntry 中引用 GYM_MAIN 的行由 seedDemoEntries
+	// 的 code→ID 名称查找负责跳过（PE101 目标已切换到 MIDDLE_FIELD）。
+	_ = db.Where("code = ?", "GYM_MAIN").Delete(&models.Classroom{})
+	_ = db.Where("code = ?", "GYM").Delete(&models.Building{})
+
+	for _, b := range hbutBuildings {
+		_ = db.FirstOrCreate(&b, "code = ?", b.Code)
+	}
+}
+
 // seedBaseData seeds semesters, departments, teachers, classrooms, courses and class groups.
 // 幂等：所有 seed 使用 FirstOrCreate / seedIfAbsent。
 func seedBaseData(db DB) {
@@ -134,22 +175,74 @@ func seedBaseData(db DB) {
 	}
 	seedIfAbsent(db, teachers, "code", func(t models.Teacher) interface{} { return t.Code })
 
+	// ===== Buildings =====
+	// v0.5.5 Stage B: 首次将代表性教学楼写入 buildings 表；后续 Classrooms
+	// 通过 BuildingCode 查找 BuildingID FK。
+	seedBuildings(db)
+
 	// ===== Classrooms =====
-	// Stage A 保留虚构编号 + 中文 RoomType（延后至 Stage B 升级为真实教学楼 + 英文枚举）。
-	// F201 机房是本 Stage A 唯一新增（覆盖计算机课程需要）。
-	classrooms := []models.Classroom{
-		{Code: "A301", Name: "A301", Building: "A栋", Floor: 3, Capacity: 80, Type: "普通教室", Status: "available"},
-		{Code: "A201", Name: "A201", Building: "A栋", Floor: 2, Capacity: 90, Type: "普通教室", Status: "available"},
-		{Code: "B205", Name: "B205", Building: "B栋", Floor: 2, Capacity: 60, Type: "普通教室", Status: "available"},
-		{Code: "B108", Name: "B108", Building: "B栋", Floor: 1, Capacity: 100, Type: "多媒体教室", Status: "available"},
-		{Code: "B301", Name: "B301", Building: "B栋", Floor: 3, Capacity: 70, Type: "普通教室", Status: "available"},
-		{Code: "C301", Name: "C301", Building: "C栋", Floor: 3, Capacity: 100, Type: "多媒体教室", Status: "available"},
-		{Code: "C502", Name: "C502", Building: "C栋", Floor: 5, Capacity: 120, Type: "多媒体教室", Status: "available"},
-		{Code: "D102", Name: "D102", Building: "D栋", Floor: 1, Capacity: 80, Type: "普通教室", Status: "available"},
-		{Code: "D401", Name: "D401", Building: "D栋", Floor: 4, Capacity: 200, Type: "阶梯教室", Status: "available"},
-		{Code: "E101", Name: "E101", Building: "E栋", Floor: 1, Capacity: 50, Type: "实验室", Status: "available"},
-		{Code: "F201", Name: "F201", Building: "F栋", Floor: 2, Capacity: 50, Type: "机房", Status: "available"},
-		{Code: "GYM01", Name: "体育馆", Building: "体育馆", Floor: 1, Capacity: 300, Type: "体育馆", Status: "available"},
+	// v0.5.5 Stage B: 教室编号使用 HBUT 真实格式 "<BuildingCode>-<RoomNumber>"。
+	// 编号解析规则位于 backend/adapters/hbut，本处 seed 明文指定所有字段，
+	// **不调用 Parser**（保持 seed → Core 单向依赖）。
+	//
+	// 通过 buildingByCode 查找 BuildingID —— 禁止硬编码 FK。
+	buildingByCode := loadBuildingByCode(db)
+
+	type classroomSpec struct {
+		Code         string
+		Name         string
+		BuildingCode string
+		Floor        int
+		Number       string
+		Capacity     int
+		RoomType     string
+	}
+	classroomSpecs := []classroomSpec{
+		// 1 教（单区教学楼代表）
+		{"1-201", "1-201", "1", 2, "201", 90, models.RoomTypeNormal},
+		{"1-302", "1-302", "1", 3, "302", 80, models.RoomTypeNormal},
+		{"1-001", "1-001", "1", 0, "001", 200, models.RoomTypeLecture}, // floor=0 阶梯教室
+		// 2 教 / 3 教（单区教学楼补充演示；每栋 1 间代表性教室）
+		{"2-302", "2-302", "2", 3, "302", 80, models.RoomTypeNormal},
+		{"3-203", "3-203", "3", 2, "203", 90, models.RoomTypeMultimedia},
+		// 5A 教（分区楼 A 侧）
+		{"5A-102", "5A-102", "5A", 1, "102", 100, models.RoomTypeMultimedia},
+		{"5A-203", "5A-203", "5A", 2, "203", 60, models.RoomTypeNormal},
+		// 5B 教（分区楼 B 侧）
+		{"5B-301", "5B-301", "5B", 3, "301", 100, models.RoomTypeMultimedia},
+		{"5B-303", "5B-303", "5B", 3, "303", 70, models.RoomTypeNormal},
+		// 6A / 6B 教（实验楼分区；Building.Category=lab 但内部教室 RoomType 不受硬约束）
+		{"6A-213", "6A-213", "6A", 2, "213", 50, models.RoomTypeLab},
+		{"6A-422", "6A-422", "6A", 4, "422", 50, models.RoomTypeComputer}, // 实验楼里的机房：验证 Category 不硬约束 RoomType
+		{"6B-315", "6B-315", "6B", 3, "315", 50, models.RoomTypeLab},
+		// 7A / 7B 教（多分区教学楼补充演示）
+		{"7A-102", "7A-102", "7A", 1, "102", 80, models.RoomTypeNormal},
+		{"7B-502", "7B-502", "7B", 5, "502", 120, models.RoomTypeMultimedia},
+		// 体育教学资源（HBUT 户外操场：中区操场 + 西区操场；RoomType=GYM）
+		//
+		// Stage B B5-Final：不再引入 "GYM" 虚拟教学楼与 GYM_MAIN 教室 ——
+		// 体育资源统一为独立 Building（sports category）+ 场地本身作为 Classroom。
+		{"MIDDLE_FIELD", "中区操场", "FIELD_M", 1, "", 500, models.RoomTypeGym},
+		{"WEST_FIELD", "西区操场", "FIELD_W", 1, "", 500, models.RoomTypeGym},
+	}
+
+	classrooms := make([]models.Classroom, 0, len(classroomSpecs))
+	for _, s := range classroomSpecs {
+		building, ok := buildingByCode[s.BuildingCode]
+		if !ok {
+			log.Printf("Seed: building %q not found for classroom %q — skip", s.BuildingCode, s.Code)
+			continue
+		}
+		classrooms = append(classrooms, models.Classroom{
+			Code:       s.Code,
+			Name:       s.Name,
+			BuildingID: building.ID,
+			Floor:      s.Floor,
+			Number:     s.Number,
+			Capacity:   s.Capacity,
+			RoomType:   s.RoomType,
+			Status:     "available",
+		})
 	}
 	seedIfAbsent(db, classrooms, "code", func(c models.Classroom) interface{} { return c.Code })
 
@@ -330,21 +423,21 @@ func seedDemoEntries(db DB) {
 
 	entries := []entrySpec{
 		// ---- Monday ----
-		{"CS301", "T006", "D102", 0, 0, 2},   // 1-2 节
-		{"ME201", "T001", "D401", 0, 2, 2},   // 3-4 节（大班优先阶梯）
-		{"EE201", "T002", "A201", 0, 4, 2},   // 5-6 节
-		{"SC201", "T013", "D401", 0, 6, 2},   // 7-8 节（合班）
+		{"CS301", "T006", "7A-102", 0, 0, 2}, // 1-2 节 · 计算机 数据结构 · 7A 普通
+		{"ME201", "T001", "1-001", 0, 2, 2},  // 3-4 节 · 机械设计 · 1 教阶梯（大班）
+		{"EE201", "T002", "1-201", 0, 4, 2},  // 5-6 节 · 电路原理 · 1 教普通
+		{"SC201", "T013", "1-001", 0, 6, 2},  // 7-8 节 · 高等数学 · 1 教阶梯（合班）
 		// ---- Tuesday ----
-		{"CE201", "T005", "C301", 1, 0, 2},   // 1-2 节
-		{"EM201", "T010", "A301", 1, 2, 2},   // 3-4 节
-		{"AD201", "T007", "C502", 1, 4, 2},   // 5-6 节
+		{"CE201", "T005", "5B-301", 1, 0, 2}, // 1-2 节 · 结构力学 · 5B 多媒体
+		{"EM201", "T010", "1-302", 1, 2, 2},  // 3-4 节 · 西方经济学 · 1 教普通
+		{"AD201", "T007", "7B-502", 1, 4, 2}, // 5-6 节 · 设计素描 · 7B 多媒体
 		// ---- Wednesday ----
-		{"LS201", "T004", "E101", 2, 0, 2},   // 1-2 节（实验室）
-		{"ID201", "T009", "B205", 2, 2, 2},   // 3-4 节
-		{"FL101", "T012", "B108", 2, 4, 2},   // 5-6 节
+		{"LS201", "T004", "6A-213", 2, 0, 2}, // 1-2 节 · 生物化学 · 6A 实验室
+		{"ID201", "T009", "5A-203", 2, 2, 2}, // 3-4 节 · 产品设计 · 5A 普通
+		{"FL101", "T012", "5A-102", 2, 4, 2}, // 5-6 节 · 大学英语 · 5A 多媒体
 		// ---- Thursday ----
-		{"ET201", "T019", "F201", 3, 0, 2},   // 1-2 节（机房，工程实践）
-		{"PE101", "T014", "GYM01", 3, 2, 2},  // 3-4 节（合班，体育馆）
+		{"ET201", "T019", "6A-422", 3, 0, 2}, // 1-2 节 · 应用型工程实践 · 6A 机房
+		{"PE101", "T014", "MIDDLE_FIELD", 3, 2, 2}, // 3-4 节 · 体育(篮球) · 中区操场（合班）
 	}
 
 	rows := make([]models.ScheduleEntry, 0, len(entries))
@@ -410,6 +503,16 @@ func loadGroupByCode(db DB) map[string]models.ClassGroup {
 	out := make(map[string]models.ClassGroup, len(groups))
 	for _, g := range groups {
 		out[g.Code] = g
+	}
+	return out
+}
+
+func loadBuildingByCode(db DB) map[string]models.Building {
+	var buildings []models.Building
+	db.Find(&buildings)
+	out := make(map[string]models.Building, len(buildings))
+	for _, b := range buildings {
+		out[b.Code] = b
 	}
 	return out
 }

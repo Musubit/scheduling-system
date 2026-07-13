@@ -9,11 +9,11 @@ import (
 // ============ InferRoomType() ============
 
 func TestInferRoomType_Explicit(t *testing.T) {
-	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLectureHall}
+	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLecture}
 	course := models.Course{Category: models.CategoryLab}
 	rt := InferRoomType(task, course)
-	if rt != models.RoomTypeLectureHall {
-		t.Errorf("expected %s, got %s", models.RoomTypeLectureHall, rt)
+	if rt != models.RoomTypeLecture {
+		t.Errorf("expected %s, got %s", models.RoomTypeLecture, rt)
 	}
 }
 
@@ -21,8 +21,8 @@ func TestInferRoomType_Category_PE(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Category: models.CategoryPE}
 	rt := InferRoomType(task, course)
-	if rt != models.RoomTypeGymnasium {
-		t.Errorf("expected %s, got %s", models.RoomTypeGymnasium, rt)
+	if rt != models.RoomTypeGym {
+		t.Errorf("expected %s, got %s", models.RoomTypeGym, rt)
 	}
 }
 
@@ -66,8 +66,8 @@ func TestInferRoomType_NameFallback_PE(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Name: "体育"}
 	rt := InferRoomType(task, course)
-	if rt != models.RoomTypeGymnasium {
-		t.Errorf("expected %s, got %s", models.RoomTypeGymnasium, rt)
+	if rt != models.RoomTypeGym {
+		t.Errorf("expected %s, got %s", models.RoomTypeGym, rt)
 	}
 }
 
@@ -108,46 +108,46 @@ func TestInferRoomType_EmptyName(t *testing.T) {
 }
 
 func TestInferRoomType_Explicit_Overrides_Category(t *testing.T) {
-	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLectureHall}
+	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLecture}
 	course := models.Course{Category: models.CategoryLab}
 	rt := InferRoomType(task, course)
-	if rt != models.RoomTypeLectureHall {
-		t.Errorf("explicit should override category, expected %s, got %s", models.RoomTypeLectureHall, rt)
+	if rt != models.RoomTypeLecture {
+		t.Errorf("explicit should override category, expected %s, got %s", models.RoomTypeLecture, rt)
 	}
 }
 
 // ============ IsSharedVenue() ============
 
 func TestIsSharedVenue_Gymnasium(t *testing.T) {
-	room := models.Classroom{Type: models.RoomTypeGymnasium}
+	room := models.Classroom{RoomType: models.RoomTypeGym}
 	if !IsSharedVenue(room) {
 		t.Error("expected gymnasium to be shared")
 	}
 }
 
 func TestIsSharedVenue_Standard(t *testing.T) {
-	room := models.Classroom{Type: models.RoomTypeStandard}
+	room := models.Classroom{RoomType: models.RoomTypeNormal}
 	if IsSharedVenue(room) {
 		t.Error("expected standard to NOT be shared")
 	}
 }
 
 func TestIsSharedVenue_Lab(t *testing.T) {
-	room := models.Classroom{Type: models.RoomTypeLab}
+	room := models.Classroom{RoomType: models.RoomTypeLab}
 	if IsSharedVenue(room) {
 		t.Error("expected lab to NOT be shared")
 	}
 }
 
 func TestIsSharedVenue_Multimedia(t *testing.T) {
-	room := models.Classroom{Type: models.RoomTypeMultimedia}
+	room := models.Classroom{RoomType: models.RoomTypeMultimedia}
 	if IsSharedVenue(room) {
 		t.Error("expected multimedia to NOT be shared")
 	}
 }
 
 func TestIsSharedVenue_Empty(t *testing.T) {
-	room := models.Classroom{Type: ""}
+	room := models.Classroom{RoomType: ""}
 	if IsSharedVenue(room) {
 		t.Error("expected empty type to NOT be shared")
 	}
@@ -159,17 +159,17 @@ func TestAllowedRooms_Lab_OnlyLabMatches(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Category: models.CategoryLab}
 	rooms := []models.Classroom{
-		{Type: models.RoomTypeLab},
-		{Type: models.RoomTypeStandard},
-		{Type: models.RoomTypeGymnasium},
-		{Type: models.RoomTypeComputer},
+		{RoomType: models.RoomTypeLab},
+		{RoomType: models.RoomTypeNormal},
+		{RoomType: models.RoomTypeGym},
+		{RoomType: models.RoomTypeComputer},
 	}
 	out := AllowedRooms(task, course, rooms)
 	if len(out) != 1 {
 		t.Errorf("expected 1, got %d", len(out))
 	}
-	if out[0].Type != models.RoomTypeLab {
-		t.Errorf("expected lab, got %s", out[0].Type)
+	if out[0].RoomType != models.RoomTypeLab {
+		t.Errorf("expected lab, got %s", out[0].RoomType)
 	}
 }
 
@@ -177,12 +177,12 @@ func TestAllowedRooms_Theory_ExcludesSpecialty(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Category: models.CategoryTheory}
 	rooms := []models.Classroom{
-		{Type: models.RoomTypeStandard},
-		{Type: models.RoomTypeMultimedia},
-		{Type: models.RoomTypeLectureHall},
-		{Type: models.RoomTypeLab},
-		{Type: models.RoomTypeGymnasium},
-		{Type: models.RoomTypeComputer},
+		{RoomType: models.RoomTypeNormal},
+		{RoomType: models.RoomTypeMultimedia},
+		{RoomType: models.RoomTypeLecture},
+		{RoomType: models.RoomTypeLab},
+		{RoomType: models.RoomTypeGym},
+		{RoomType: models.RoomTypeComputer},
 	}
 	out := AllowedRooms(task, course, rooms)
 	if len(out) != 3 {
@@ -194,11 +194,11 @@ func TestAllowedRooms_NoRequirement_ExcludesSpecialty(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Name: "高等数学"}
 	rooms := []models.Classroom{
-		{Type: models.RoomTypeStandard},
-		{Type: models.RoomTypeMultimedia},
-		{Type: models.RoomTypeLab},
-		{Type: models.RoomTypeGymnasium},
-		{Type: models.RoomTypeComputer},
+		{RoomType: models.RoomTypeNormal},
+		{RoomType: models.RoomTypeMultimedia},
+		{RoomType: models.RoomTypeLab},
+		{RoomType: models.RoomTypeGym},
+		{RoomType: models.RoomTypeComputer},
 	}
 	out := AllowedRooms(task, course, rooms)
 	if len(out) != 2 {
@@ -207,19 +207,19 @@ func TestAllowedRooms_NoRequirement_ExcludesSpecialty(t *testing.T) {
 }
 
 func TestAllowedRooms_Explicit_LectureHall(t *testing.T) {
-	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLectureHall}
+	task := models.TeachingTask{RequiredRoomType: models.RoomTypeLecture}
 	course := models.Course{Category: models.CategoryLab}
 	rooms := []models.Classroom{
-		{Type: models.RoomTypeStandard},
-		{Type: models.RoomTypeLectureHall},
-		{Type: models.RoomTypeLab},
+		{RoomType: models.RoomTypeNormal},
+		{RoomType: models.RoomTypeLecture},
+		{RoomType: models.RoomTypeLab},
 	}
 	out := AllowedRooms(task, course, rooms)
 	if len(out) != 1 {
 		t.Errorf("expected 1, got %d", len(out))
 	}
-	if out[0].Type != models.RoomTypeLectureHall {
-		t.Errorf("expected lecture hall, got %s", out[0].Type)
+	if out[0].RoomType != models.RoomTypeLecture {
+		t.Errorf("expected lecture hall, got %s", out[0].RoomType)
 	}
 }
 
@@ -250,8 +250,8 @@ func TestExplainRequirement_Category(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Category: models.CategoryPE}
 	req := ExplainRequirement(task, course)
-	if req.RoomType != models.RoomTypeGymnasium {
-		t.Errorf("expected %s, got %s", models.RoomTypeGymnasium, req.RoomType)
+	if req.RoomType != models.RoomTypeGym {
+		t.Errorf("expected %s, got %s", models.RoomTypeGym, req.RoomType)
 	}
 	if req.RoomTypeSource != "category" {
 		t.Errorf("expected category, got %s", req.RoomTypeSource)
@@ -262,8 +262,8 @@ func TestExplainRequirement_NameFallback(t *testing.T) {
 	task := models.TeachingTask{}
 	course := models.Course{Name: "体育"}
 	req := ExplainRequirement(task, course)
-	if req.RoomType != models.RoomTypeGymnasium {
-		t.Errorf("expected %s, got %s", models.RoomTypeGymnasium, req.RoomType)
+	if req.RoomType != models.RoomTypeGym {
+		t.Errorf("expected %s, got %s", models.RoomTypeGym, req.RoomType)
 	}
 	if req.RoomTypeSource != "name_fallback" {
 		t.Errorf("expected name_fallback, got %s", req.RoomTypeSource)
@@ -324,7 +324,7 @@ func TestExplainMismatch_RoomTypeMismatch(t *testing.T) {
 		OK:           false,
 		Code:         CodeRoomTypeMismatch,
 		RequiredType: models.RoomTypeLab,
-		ActualType:   models.RoomTypeStandard,
+		ActualType:   models.RoomTypeNormal,
 	}
 	s := ExplainMismatch(r)
 	if s == "" {
@@ -333,8 +333,8 @@ func TestExplainMismatch_RoomTypeMismatch(t *testing.T) {
 	if !contains(s, models.RoomTypeLab) {
 		t.Errorf("expected to contain %s, got %s", models.RoomTypeLab, s)
 	}
-	if !contains(s, models.RoomTypeStandard) {
-		t.Errorf("expected to contain %s, got %s", models.RoomTypeStandard, s)
+	if !contains(s, models.RoomTypeNormal) {
+		t.Errorf("expected to contain %s, got %s", models.RoomTypeNormal, s)
 	}
 }
 

@@ -55,23 +55,23 @@ func Match(task models.TeachingTask, course models.Course, room models.Classroom
 	// 1. 教室类型检查
 	reqType := InferRoomType(task, course)
 	if reqType != "" {
-		if room.Type != reqType {
+		if room.RoomType != reqType {
 			return MatchResult{
 				OK:           false,
 				Code:         CodeRoomTypeMismatch,
-				Reason:       fmt.Sprintf("需要%s，当前教室为%s", reqType, room.Type),
+				Reason:       fmt.Sprintf("需要%s，当前教室为%s", reqType, room.RoomType),
 				RequiredType: reqType,
-				ActualType:   room.Type,
+				ActualType:   room.RoomType,
 			}
 		}
 	} else {
 		// 无显式需求 — 检查排他教室
-		if models.SpecialtyRoomTypes[room.Type] {
+		if models.SpecialtyRoomTypes[room.RoomType] {
 			return MatchResult{
 				OK:         false,
 				Code:       CodeSpecialtyExclusion,
-				Reason:     fmt.Sprintf("普通课程不能使用%s", room.Type),
-				ActualType: room.Type,
+				Reason:     fmt.Sprintf("普通课程不能使用%s", room.RoomType),
+				ActualType: room.RoomType,
 			}
 		}
 	}
@@ -122,7 +122,7 @@ func InferRoomType(task models.TeachingTask, course models.Course) string {
 // 新代码不应依赖此函数，应通过 Course.Category 或 task.RequiredRoomType 指定。
 func inferRoomTypeByName(courseName string) string {
 	if models.IsSportsCourse(courseName) {
-		return models.RoomTypeGymnasium
+		return models.RoomTypeGym
 	}
 	if IsLabCourse(courseName) {
 		return models.RoomTypeLab
@@ -135,7 +135,7 @@ func inferRoomTypeByName(courseName string) string {
 
 // IsSharedVenue 判断教室是否为共享场地（允许多课程并发使用）。
 func IsSharedVenue(room models.Classroom) bool {
-	return models.SharedVenueTypes[room.Type]
+	return models.SharedVenueTypes[room.RoomType]
 }
 
 // AllowedRooms 从候选列表中筛选出所有匹配的教室。
