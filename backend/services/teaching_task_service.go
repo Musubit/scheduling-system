@@ -8,7 +8,8 @@ import (
 	"scheduling-system/backend/models"
 )
 
-// TeachingTaskService handles CRUD and intelligent detection for teaching tasks.
+// TeachingTaskService handles CRUD, import/export for teaching tasks.
+// v0.5.4: 自动智能合班能力已移除；多班绑定仅通过显式创建/更新/导入完成。
 type TeachingTaskService struct {
 	db database.DB
 }
@@ -114,70 +115,6 @@ func (s *TeachingTaskService) GetTeachingTask(id uint) (*models.TeachingTask, er
 		return nil, err
 	}
 	return &task, nil
-}
-
-// ===== Intelligent Detection =====
-
-// MergeableGroup represents a group of teaching tasks that could be merged
-// (same course name + same teacher).
-type MergeableGroup struct {
-	CourseName  string              `json:"courseName"`
-	TeacherName string              `json:"teacherName"`
-	Tasks       []models.TeachingTask `json:"tasks"`
-	ClassGroups []models.ClassGroup   `json:"classGroups"` // all classes across the group
-}
-
-// DetectMergeableTasks scans teaching tasks for the same semester and finds groups
-// that share the same course name and teacher, suggesting they could be merged
-// into a combined class offering.
-func (s *TeachingTaskService) DetectMergeableTasks(semesterID uint) ([]MergeableGroup, error) {
-	allTasks, err := s.ListTeachingTasks(semesterID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Group by (courseName, teacherID)
-	type key struct {
-		courseName string
-		teacherID  uint
-	}
-	groups := make(map[key][]models.TeachingTask)
-	for _, t := range allTasks {
-		// Load course and teacher if not preloaded
-		if t.Course.ID == 0 {
-			s.db.First(&t.Course, t.CourseID)
-		}
-		if t.Teacher.ID == 0 {
-			s.db.First(&t.Teacher, t.TeacherID)
-		}
-		k := key{courseName: t.Course.Name, teacherID: t.TeacherID}
-		groups[k] = append(groups[k], t)
-	}
-
-	var result []MergeableGroup
-	for k, tasks := range groups {
-		if len(tasks) < 2 {
-			continue // only suggest merging when there are 2+ tasks
-		}
-
-		mg := MergeableGroup{
-			CourseName:  k.courseName,
-			TeacherName: tasks[0].Teacher.Name,
-			Tasks:       tasks,
-		}
-		// Collect all class groups across tasks
-		seen := make(map[uint]bool)
-		for _, t := range tasks {
-			for _, c := range t.Classes {
-				if !seen[c.ClassGroupID] {
-					seen[c.ClassGroupID] = true
-					mg.ClassGroups = append(mg.ClassGroups, c.ClassGroup)
-				}
-			}
-		}
-		result = append(result, mg)
-	}
-	return result, nil
 }
 
 // ===== Import / Export =====
@@ -331,80 +268,5 @@ func (s *TeachingTaskService) ExportTeachingTasks(semesterID uint) ([][]string, 
 	return rows, nil
 }
 
-// SplitMergedTeachingTask splits a merged teaching task (one task covering
-// multiple class groups) into individual single-class teaching tasks.
-// Existing schedule entries are reassigned to the new task whose single class
-// matches the entry's ClassGroupID (entries without a class match are attached
-// to the first new task). The original merged task is then removed.
-// Returns the number of new single-class tasks created.
-func (s *TeachingTaskService) SplitMergedTeachingTask(taskID uint) (int, error) {
-	var task models.TeachingTask
-	if err := s.db.Preload("Classes").Preload("Classes.ClassGroup").First(&task, taskID).Error(); err != nil {
-		return 0, fmt.Errorf("教学任务不存在: %w", err)
-	}
-	if len(task.Classes) < 2 {
-		return 0, fmt.Errorf("该教学任务仅含 %d 个班级，无需拆班", len(task.Classes))
-	}
-
-	// Existing schedule entries that reference this merged task.
-	var entries []models.ScheduleEntry
-	s.db.Where("teaching_task_id = ?", taskID).Find(&entries)
-
-	created := 0
-	err := s.db.Transaction(func(tx database.DB) error {
-		newTaskByClass := make(map[uint]uint)
-		firstNewTaskID := uint(0)
-		for _, tc := range task.Classes {
-			cgID := tc.ClassGroupID
-			newTask := models.TeachingTask{
-				CourseID:        task.CourseID,
-				TeacherID:       task.TeacherID,
-				SemesterID:      task.SemesterID,
-				Status:          task.Status,
-				TotalHours:      task.TotalHours,
-				StartWeek:       task.StartWeek,
-				EndWeek:         task.EndWeek,
-				MaxHoursPerWeek: task.MaxHoursPerWeek,
-			}
-			if err := tx.Create(&newTask).Error(); err != nil {
-				return err
-			}
-			if err := tx.Create(&models.TeachingTaskClass{TeachingTaskID: newTask.ID, ClassGroupID: cgID}).Error(); err != nil {
-				return err
-			}
-			newTaskByClass[cgID] = newTask.ID
-			if firstNewTaskID == 0 {
-				firstNewTaskID = newTask.ID
-			}
-			created++
-		}
-
-		// Reassign each existing entry to the matching new single-class task.
-		for i := range entries {
-			e := entries[i]
-			targetID := firstNewTaskID
-			if e.ClassGroupID != nil {
-				if id, ok := newTaskByClass[*e.ClassGroupID]; ok {
-					targetID = id
-				}
-			}
-			e.TeachingTaskID = &targetID
-			if err := tx.Save(&e).Error(); err != nil {
-				return err
-			}
-		}
-
-		// Remove the original merged task and its class associations.
-		if err := tx.Delete(&models.TeachingTaskClass{}, "teaching_task_id = ?", taskID).Error(); err != nil {
-			return err
-		}
-		if err := tx.Delete(&models.TeachingTask{}, taskID).Error(); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return created, nil
-}
+// SplitMergedTeachingTask 已于 v0.5.4 移除。
+// 若需要拆分手动多班任务，请在 UI 中删除该任务后重新按单班分别创建。

@@ -44,21 +44,6 @@ export interface CheckMoveResult {
 }
 
 /**
- * MergeableGroup represents a group of teaching tasks that could be merged
- * (same course name + same teacher).
- */
-export interface MergeableGroup {
-    "courseName": string;
-    "teacherName": string;
-    "tasks": models$0.TeachingTask[] | null;
-
-    /**
-     * all classes across the group
-     */
-    "classGroups": models$0.ClassGroup[] | null;
-}
-
-/**
  * MoveAndScoreResult is the output of MoveEntryAndScore.
  */
 export interface MoveAndScoreResult {
@@ -192,6 +177,22 @@ export interface ScoreBreakdown {
     "studentFatigue": number;
     "perCategoryMax": number;
     "enabledCategoryCount": number;
+
+    /**
+     * v0.5.2: placement completeness fields.
+     * Total keeps its v0.4 semantics (sum of 7 soft-constraint categories).
+     * FinalTotal is Total scaled by a completeness factor so under-placed schedules
+     * receive a lower published score. When ExpectedSessions==0 or PlacedSessions
+     * equals it, FinalTotal == Total (v0.4-compatible round-trip).
+     */
+    "placedSessions"?: number;
+    "expectedSessions"?: number;
+
+    /**
+     * ratio in [0,1]
+     */
+    "completeness"?: number;
+    "finalTotal": number;
 }
 
 /**
@@ -204,6 +205,8 @@ export interface ScoreBreakdown {
  * 	v1 — initial version with 7 soft constraints (teacher_preference,
  * 	      course_dispersed, teacher_days_limit, low_floor_preference,
  * 	      avoid_saturday/avoid_sunday, pe_preferred_periods, student_fatigue)
+ * 	v2 — v0.5.2: added ExpectedTotalSessions for placement-completeness scaling
+ * 	      of FinalTotal. Total field semantics unchanged (Stable Core compat).
  */
 export interface ScoringContext {
     "version": number;

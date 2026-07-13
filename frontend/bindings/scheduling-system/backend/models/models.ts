@@ -56,6 +56,11 @@ export interface Classroom {
      */
     "type": string;
     "status": string;
+
+    /**
+     * +v0.5.3: 设备列表 JSON array，如 ["projector","smartboard","aircon"]
+     */
+    "equipment": string;
 }
 
 /**
@@ -81,6 +86,11 @@ export interface Course {
      * active, inactive
      */
     "status": string;
+
+    /**
+     * +v0.5.3: 课程类别，用于资源匹配。空值=由名称推断(兼容, Deprecated)。
+     */
+    "category": string;
 }
 
 /**
@@ -253,6 +263,18 @@ export interface ScheduleSnapshot {
     "solver": string;
     "perCategoryMax": number;
     "enabledCategoryCount": number;
+
+    /**
+     * v0.5.2: placement completeness (append-only, Stable Core preserving).
+     * FinalScore is the completeness-scaled published score (Total × completeness curve).
+     * PlacedSessions / ExpectedSessions / Completeness expose the underlying ratio
+     * used by the ScoreBreakdown at snapshot time.
+     * Legacy snapshots (v0.4) leave these at zero — TotalScore keeps its meaning.
+     */
+    "finalScore": number;
+    "placedSessions": number;
+    "expectedSessions": number;
+    "completeness": number;
 
     /**
      * Linked details
@@ -456,6 +478,23 @@ export interface TeachingTask {
      * 周最大学时（0=不限）
      */
     "maxHoursPerWeek": number;
+
+    /**
+     * v0.5.1: single-session span preference (HBUT). 0 = 不指定, 1/2/3 = 强制单次连排节次.
+     * When >0 and legal under IsSpanLegal for at least one start, overrides the
+     * hour-derived default from resolveSessionPlan. Illegal values fall back silently.
+     */
+    "preferredSpan": number;
+
+    /**
+     * +v0.5.3: 显式指定教室类型。空=由 Course.Category 推导。
+     */
+    "requiredRoomType": string;
+
+    /**
+     * +v0.5.3: 显式指定所需设备 JSON array，如 ["projector"]
+     */
+    "requiredEquipment": string;
 
     /**
      * Associations

@@ -23,8 +23,7 @@ onMounted(async () => {
 
 const tabLabels: Record<string, string> = { teacher: '教师', classroom: '教室', course: '课程', class: '班级', teachingTask: '教学任务' }
 
-// ===== 教学任务状态 =====
-const mergeableGroups = ref<any[]>([])
+// v0.5.4: 智能合班/拆班能力已移除。教学任务的多班绑定仅通过编辑表单或 Excel 导入完成。
 
 // Reactive search - switches store ref based on active tab
 const searchText = computed({
@@ -389,10 +388,7 @@ const actionRender = (row: any) => {
   const buttons = [
     h(NButton, { size: 'tiny', text: true, onClick: () => openEdit(row) }, { default: () => '编辑' }),
   ]
-  // 拆班：仅对含多个班级的教学任务显示
-  if (resourceStore.activeTab === 'teachingTask' && (row.classes?.length ?? 0) > 1) {
-    buttons.push(h(NButton, { size: 'tiny', text: true, type: 'warning', onClick: () => splitMerged(row) }, { default: () => '拆班' }))
-  }
+  // v0.5.4: 拆班按钮已移除。多班任务如需拆分，请删除后手动重建。
   buttons.push(h(NButton, { size: 'tiny', text: true, type: 'error', onClick: () => deleteItem(row) }, { default: () => '删除' }))
   return h(NSpace, { size: 'small' }, { default: () => buttons })
 }
@@ -412,62 +408,9 @@ const teachingTaskCols = [
   { key: 'actions', width: 140, render: actionRender },
 ]
 
-// ===== 智能检测合班 =====
-async function handleDetectMerge() {
-  if (!appStore.currentSemesterId) {
-    message.warning('请先在设置中激活一个学期')
-    return
-  }
-  try {
-    mergeableGroups.value = await TS.DetectMergeableTasks(appStore.currentSemesterId) || []
-    if (mergeableGroups.value.length === 0) {
-      message.info('未发现可合班的教学任务')
-    } else {
-      message.success(`发现 ${mergeableGroups.value.length} 组可合班方案`)
-    }
-  } catch (e) {
-    message.error('检测失败：' + (e as any).message)
-  }
-}
-
-async function handleConfirmMerge(group: any) {
-  // Group contains tasks array and classGroups array
-  // We merge by keeping the first task and deleting the rest, updating classes
-  if (!group.tasks || group.tasks.length < 2) return
-  try {
-    const firstTask = group.tasks[0]
-    const allClassIds = group.classGroups.map((c: any) => c.ID)
-    await TS.UpdateTeachingTask(firstTask.ID, {
-      courseId: firstTask.courseId,
-      teacherId: firstTask.teacherId,
-      semesterId: firstTask.semesterId,
-      status: 'active',
-      totalHours: firstTask.totalHours || 0, startWeek: firstTask.startWeek || 1,
-      endWeek: firstTask.endWeek || 16, maxHoursPerWeek: firstTask.maxHoursPerWeek || 0,
-    } as any, allClassIds)
-    // Delete remaining tasks
-    for (let i = 1; i < group.tasks.length; i++) {
-      await TS.DeleteTeachingTask(group.tasks[i].ID)
-    }
-    message.success('合班完成')
-    mergeableGroups.value = []
-    if (appStore.currentSemesterId) resourceStore.loadTeachingTasks(appStore.currentSemesterId)
-  } catch (e) {
-    message.error('合班失败：' + (e as any).message)
-  }
-}
-
-// 拆班：将合班教学任务拆分为多个单班任务
-async function splitMerged(row: any) {
-  if (!row || !row.ID) return
-  try {
-    const created = await TS.SplitMergedTeachingTask(row.ID)
-    message.success(`拆班成功，已拆分为 ${created} 个单班教学任务`)
-    if (appStore.currentSemesterId) resourceStore.loadTeachingTasks(appStore.currentSemesterId)
-  } catch (e) {
-    message.error('拆班失败：' + (e as any).message)
-  }
-}
+// v0.5.4: 已移除 handleDetectMerge / handleConfirmMerge / splitMerged 三个函数
+// 及其对应后端 API（DetectMergeableTasks / SplitMergedTeachingTask）。
+// 多班任务只能通过编辑表单里的班级多选或 Excel 导入手动创建。
 
 // 教学任务表单选项（组件级 ref，替代 window 全局变量）
 const ttCourseOptions = ref<{ label: string; value: number }[]>([])
@@ -722,7 +665,6 @@ function downloadTemplate() {
       <n-button size="small" type="primary" @click="openCreate()">+ 新增</n-button>
       <n-button size="small" @click="triggerImport()">导入Excel</n-button>
       <n-button size="small" @click="downloadTemplate()">下载模板</n-button>
-      <n-button v-if="resourceStore.activeTab === 'teachingTask'" size="small" type="warning" @click="handleDetectMerge()">智能检测合班</n-button>
       <n-button size="small" type="error" :loading="clearing" @click="clearAll()">一键清空</n-button>
       <input ref="importFileRef" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileChange" />
     </div>
@@ -734,16 +676,9 @@ function downloadTemplate() {
 	      <n-data-table v-else-if="resourceStore.activeTab === 'class'" :columns="classCols" :data="resourceStore.filteredClasses" :single-line="false" size="small" />
 		      <div v-else-if="resourceStore.activeTab === 'teachingTask'" class="teaching-task-area">
 		        <div class="semester-banner">当前学期：<strong>{{ appStore.currentSemesterName }}</strong></div>
-		        <!-- 智能检测面板 -->
-	        <div v-if="mergeableGroups.length > 0" class="merge-panel">
-	          <div class="merge-panel-title">💡 检测到可合班教学任务</div>
-	          <div v-for="(g, gi) in mergeableGroups" :key="gi" class="merge-item">
-	            <span class="merge-info">{{ g.courseName }} — {{ g.teacherName }}（{{ g.classGroups.length }}个班）</span>
-	            <n-button size="tiny" type="primary" @click="handleConfirmMerge(g)">一键合班</n-button>
-	          </div>
-	        </div>
-	        <n-data-table :columns="teachingTaskCols" :data="resourceStore.filteredTeachingTasks" :single-line="false" size="small" />
-	      </div>
+		        <!-- v0.5.4: 智能检测合班面板已移除 -->
+		        <n-data-table :columns="teachingTaskCols" :data="resourceStore.filteredTeachingTasks" :single-line="false" size="small" />
+		      </div>
 	    </div>
 
     <!-- Form Modal -->
@@ -827,35 +762,6 @@ function downloadTemplate() {
 
 .semester-banner strong {
   color: var(--b3-theme-primary);
-}
-
-.merge-panel {
-  background: var(--b3-warning-lightest, #fff8e1);
-  border: 1px solid var(--b3-warning, #ff9800);
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
-.merge-panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.merge-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 0;
-  border-top: 1px solid var(--b3-border-color, #e0e0e0);
-}
-
-.merge-item:first-child {
-  border-top: none;
-}
-
-.merge-info {
-  font-size: 13px;
 }
 
 /* ===== 不可用时间网格 ===== */
