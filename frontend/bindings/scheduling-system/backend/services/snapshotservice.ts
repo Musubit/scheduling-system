@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -22,10 +22,8 @@ import * as $models from "./models.js";
  * AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
  * Pure post-hoc analysis — does not affect scoring or solver behaviour.
  */
-export function AnalyzeTeacherWorkload(semesterID: number): $CancellablePromise<$models.TeacherWorkloadInfo[]> {
-    return $Call.ByID(2269459629, semesterID).then(($result: any) => {
-        return $$createType1($result);
-    });
+export function AnalyzeTeacherWorkload(semesterID: number): $CancellablePromise<$models.TeacherWorkloadInfo[] | null> {
+    return $Call.ByID(2269459629, semesterID);
 }
 
 /**
@@ -33,9 +31,7 @@ export function AnalyzeTeacherWorkload(semesterID: number): $CancellablePromise<
  * (A = baseline, B = comparison target).
  */
 export function CompareSnapshots(aID: number, bID: number): $CancellablePromise<$models.SnapshotCompareResult | null> {
-    return $Call.ByID(4235514270, aID, bID).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(4235514270, aID, bID);
 }
 
 /**
@@ -43,18 +39,14 @@ export function CompareSnapshots(aID: number, bID: number): $CancellablePromise<
  * It reads EnabledConstraints from the latest auto-snapshot (falling back to full defaults).
  */
 export function CreateManualSnapshot(semesterID: number): $CancellablePromise<models$0.ScheduleSnapshot | null> {
-    return $Call.ByID(299046732, semesterID).then(($result: any) => {
-        return $$createType5($result);
-    });
+    return $Call.ByID(299046732, semesterID);
 }
 
 /**
  * CreateSnapshot generates a snapshot from a scheduling result.
  */
-export function CreateSnapshot(semesterID: number, dept: string, trigger: string, solver: string, entries: models$0.ScheduleEntry[], teachers: models$0.Teacher[], classrooms: models$0.Classroom[], scoringCtx: $models.ScoringContext, solveTimeMs: number, conflictCount: number): $CancellablePromise<models$0.ScheduleSnapshot | null> {
-    return $Call.ByID(1676786010, semesterID, dept, trigger, solver, entries, teachers, classrooms, scoringCtx, solveTimeMs, conflictCount).then(($result: any) => {
-        return $$createType5($result);
-    });
+export function CreateSnapshot(semesterID: number, dept: string, trigger: string, solver: string, entries: models$0.ScheduleEntry[] | null, teachers: models$0.Teacher[] | null, classrooms: models$0.Classroom[] | null, scoringCtx: $models.ScoringContext, solveTimeMs: number, conflictCount: number): $CancellablePromise<models$0.ScheduleSnapshot | null> {
+    return $Call.ByID(1676786010, semesterID, dept, trigger, solver, entries, teachers, classrooms, scoringCtx, solveTimeMs, conflictCount);
 }
 
 /**
@@ -68,19 +60,15 @@ export function DeleteSnapshot(id: number): $CancellablePromise<void> {
  * GetSnapshotWithDetails returns a single snapshot with its details preloaded.
  */
 export function GetSnapshotWithDetails(id: number): $CancellablePromise<models$0.ScheduleSnapshot | null> {
-    return $Call.ByID(769250772, id).then(($result: any) => {
-        return $$createType5($result);
-    });
+    return $Call.ByID(769250772, id);
 }
 
 /**
  * GetSnapshots returns all snapshots for a semester.
  * Backfills Name for legacy snapshots that were created before the Name field existed.
  */
-export function GetSnapshots(semesterID: number): $CancellablePromise<models$0.ScheduleSnapshot[]> {
-    return $Call.ByID(3410442531, semesterID).then(($result: any) => {
-        return $$createType6($result);
-    });
+export function GetSnapshots(semesterID: number): $CancellablePromise<models$0.ScheduleSnapshot[] | null> {
+    return $Call.ByID(3410442531, semesterID);
 }
 
 /**
@@ -90,12 +78,3 @@ export function GetSnapshots(semesterID: number): $CancellablePromise<models$0.S
 export function RenameSnapshot(id: number, newName: string): $CancellablePromise<void> {
     return $Call.ByID(1987166232, id, newName);
 }
-
-// Private type creation functions
-const $$createType0 = $models.TeacherWorkloadInfo.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.SnapshotCompareResult.createFrom;
-const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = models$0.ScheduleSnapshot.createFrom;
-const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = $Create.Array($$createType4);

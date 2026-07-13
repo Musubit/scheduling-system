@@ -9,7 +9,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -18,7 +18,7 @@ import * as models$0 from "../models/models.js";
 /**
  * CreateTeachingTask creates a teaching task with its class associations.
  */
-export function CreateTeachingTask(task: models$0.TeachingTask, classGroupIDs: number[]): $CancellablePromise<void> {
+export function CreateTeachingTask(task: models$0.TeachingTask, classGroupIDs: number[] | null): $CancellablePromise<void> {
     return $Call.ByID(1884256178, task, classGroupIDs);
 }
 
@@ -32,51 +32,35 @@ export function DeleteTeachingTask(id: number): $CancellablePromise<void> {
 /**
  * ExportTeachingTasks returns teaching task data formatted for Excel export.
  */
-export function ExportTeachingTasks(semesterID: number): $CancellablePromise<string[][]> {
-    return $Call.ByID(3612443393, semesterID).then(($result: any) => {
-        return $$createType1($result);
-    });
+export function ExportTeachingTasks(semesterID: number): $CancellablePromise<(string[] | null)[] | null> {
+    return $Call.ByID(3612443393, semesterID);
 }
 
 /**
  * GetTeachingTask returns a single teaching task with relations.
  */
 export function GetTeachingTask(id: number): $CancellablePromise<models$0.TeachingTask | null> {
-    return $Call.ByID(2408803522, id).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(2408803522, id);
 }
 
 /**
  * ImportTeachingTasks imports teaching tasks from a 2D string array.
  * Columns: [课程代码, 教师编号, 班级编号, 总学时?, 起始周?, 结束周?, 周最大学时?]
  */
-export function ImportTeachingTasks(semesterID: number, rows: string[][]): $CancellablePromise<[number, string[]]> {
-    return $Call.ByID(2540860548, semesterID, rows).then(($result: any) => {
-        $result[1] = $$createType0($result[1]);
-        return $result;
-    });
+export function ImportTeachingTasks(semesterID: number, rows: (string[] | null)[] | null): $CancellablePromise<[number, string[] | null]> {
+    return $Call.ByID(2540860548, semesterID, rows);
 }
 
 /**
  * ListTeachingTasks returns all teaching tasks for a semester, with preloaded relations.
  */
-export function ListTeachingTasks(semesterID: number): $CancellablePromise<models$0.TeachingTask[]> {
-    return $Call.ByID(4246079887, semesterID).then(($result: any) => {
-        return $$createType4($result);
-    });
+export function ListTeachingTasks(semesterID: number): $CancellablePromise<models$0.TeachingTask[] | null> {
+    return $Call.ByID(4246079887, semesterID);
 }
 
 /**
  * UpdateTeachingTask updates a teaching task and replaces its class associations.
  */
-export function UpdateTeachingTask(id: number, task: models$0.TeachingTask, classGroupIDs: number[]): $CancellablePromise<void> {
+export function UpdateTeachingTask(id: number, task: models$0.TeachingTask, classGroupIDs: number[] | null): $CancellablePromise<void> {
     return $Call.ByID(2358490451, id, task, classGroupIDs);
 }
-
-// Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = models$0.TeachingTask.createFrom;
-const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = $Create.Array($$createType2);

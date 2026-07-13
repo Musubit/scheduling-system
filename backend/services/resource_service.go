@@ -137,11 +137,22 @@ func (s *ResourceService) DeleteCourse(id uint) error {
 	return s.db.Delete(&models.Course{}, id).Error()
 }
 
+// ===== Buildings =====
+
+// GetBuildings 返回全部教学楼列表（v0.5.5 Stage B 新增，供前端下拉选择）。
+// 仅返回 code/name/category/status 等元数据；classrooms 通过 GetClassrooms 独立查询。
+func (s *ResourceService) GetBuildings() ([]models.Building, error) {
+	var buildings []models.Building
+	result := s.db.Order("code asc").Find(&buildings)
+	return buildings, result.Error()
+}
+
 // ===== Classrooms =====
 
 func (s *ResourceService) GetClassrooms() ([]models.Classroom, error) {
 	var classrooms []models.Classroom
-	result := s.db.Find(&classrooms)
+	// v0.5.5 Stage B: Preload Building 以便前端渲染教学楼名称。
+	result := s.db.Preload("Building").Find(&classrooms)
 	return classrooms, result.Error()
 }
 

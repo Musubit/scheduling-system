@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -34,9 +34,7 @@ export function ClearSemesterVersions(semesterID: number): $CancellablePromise<n
  * new ScheduleVersion (with entries) in a single transaction.
  */
 export function CreateManualVersion(semesterID: number, name: string): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(443717862, semesterID, name).then(($result: any) => {
-        return $$createType1($result);
-    });
+    return $Call.ByID(443717862, semesterID, name);
 }
 
 /**
@@ -50,10 +48,8 @@ export function CreateManualVersion(semesterID: number, name: string): $Cancella
  * solver     — solver identifier ("simulated_annealing", "ortools", etc.).
  * entries    — current schedule entries to copy into the version.
  */
-export function CreateVersion(semesterID: number, name: string, source: string, score: number, solver: string, entries: models$0.ScheduleEntry[]): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(523734880, semesterID, name, source, score, solver, entries).then(($result: any) => {
-        return $$createType1($result);
-    });
+export function CreateVersion(semesterID: number, name: string, source: string, score: number, solver: string, entries: models$0.ScheduleEntry[] | null): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(523734880, semesterID, name, source, score, solver, entries);
 }
 
 /**
@@ -67,22 +63,13 @@ export function DeleteVersion(id: number): $CancellablePromise<void> {
  * GetVersion retrieves a single version with its entries preloaded.
  */
 export function GetVersion(id: number): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(2988749672, id).then(($result: any) => {
-        return $$createType1($result);
-    });
+    return $Call.ByID(2988749672, id);
 }
 
 /**
  * ListVersions returns all versions for the given semester, ordered by
  * created_at descending (newest first).
  */
-export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[]> {
-    return $Call.ByID(1900345469, semesterID).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[] | null> {
+    return $Call.ByID(1900345469, semesterID);
 }
-
-// Private type creation functions
-const $$createType0 = models$0.ScheduleVersion.createFrom;
-const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $Create.Array($$createType0);
