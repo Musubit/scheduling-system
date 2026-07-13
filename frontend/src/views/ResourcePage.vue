@@ -50,44 +50,44 @@ const searchText = computed({
 
 // ===== 列定义 =====
 		const teacherColumns = [
-		  { key: 'code', width: 80 },
-		  { key: 'name', width: 100 },
-		  { key: 'dept', width: 140 },
-		  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'active', onUpdateValue: () => toggleStatus(row) }) },
-	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+		  { title: '工号', key: 'code', width: 80 },
+		  { title: '姓名', key: 'name', width: 100 },
+		  { title: '院系', key: 'dept', width: 140 },
+		  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'active', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
 
 	const classroomColumns = [
-	  { key: 'code', width: 80 },
-	  { key: 'name', width: 100 },
-	  { key: 'building', width: 70 },
-	  { key: 'floor', width: 50 },
-	  { key: 'capacity', width: 60 },
-	  { key: 'type', width: 90, title: '教室类型' },
-	  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'available', onUpdateValue: () => toggleStatus(row) }) },
-	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	  { title: '编号', key: 'code', width: 80 },
+	  { title: '教室名', key: 'name', width: 100 },
+	  { title: '教学楼', key: 'building', width: 70 },
+	  { title: '楼层', key: 'floor', width: 50 },
+	  { title: '容量', key: 'capacity', width: 60 },
+	  { title: '教室类型', key: 'type', width: 90 },
+	  { title: '状态', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'available', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
 
 	const courseColumns = [
-	  { key: 'code', width: 80 },
-	  { key: 'name', width: 140 },
-	  { key: 'dept', width: 120 },
-	  { key: 'credit', width: 50 },
-	  { key: 'type', width: 90 },
-	  { key: 'category', width: 80, title: '类别' },
-	  { key: 'hours', width: 50 },
-	  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
-	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	  { title: '编号', key: 'code', width: 80 },
+	  { title: '课程名', key: 'name', width: 140 },
+	  { title: '院系', key: 'dept', width: 120 },
+	  { title: '学分', key: 'credit', width: 50 },
+	  { title: '类型', key: 'type', width: 90 },
+	  { title: '类别', key: 'category', width: 80 },
+	  { title: '课时', key: 'hours', width: 50 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
 
 	const classColumns = [
-	  { key: 'code', width: 90 },
-	  { key: 'name', width: 130 },
-	  { key: 'dept', width: 140 },
-	  { key: 'grade', width: 60 },
-	  { key: 'students', width: 60 },
-	  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
-	  { key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
+	  { title: '编号', key: 'code', width: 90 },
+	  { title: '班级名称', key: 'name', width: 130 },
+	  { title: '院系', key: 'dept', width: 140 },
+	  { title: '年级', key: 'grade', width: 60 },
+	  { title: '人数', key: 'students', width: 60 },
+	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
 
 const deptOptions = [
@@ -395,17 +395,17 @@ const actionRender = (row: any) => {
 
 // ===== 教学任务专用列 =====
 const teachingTaskCols = [
-  { key: 'courseName', width: 120, render: (row: any) => row.course?.name || '-' },
-  { key: 'teacherName', width: 90, render: (row: any) => row.teacher?.name || '-' },
-  { key: 'classes', width: 160, render: (row: any) => {
+  { title: '课程', key: 'courseName', width: 120, render: (row: any) => row.course?.name || '-' },
+  { title: '教师', key: 'teacherName', width: 90, render: (row: any) => row.teacher?.name || '-' },
+  { title: '班级', key: 'classes', width: 160, render: (row: any) => {
     const names = (row.classes || []).map((c: any) => c.classGroup?.name || c.classGroup?.code || '').filter(Boolean)
     return h('div', { style: 'display:flex;flex-wrap:wrap;gap:4px' }, names.map((n: string) => h(NTag, { size: 'small', bordered: false }, { default: () => n })))
   }},
-  { key: 'totalHours', width: 60, title: '学时' },
-  { key: 'requiredRoomType', width: 100, title: '教室类型', render: (row: any) => row.requiredRoomType || h('span', { style: 'color: var(--b3-theme-on-surface-light)' }, '自动') },
-  { key: 'weeks', width: 80, render: (row: any) => `${row.startWeek || 1}-${row.endWeek || 16}周` },
-  { key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
-  { key: 'actions', width: 140, render: actionRender },
+  { title: '学时', key: 'totalHours', width: 60 },
+  { title: '教室类型', key: 'requiredRoomType', width: 100, render: (row: any) => row.requiredRoomType || h('span', { style: 'color: var(--b3-theme-on-surface-light)' }, '自动') },
+  { title: '周次', key: 'weeks', width: 80, render: (row: any) => `${row.startWeek || 1}-${row.endWeek || 16}周` },
+  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
+  { title: '操作', key: 'actions', width: 140, render: actionRender },
 ]
 
 // v0.5.4: 已移除 handleDetectMerge / handleConfirmMerge / splitMerged 三个函数
