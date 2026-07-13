@@ -473,7 +473,7 @@ func (s *SchedulingService) tryORTools(
 	// Map classrooms (include type + equipment for resource matching)
 	for _, c := range classrooms {
 		input.Classrooms = append(input.Classrooms, ORToolsRoom{
-			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity, Type: c.Type, Equipment: c.Equipment,
+			ID: c.ID, Floor: c.Floor, Capacity: c.Capacity, Type: c.RoomType, Equipment: c.Equipment,
 		})
 	}
 

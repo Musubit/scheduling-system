@@ -40,12 +40,12 @@ func buildBenchmarkFixture() (
 	classrooms := make([]models.Classroom, 10)
 	for i := 0; i < 10; i++ {
 		classrooms[i] = models.Classroom{
-			Model:    gorm.Model{ID: uint(i + 1)},
-			Name:     fmt.Sprintf("A%d0%d", (i/5)+1, (i%5)+1),
-			Building: "A",
-			Floor:    (i / 3) + 1,
-			Capacity: 80,
-			Type:     "普通教室",
+			Model:      gorm.Model{ID: uint(i + 1)},
+			Name:       fmt.Sprintf("A%d0%d", (i/5)+1, (i%5)+1),
+			BuildingID: 1,
+			Floor:      (i / 3) + 1,
+			Capacity:   80,
+			RoomType:   models.RoomTypeNormal,
 		}
 	}
 

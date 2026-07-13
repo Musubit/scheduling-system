@@ -315,9 +315,9 @@ def solve_scheduling(data):
             if terms:
                 model.Add(sum(terms) <= 1)
 
-    # HC2 — Room no-overlap (skip shared venues like 体育馆; coverage-based)
+    # HC2 — Room no-overlap (skip shared venues like GYM; coverage-based)
     for r, room in enumerate(classrooms):
-        if room.get("type") == "体育馆":
+        if room.get("type") == "GYM":
             continue
         for q in range(ABS_PERIODS):
             terms = []
@@ -368,7 +368,7 @@ def solve_scheduling(data):
         if total_students <= 0:
             continue
         for r, room in enumerate(classrooms):
-            if room.get("type") == "体育馆":
+            if room.get("type") == "GYM":
                 continue
             if room["capacity"] < total_students:
                 for s in range(task_sessions[i]):
@@ -402,7 +402,8 @@ def solve_scheduling(data):
                             model.Add(X[(i, s, r, p)] == 0)
 
     # HC7 — Room type matching
-    SPECIALTY_ROOM_TYPES = {"体育馆", "实验室", "机房"}
+    # 值域与 Go models.RoomType* 常量对齐（英文枚举）。
+    SPECIALTY_ROOM_TYPES = {"GYM", "LAB", "COMPUTER"}
     for i in range(n_tasks):
         req_type = task_room_type[i]
         for r, room in enumerate(classrooms):
@@ -756,7 +757,7 @@ def solve_scheduling(data):
                 if not solver.Value(placed[(i, s)]):
                     info = unplaced_by_task.setdefault(tid, {
                         "teacherName": teacher_map.get(t["teacherId"], {}).get("name", "?"),
-                        "requiredRoomType": task_room_type[i] or "普通教室",
+                        "requiredRoomType": task_room_type[i] or "NORMAL",
                         "unplacedCount": 0,
                         "totalSessions": task_sessions[i],
                     })

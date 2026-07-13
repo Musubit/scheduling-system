@@ -339,7 +339,7 @@ func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 	// Find the classroom to check if it's a shared venue (体育馆)
 	isShared := false
 	for _, room := range ctx.classrooms {
-		if room.ID == e.ClassroomID && room.Type == "体育馆" {
+		if room.ID == e.ClassroomID && room.RoomType == models.RoomTypeGym {
 			isShared = true
 			break
 		}
@@ -461,7 +461,7 @@ func (ctx *schedulingContext) canRoomFitCapacity(classroom models.Classroom, tas
 	if taskData.TotalStudents <= 0 {
 		return true
 	}
-	if classroom.Type == "体育馆" {
+	if classroom.RoomType == models.RoomTypeGym {
 		return true // sports venues have unlimited effective capacity
 	}
 	return classroom.Capacity >= taskData.TotalStudents
