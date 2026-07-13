@@ -103,7 +103,7 @@ const classOptions = computed(() => {
 
 // Classroom options
 const classroomOptions = computed(() => {
-  return resourceStore.classrooms.map(c => ({ label: `${c.name} (${c.building})`, value: c.ID }))
+  return resourceStore.classrooms.map(c => ({ label: `${c.name} (${c.building?.name || ''})`, value: c.ID }))
 })
 
 import { fuzzyFilterFn } from '../utils/fuzzyFilter'
@@ -169,7 +169,7 @@ async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
           '课程名称': e.course?.name || '',
           '课程编号': e.course?.code || '',
           '教师': e.teacher?.name || '',
-          '教室': e.classroom ? `${e.classroom.building} ${e.classroom.name}` : '',
+          '教室': e.classroom ? `${e.classroom.building?.name || e.classroom.code} ${e.classroom.name}` : '',
           '星期': DAY_NAMES[e.dayOfWeek] || '',
           '节次': `第${e.startPeriod + 1}-${e.startPeriod + e.span}节`,
           '教学周': e.weeks || '',

@@ -60,10 +60,10 @@ const searchText = computed({
 	const classroomColumns = [
 	  { title: '编号', key: 'code', width: 80 },
 	  { title: '教室名', key: 'name', width: 100 },
-	  { title: '教学楼', key: 'building', width: 70 },
+	  { title: '教学楼', key: 'building', width: 90, render: (row: any) => row.building?.name || '' },
 	  { title: '楼层', key: 'floor', width: 50 },
 	  { title: '容量', key: 'capacity', width: 60 },
-	  { title: '教室类型', key: 'type', width: 90 },
+	  { title: '教室类型', key: 'roomType', width: 90, render: (row: any) => roomTypeLabels[row.roomType] || row.roomType },
 	  { title: '状态', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status === 'available', onUpdateValue: () => toggleStatus(row) }) },
 	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
 	]
@@ -74,7 +74,7 @@ const searchText = computed({
 	  { title: '院系', key: 'dept', width: 120 },
 	  { title: '学分', key: 'credit', width: 50 },
 	  { title: '类型', key: 'type', width: 90 },
-	  { title: '类别', key: 'category', width: 80 },
+	  { title: '类别', key: 'category', width: 80, render: (row: any) => categoryLabels[row.category] || row.category || '' },
 	  { title: '课时', key: 'hours', width: 50 },
 	  { title: '启用', key: 'status', width: 60, render: (row: any) => h(NSwitch, { size: 'small', value: row.status !== 'inactive', onUpdateValue: () => toggleStatus(row) }) },
 	  { title: '操作', key: 'actions', width: 140, render: () => h(NSpace, { size: 'small' }, { default: () => [h(NButton, { size: 'tiny', text: true }, { default: () => '编辑' }), h(NButton, { size: 'tiny', text: true, type: 'error' }, { default: () => '删除' }) ] }) },
@@ -97,24 +97,33 @@ const deptOptions = [
 
 const deptFormOptions = DEPARTMENTS.map(d => ({ label: d.name, value: d.name }))
 
-// v0.5.3: 课程类别选项
+// v0.5.5 Stage B: 课程类别选项（英文枚举 + 中文 label，值空间与
+// backend/models/room_types.go:CourseCategory 常量严格对齐）
 const categoryOptions = [
-  { label: '普通', value: '普通' },
-  { label: '实验', value: '实验' },
-  { label: '上机', value: '上机' },
-  { label: '体育', value: '体育' },
-  { label: '外语', value: '外语' },
-  { label: '艺术', value: '艺术' },
+  { label: '理论课', value: 'theory' },
+  { label: '实验课', value: 'lab' },
+  { label: '体育课', value: 'pe' },
+  { label: '上机课', value: 'computer' },
+  { label: '研讨课', value: 'seminar' },
+  { label: '艺术课', value: 'art' },
 ]
+const categoryLabels: Record<string, string> = Object.fromEntries(
+  categoryOptions.map(o => [o.value, o.label])
+)
 
 // v0.5.3: 教室类型选项
 const roomTypeOptions = [
-  { label: '普通教室', value: '普通教室' },
-  { label: '实验室', value: '实验室' },
-  { label: '机房', value: '机房' },
-  { label: '体育馆', value: '体育馆' },
-  { label: '语音室', value: '语音室' },
+  { label: '普通教室', value: 'NORMAL' },
+  { label: '实验室', value: 'LAB' },
+  { label: '机房', value: 'COMPUTER' },
+  { label: '体育馆', value: 'GYM' },
+  { label: '多媒体教室', value: 'MULTIMEDIA' },
+  { label: '阶梯教室', value: 'LECTURE' },
 ]
+
+// v0.5.5: English → Chinese label map for table rendering.
+const roomTypeLabels: Record<string, string> = {}
+roomTypeOptions.forEach(o => { roomTypeLabels[o.value] = o.label })
 
 // v0.5.3: 教学任务-指定教室类型选项（含「不指定」选项）
 const requiredRoomTypeOptions = [
@@ -287,6 +296,13 @@ function toModel(tab: string, item: any): any {
   if (tab === 'teachingTask') {
     return { ...item, ID: item.ID || 0, status: item.status || 'active' }
   }
+  if (tab === 'classroom') {
+    // v0.5.5 Stage B: strip nested Building object; only buildingId FK is persisted.
+    // {...row} spread on edit includes the preloaded association — GORM would try
+    // to auto-save it, so we drop it here before submit.
+    const { building, ...rest } = item as any
+    return { ...rest, ID: rest.ID || 0, buildingId: Number(rest.buildingId) || 0 }
+  }
   return { ...item, ID: item.ID || 0 }
 }
 
@@ -305,10 +321,10 @@ const formFields = computed(() => {
 	    classroom: [
 	      { key: 'code', label: '编号（选填）' },
 	      { key: 'name', label: '教室名' },
-	      { key: 'building', label: '教学楼' },
+	      { key: 'buildingId', label: '教学楼', type: 'select', options: 'buildings' as any, filterable: true },
 	      { key: 'floor', label: '楼层', type: 'number', min: 1 },
 	      { key: 'capacity', label: '容量', type: 'number', min: 1 },
-	      { key: 'type', label: '教室类型', type: 'select', options: roomTypeOptions },
+	      { key: 'roomType', label: '教室类型', type: 'select', options: roomTypeOptions },
 	    ],
 	    course: [
 	      { key: 'code', label: '课程代码（选填）' },
@@ -447,6 +463,9 @@ function resolveOptions(field: any): any[] {
   if (field.options === 'courses') return ttCourseOptions.value
   if (field.options === 'teachers') return ttTeacherOptions.value
   if (field.options === 'classGroups') return ttClassOptions.value
+  if (field.options === 'buildings') {
+    return resourceStore.buildings.map((b: any) => ({ label: b.name, value: b.ID }))
+  }
   return field.options || []
 }
 

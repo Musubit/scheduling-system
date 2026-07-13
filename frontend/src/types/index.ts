@@ -29,15 +29,29 @@ export interface Teacher {
   preferLowFloor?: boolean
 }
 
+/** 教学楼（v0.5.5 Stage B 引入的 DB 实体，供 Classroom FK 关联） */
+export interface Building {
+  ID: number
+  code: string
+  name: string
+  category?: string
+  status?: string
+}
+
 /** 教室 */
 export interface Classroom {
   ID: number
   code: string
   name: string
-  building: string
+  /** v0.5.5 Stage B: FK → buildings.id */
+  buildingId: number
+  /** v0.5.5 Stage B: preload Association（后端 Preload("Building") 返回） */
+  building?: Building
   floor?: number
+  number?: string
   capacity: number
-  type: string
+  /** v0.5.5 Stage B: 英文枚举 NORMAL / MULTIMEDIA / LAB / COMPUTER / GYM / LECTURE */
+  roomType: string
   status: string
   /** v0.5.3: 教室设备列表 (JSON 字符串) */
   equipment?: string
