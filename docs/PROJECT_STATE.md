@@ -1,8 +1,8 @@
 # PROJECT_STATE.md — 高校智能排课系统
 
 > **最后更新**: 2026-07-13
-> **当前分支**: `main` (v0.5.2 已发布)
-> **下一版本**: v0.5.3 — 统一资源匹配框架 (URMF)
+> **当前版本**: v0.5.5 Phase 1 completed（Semester Domain Stabilization，已 merge main `93e0d2f`）
+> **下一阶段**: v0.5.5 Phase 2 — Academic Calendar Extension（AcademicTerm / TeachingWeek）
 
 ---
 
@@ -22,7 +22,11 @@
 | v0.4.0 | ✅ 已发布 | `main` / tag `v0.4.0` | 体验与可扩展性（Stable Core 冻结） |
 | v0.5.1 | 🔀 已合并到 v0.5.2 | `feat/v0.5.1-flexible-span` | 灵活课时跨度（1 commit: `4072448`） |
 | v0.5.2 | ✅ 已发布 | tag `v0.5.2` (main) | 评分统一 + SA 性能优化 + 灵活课时跨度 |
-| v0.5.3 | 📐 设计就绪 | — | 统一资源匹配框架 (URMF) |
+| v0.5.3 | ✅ 已合并 | main（未打独立 tag） | URMF 统一资源匹配框架（P2/P3/P4/P6 系列 commit） |
+| v0.5.4 | ✅ 已发布 | tag `v0.5.4` (main) | TeachingTask 领域稳定化 + Seed 幂等修复 |
+| v0.5.5 Phase 1 | ✅ 已合并 | main `93e0d2f`（未打 tag，等 Phase 2/3 完成后统一打 v0.5.5） | Semester 领域稳定化 |
+| v0.5.5 Phase 2 | ⏳ 待启动 | — | Academic Calendar Extension（AcademicTerm / TeachingWeek） |
+| v0.5.5 Phase 3 | ⏳ 待启动 | — | 前端学期字段清理 + Solver 感知 |
 
 ### v0.5.2 发布内容（tag `v0.5.2`, 已合并到 main）
 
@@ -179,34 +183,76 @@
 | Goal 4 | v0.5.2 发布（合并到 main + tag） | ✅ 已完成 (d443109, tag v0.5.2) |
 | Goal 5 | H3: 调整后保存快照 | 📋 待做（从 v0.4.0 遗留） |
 
-### v0.5.3 规划
+### v0.5.3 发布状态（URMF）
 
 | Goal | 说明 | 状态 |
 |------|------|------|
-| Goal 1 | 数据模型扩展 (Category + Equipment + RequiredRoomType) | 📐 设计就绪 |
-| Goal 2 | ResourceMatcher V1 (纯函数) | 📐 设计就绪 |
-| Goal 3 | SA + OR-Tools + MoveService 统一接入 | 📐 设计就绪 |
-| Goal 4 | 前端 UI 资源管理增强 | 📐 设计就绪 |
+| Goal 1 | 数据模型扩展 (Category + Equipment + RequiredRoomType 派生) | ✅ 已完成 |
+| Goal 2 | ResourceMatcher V1 (纯函数, `ee93fb4` P2) | ✅ 已完成 |
+| Goal 3 | SA 接入 ResourceMatcher (`01ef918` P3) | ✅ 已完成 |
+| Goal 4 | OR-Tools + MoveService 接入 (`86d6fbf` P4) | ✅ 已完成 |
+| Goal 5 | `Classroom.RoomType` 冲突修复 (`b2d722b`) | ✅ 已完成 |
+| Goal 6 | 独立 tag | ❌ 未打（内容随 v0.5.4 一同发布） |
 
-**设计文档**:
-- [v0.5.3 URMF 设计文档](design/v0.5.3-resource-matching-framework.md) (R3 冻结)
-- [v0.5.3 实施计划](design/v0.5.3-implementation-plan.md) (P1-P7)
-- [v0.5.3 测试矩阵](testing/v0.5.3-resource-tests.md) (89 个测试)
-- [ADR-0006: URMF](adr/0006-unified-resource-matching-framework.md)
+### v0.5.4 发布状态（TeachingTask 稳定化）
+
+| Goal | 说明 | 状态 |
+|------|------|------|
+| Goal 1 | 删除 TeachingTask 自动合并推断（`teaching_task_service.go` -139 行 / `ResourcePage.vue` -94 行） | ✅ 已完成 (`4958e20`) |
+| Goal 2 | Seed 幂等性修复（Count+Create → FirstOrCreate） | ✅ 已完成 (`a69cb1a`) |
+| Goal 3 | 实施报告 + 发布 review | ✅ 已完成 (`e44e60a` / `79c5493`) |
+| Goal 4 | tag `v0.5.4` | ✅ 已打 |
+
+### v0.5.5 Phase 1 状态（Semester Domain Stabilization）
+
+| Goal | 说明 | 状态 |
+|------|------|------|
+| Goal 1 | Semester 结构化（AcademicYear/Term/StartDate:time.Time/EndDate/Status） | ✅ 已完成 |
+| Goal 2 | ScheduleEntry.Semester → SemesterID FK | ✅ 已完成 |
+| Goal 3 | ScheduleSnapshot.Semester → SemesterID FK | ✅ 已完成 |
+| Goal 4 | Services 级联同步（SchedulingService/SnapshotService/VersionService/MoveService/SASolver） | ✅ 已完成 |
+| Goal 5 | Seed 复合唯一键 `(academic_year, term)` | ✅ 已完成 |
+| Goal 6 | Wails Bindings 重新生成 | ✅ 已完成 |
+| Goal 7 | `go test ./...` + `npm run build` | ✅ 通过 |
+| Goal 8 | merge main + 分支删除 | ✅ 已完成 (`93e0d2f`) |
+| Goal 9 | 前端 `s.name`/`s.isActive` 引用清理 | ⏳ 明确延后至 Phase 3 |
+
+### v0.5.5 Phase 2 规划（Academic Calendar Extension）
+
+| Goal | 说明 | 状态 |
+|------|------|------|
+| Goal 1 | AcademicTerm 新表（Season + TermType，1:N 挂 Semester） | ⏳ 待启动 |
+| Goal 2 | `services/academic_calendar/` 领域包（WeekView / CurrentSemester / CurrentWeek 派生） | ⏳ 待启动 |
+| Goal 3 | AcademicTerm seed（每学期 3 段） | ⏳ 待启动 |
+
+### v0.5.5 Phase 3 规划（前端 + Solver 接入）
+
+| Goal | 说明 | 状态 |
+|------|------|------|
+| Goal 1 | 前端 `stores/app.ts`、`SettingsPage.vue` 等 5 文件 `s.name`/`s.isActive` 清理 | ⏳ 待启动 |
+| Goal 2 | `WeekView.vue` 硬编码日期计算清除，改用后端派生 | ⏳ 待启动 |
+| Goal 3 | Solver 可选感知 TermType | ⏳ 待启动 |
+
+**Phase 1 设计文档**：
+- [v0.5.5 Epic B 架构审查](release/V0.5.5_EPIC_B_ARCHITECTURE_REVIEW.md)
+- [v0.5.5 Epic B 日历基础设计](release/V0.5.5_EPIC_B_ACADEMIC_CALENDAR_DESIGN.md)
+- [v0.5.5 Seed 演进对齐审查](release/V0.5.5_SEED_ALIGNMENT_REVIEW.md)
+- [v0.5.5 Phase 1 实施报告](release/V0.5.5_PHASE1_IMPLEMENT_REPORT.md)
 
 ---
 
 ## 8. 待办与风险
 
 ### 待办
-1. **v0.5.3 实施** — 按 P1-P7 七阶段实施，每阶段验收后提交
-2. **H3: 调整后保存快照** — v0.4.0 遗留 P2 任务
-3. **ROADMAP.md 缺失** — 需重建
+1. **v0.5.5 Phase 2 启动** — AcademicTerm 新表 + academic_calendar 领域包（等待用户指令）
+2. **v0.5.5 Phase 3** — 前端 `s.name`/`s.isActive` 清理（5 文件 10+ 处）+ WeekView 日期派生 + Solver TermType
+3. **H3: 调整后保存快照** — v0.4.0 遗留 P2 任务
 
 ### 风险
-1. **分支与发布标签不一致** — main 在 v0.4.0，开发分支领先 3 commits 未合并
-2. **solver.py 同步** — session_plan.go 和 solver.py 的 span 规则需手动保持同步
-3. **SA 缓存正确性依赖测试保障** — delta cache 的正确性完全依赖 `TestDeltaScoreMatchesFullScore`，需确保测试覆盖充分
+1. **前端旧字段引用仍编译通过**：前端 `s.name`/`s.isActive` 引用（Phase 3 承接）在 `npm run build` 中未报错——原因待查（可能是 TS 宽松类型/隐式转换），Phase 3 启动前需复核
+2. **v0.5.3/v0.5.5 tag 缺失**：v0.5.3 内容散在 P2-P6 commit，无独立 tag；v0.5.5 Phase 1 已 merge 但等 Phase 2/3 完成后统一打 tag
+3. **solver.py 同步** — session_plan.go 和 solver.py 的 span 规则需手动保持同步
+4. **SA 缓存正确性依赖测试保障** — delta cache 的正确性完全依赖 `TestDeltaScoreMatchesFullScore`，需确保测试覆盖充分
 
 ---
 

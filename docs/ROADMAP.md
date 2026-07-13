@@ -1,7 +1,7 @@
 # ROADMAP.md — 高校智能排课系统
 
 > **最后更新**: 2026-07-13
-> **当前版本**: v0.4.0 (main) / v0.5.2 (feat/v0.5.2-score-solver, 待合并)
+> **当前版本**: v0.5.5 Phase 1 completed (main `93e0d2f`) / 下一阶段 v0.5.5 Phase 2 待启动
 
 ---
 
@@ -22,7 +22,7 @@ v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
 
 **主题**: 在 Stable Core 之上建立高性能、语义统一的智能排课能力。
 
-### v0.5.2 — 评分统一 + SA 性能优化 ✅ (待合并)
+### v0.5.2 — 评分统一 + SA 性能优化 ✅ (tag `v0.5.2`)
 
 | Goal | 内容 | 状态 |
 |------|------|------|
@@ -37,23 +37,58 @@ v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
 - `TeachingTask`: +PreferredSpan (0 = 不指定)
 - ScoringContext.Version: 1 → 2 (v1 调用路径保留)
 
-### v0.5.3 — 教室资源约束增强 (规划中)
+### v0.5.3 — Unified Resource Matching Framework (URMF) ✅ (已合并 main, 无独立 tag)
 
-**目标**: 支持课程类别 × 教室类型 × 设备约束，最小侵入 Stable Core。
+**目标**: 统一 SA / OR-Tools / MoveService 三处教室类型判断为单一纯函数决策。
+
+| Goal | 内容 | 状态 |
+|------|------|------|
+| Goal 1 | ResourceMatcher V1 纯函数 + `MatchResult` + `Explain` (`ee93fb4` P2) | ✅ |
+| Goal 2 | SA 求解器接入 `AllowedRooms` (`01ef918` P3) | ✅ |
+| Goal 3 | OR-Tools + MoveService 接入，OR-Tools payload `AllowedRoomIDs` 由 Go 侧计算 (`86d6fbf` P4) | ✅ |
+| Goal 4 | `Classroom.RoomType` 冲突修复，复用现有 `Classroom.Type` (`b2d722b`) | ✅ |
+| Goal 5 | ADR-0006 URMF 采纳 | ✅ |
+
+### v0.5.4 — TeachingTask Domain Stabilization ✅ (tag `v0.5.4`)
+
+**目标**: 消除 TeachingTask 自动合班推断包袱，稳定教学任务领域模型。
+
+| Goal | 内容 | 状态 |
+|------|------|------|
+| Goal 1 | 删除 `teaching_task_service.go` 自动合并推断（-139 行）(`4958e20`) | ✅ |
+| Goal 2 | `ResourcePage.vue` 相关 UI 移除（-94 行） | ✅ |
+| Goal 3 | Seed 幂等性修复 Count+Create → FirstOrCreate (`a69cb1a`) | ✅ |
+
+### v0.5.5 — Academic Calendar Foundation（分 3 Phase 推进）
+
+#### v0.5.5 Phase 1 — Semester Domain Stabilization ✅ (已合并 `93e0d2f`, 未独立打 tag)
+
+| Goal | 内容 | 状态 |
+|------|------|------|
+| Goal 1 | Semester 模型重构：AcademicYear/Term/StartDate:time.Time/EndDate/Status | ✅ |
+| Goal 2 | ScheduleEntry.Semester / ScheduleSnapshot.Semester → SemesterID FK | ✅ |
+| Goal 3 | Services + SASolver + Seed + Bindings 级联同步 | ✅ |
+| Goal 4 | Seed 复合唯一键 (academic_year, term) | ✅ |
+
+#### v0.5.5 Phase 2 — Academic Calendar Extension ⏳ (待启动)
 
 | Item | 说明 |
 |------|------|
-| 课程类别 | Course 模型新增 Category 字段 (theory/lab/pe/seminar) |
-| 教室类型 | Classroom 模型新增 RoomType 字段 (普通/实验室/机房/体育馆/多媒体) |
-| 设备约束 | Classroom 模型新增 Equipment 字段 (JSON array: projector/smartboard/aircon...) |
-| 匹配规则 | 教学任务可声明 RequiredRoomType + RequiredEquipment，求解器在硬约束中检查 |
-| 评分影响 | 可选软约束: 同类课程优先集中教室 (减少教室切换) |
+| AcademicTerm 表 | 每学期 3 段（秋季常规/秋季考试/冬季实践 等），Season + TermType |
+| `services/academic_calendar/` 领域包 | CurrentSemester / CurrentWeek / WeekView 派生（TeachingWeek 不建表） |
+| Seed | 每学期 3 条 AcademicTerm 记录 |
 
-**设计原则**: 全部为模型字段追加 + 求解器约束增强，不修改 ScoreSchedule 签名和 7 个软约束公式。
+#### v0.5.5 Phase 3 — 前端清理 + Solver 感知 ⏳ (待启动)
 
-### v0.5.4 — H3: 调整后保存快照 (v0.4.0 遗留)
+| Item | 说明 |
+|------|------|
+| 前端字段清理 | `stores/app.ts` / `SettingsPage.vue` / `AppToolbar.vue` / `SchedulingPage.vue` / `HistoryComparePage.vue` 中 `s.name`/`s.isActive` 引用 |
+| WeekView 日期派生 | 删除"当年 1 月 1 日 + week×7"硬编码，改用 Semester.StartDate |
+| Solver TermType 感知 | 可选：OR-Tools/SA 按 TermType 判断是否排入某周次 |
 
-手动调课后用户主动生成快照。后端 `CreateManualSnapshot` 已存在，需前端对接。
+### H3 — 调整后保存快照 (v0.4.0 遗留)
+
+手动调课后用户主动生成快照。后端 `CreateManualSnapshot` 已存在，需前端对接。计划在 v0.5.5 Phase 3 之后处理。
 
 ---
 
