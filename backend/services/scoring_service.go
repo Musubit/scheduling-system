@@ -122,9 +122,11 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	if enabled["student_fatigue"] && len(ttList) > 0 {
 		enabledCount++
 	}
-	perCategoryMax := 100.0 / float64(enabledCount)
+	var perCategoryMax float64
 	if enabledCount == 0 {
 		perCategoryMax = 25.0
+	} else {
+		perCategoryMax = 100.0 / float64(enabledCount)
 	}
 	breakdown.PerCategoryMax = math.Round(perCategoryMax*100) / 100
 	breakdown.EnabledCategoryCount = enabledCount
