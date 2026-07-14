@@ -97,9 +97,10 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Phase 1: Init
 	addProgress(5, "初始化资源")
 
-	// Load teaching tasks for the active semester
+	// Load teaching tasks for the active semester (with Preload to avoid N+1 queries)
 	var teachingTasks []models.TeachingTask
-	taskQuery := s.db.Where("status = ?", "active")
+	taskQuery := s.db.Where("status = ?", "active").
+		Preload("Course").Preload("Teacher").Preload("Classes.ClassGroup")
 	if config.SemesterID > 0 {
 		taskQuery = taskQuery.Where("semester_id = ?", config.SemesterID)
 	}
@@ -110,40 +111,15 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 	log.Printf("[SCHED] teachingTasks loaded: count=%d", len(teachingTasks))
 
-	// Filter by scope if needed (Course.Dept is now Chinese name, same as config.Scope)
+	// Filter by scope if needed (Course already preloaded)
 	if config.Scope != "" && config.Scope != "全校所有院系" {
 		var filtered []models.TeachingTask
 		for _, tt := range teachingTasks {
-			var course models.Course
-			if err := s.db.First(&course, tt.CourseID).Error(); err != nil {
-				log.Printf("[SCHED] WARN: scope filter - course ID=%d not found for task ID=%d, skipping", tt.CourseID, tt.ID)
-				addLog(fmt.Sprintf("WARN 教学任务(ID=%d)关联的课程(ID=%d)不存在，已跳过", tt.ID, tt.CourseID))
-				continue
-			}
-			if course.Dept == config.Scope {
+			if tt.Course.Dept == config.Scope {
 				filtered = append(filtered, tt)
 			}
 		}
 		teachingTasks = filtered
-	}
-
-	// Load classes for each teaching task
-	for i := range teachingTasks {
-		var classes []models.TeachingTaskClass
-		if err := s.db.Where("teaching_task_id = ?", teachingTasks[i].ID).
-			Preload("ClassGroup").Find(&classes).Error(); err != nil {
-			log.Printf("[SCHED] WARN: failed to load classes for task ID=%d: %v", teachingTasks[i].ID, err)
-			addLog(fmt.Sprintf("WARN 加载教学任务(ID=%d)的班级关联失败", teachingTasks[i].ID))
-		} else {
-			teachingTasks[i].Classes = classes
-		}
-		// Preload course and teacher
-		if err := s.db.First(&teachingTasks[i].Course, teachingTasks[i].CourseID).Error(); err != nil {
-			log.Printf("[SCHED] WARN: course ID=%d not found for task ID=%d: %v", teachingTasks[i].CourseID, teachingTasks[i].ID, err)
-		}
-		if err := s.db.First(&teachingTasks[i].Teacher, teachingTasks[i].TeacherID).Error(); err != nil {
-			log.Printf("[SCHED] WARN: teacher ID=%d not found for task ID=%d: %v", teachingTasks[i].TeacherID, teachingTasks[i].ID, err)
-		}
 	}
 
 	result.TotalCourses = len(teachingTasks)
@@ -168,13 +144,17 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		return result
 	}
 	var classGroups []models.ClassGroup
-	s.db.Find(&classGroups)
+	if err := s.db.Find(&classGroups).Error(); err != nil {
+		log.Printf("[SCHED] EARLY-RETURN-5: load class groups failed: %v", err)
+		result.Error = "加载班级分组失败: " + err.Error()
+		return result
+	}
 
 	if len(classrooms) == 0 || len(teachers) == 0 {
 		if isTimeOnly && len(teachers) > 0 {
 			log.Printf("[SCHED] TIME_ONLY continue without classrooms: teachers=%d", len(teachers))
 		} else {
-			log.Printf("[SCHED] EARLY-RETURN-5: classrooms=%d teachers=%d", len(classrooms), len(teachers))
+			log.Printf("[SCHED] EARLY-RETURN-6: classrooms=%d teachers=%d", len(classrooms), len(teachers))
 			result.Error = "缺少教室或教师资源"
 			return result
 		}
@@ -248,7 +228,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Try OR-Tools first if available
 	var saResult *SAResult
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
-	if !isTimeOnly && s.orchestrator != nil {
+	if s.orchestrator != nil {
 		addProgress(35, "OR-Tools求解")
 		if ortoolsResult := s.tryORTools(teachingTasks, teachers, solverClassrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog); ortoolsResult != nil {
 			saResult = ortoolsResult
@@ -320,8 +300,8 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Save result to database
 	addProgress(85, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
-		// Hard-delete old entries for the semester
-		if err := tx.Unscoped().Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+		// Soft-delete old entries for the semester (allows transaction rollback)
+		if err := tx.Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
 			return fmt.Errorf("清空旧课表失败: %w", err)
 		}
 		if len(saResult.Entries) > 0 {
@@ -505,10 +485,11 @@ func (s *SchedulingService) loadLockedSlots() []LockedTimeSlot {
 // Returns teacher, room, and class conflict counts separately.
 func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) (teacher, room, class int) {
 	// Teacher conflicts
-	teacherSlots := make(map[string]bool)
+	teacherSlots := make(map[uint64]bool)
 	for _, e := range entries {
+		day := int(e.DayOfWeek)
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("t-%d-%d-%d", e.TeacherID, e.DayOfWeek, p)
+			key := occKey(day, int(p), e.TeacherID)
 			if teacherSlots[key] {
 				teacher++
 			}
@@ -517,10 +498,11 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 	}
 
 	// Room conflicts
-	roomSlots := make(map[string]bool)
+	roomSlots := make(map[uint64]bool)
 	for _, e := range entries {
+		day := int(e.DayOfWeek)
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
+			key := occKey(day, int(p), e.ClassroomID)
 			if roomSlots[key] {
 				room++
 			}
@@ -529,10 +511,14 @@ func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) 
 	}
 
 	// Class group conflicts (using TeachingTask data)
-	classSlots := make(map[string]bool)
+	classSlots := make(map[uint64]bool)
 	for _, e := range entries {
+		if e.TeachingTaskID == nil {
+			continue
+		}
+		day := int(e.DayOfWeek)
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("c-%d-%d-%d", e.TeachingTaskID, e.DayOfWeek, p)
+			key := occKey(day, int(p), *e.TeachingTaskID)
 			if classSlots[key] {
 				class++
 			}
@@ -736,32 +722,13 @@ func (s *SchedulingService) tryORTools(
 			placedCount[e.TaskID]++
 		}
 		for _, tt := range teachingTasks {
-			// Compute expected sessions (same formula as Python solver.py)
-			weeks := tt.EndWeek - tt.StartWeek + 1
-			if weeks < 1 {
-				weeks = 1
-			}
+			// Use resolveSessionPlan (Go-side authoritative source) for expected sessions
 			totalHours := tt.TotalHours
 			if totalHours <= 0 {
 				totalHours = tt.Course.Hours
 			}
-			weeklyHours := float64(totalHours) / float64(weeks)
-			expectedSessions := int(weeklyHours/2.0 + 0.999)
-			if expectedSessions < 1 {
-				expectedSessions = 1
-			}
-			if expectedSessions > 4 {
-				expectedSessions = 4
-			}
-			if tt.MaxHoursPerWeek > 0 {
-				maxSess := tt.MaxHoursPerWeek / 2
-				if maxSess < 1 {
-					maxSess = 1
-				}
-				if expectedSessions > maxSess {
-					expectedSessions = maxSess
-				}
-			}
+			plan := resolveSessionPlan(totalHours, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+			expectedSessions := plan.SessionsPerWeek()
 			actualPlaced := placedCount[tt.ID]
 			if actualPlaced >= expectedSessions {
 				continue
