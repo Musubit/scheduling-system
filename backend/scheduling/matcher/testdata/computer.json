@@ -1,0 +1,24 @@
+{
+  "task": {
+    "CourseID": 300,
+    "RequiredRoomType": "COMPUTER"
+  },
+  "course": {
+    "Name": "程序设计基础",
+    "Category": "computer"
+  },
+  "classroom": {
+    "Name": "教一 101",
+    "RoomType": "NORMAL",
+    "Capacity": 60,
+    "Equipment": ""
+  },
+  "expected": {
+    "OK": false,
+    "Code": 1,
+    "Reason": "需要COMPUTER，当前教室为NORMAL",
+    "RequiredType": "COMPUTER",
+    "ActualType": "NORMAL",
+    "MissingEquipment": null
+  }
+}

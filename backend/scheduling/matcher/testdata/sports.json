@@ -1,0 +1,24 @@
+{
+  "task": {
+    "CourseID": 400,
+    "RequiredRoomType": ""
+  },
+  "course": {
+    "Name": "大学体育",
+    "Category": "pe"
+  },
+  "classroom": {
+    "Name": "体育馆",
+    "RoomType": "GYM",
+    "Capacity": 200,
+    "Equipment": ""
+  },
+  "expected": {
+    "OK": true,
+    "Code": 0,
+    "Reason": "",
+    "RequiredType": "",
+    "ActualType": "",
+    "MissingEquipment": null
+  }
+}
