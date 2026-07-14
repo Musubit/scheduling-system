@@ -1,0 +1,24 @@
+{
+  "task": {
+    "CourseID": 500,
+    "RequiredRoomType": "MULTIMEDIA"
+  },
+  "course": {
+    "Name": "艺术鉴赏",
+    "Category": "theory"
+  },
+  "classroom": {
+    "Name": "多媒体教室 M-01",
+    "RoomType": "MULTIMEDIA",
+    "Capacity": 80,
+    "Equipment": "[\"projector\",\"audio\"]"
+  },
+  "expected": {
+    "OK": true,
+    "Code": 0,
+    "Reason": "",
+    "RequiredType": "",
+    "ActualType": "",
+    "MissingEquipment": null
+  }
+}

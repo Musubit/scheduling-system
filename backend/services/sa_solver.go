@@ -5,8 +5,9 @@ import (
 	"math"
 	"math/rand"
 	"scheduling-system/backend/models"
+	"scheduling-system/backend/scheduling/matcher"
 	"time"
-	)
+)
 
 // SASolver implements Simulated Annealing for course scheduling.
 // Pure Go, zero external dependencies beyond the standard library.
@@ -489,5 +490,5 @@ func (ctx *schedulingContext) findTaskDataByEntry(e models.ScheduleEntry) *teach
 // getRequiredRoomType is deprecated. Use ResourceMatcher.Match() or InferRoomType() instead.
 // Kept for backward compatibility; will be removed in v0.6.
 func (ctx *schedulingContext) getRequiredRoomType(courseName string) string {
-	return inferRoomTypeByName(courseName)
+	return matcher.InferRoomTypeByName(courseName)
 }
