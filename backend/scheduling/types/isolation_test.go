@@ -19,13 +19,14 @@ var forbidden = []string{
 // TestInvP2_NoForbiddenImports uses `go list` to walk the transitive
 // import graph of scheduling/types and rejects any forbidden entry.
 // This is stricter than an eyeball import check because it catches
-// second-order imports too.
+// second-order imports too. A `go list` failure is treated as a real
+// test failure (not skipped): if the tooling that guards this
+// invariant breaks, we want to know, not silently pass.
 func TestInvP2_NoForbiddenImports(t *testing.T) {
 	cmd := exec.Command("go", "list", "-deps", "scheduling-system/backend/scheduling/types")
 	out, err := cmd.Output()
 	if err != nil {
-		t.Skipf("go list unavailable in this environment: %v", err)
-		return
+		t.Fatalf("go list failed — INV-P2 guard cannot run: %v (output=%q)", err, string(out))
 	}
 	deps := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for _, dep := range deps {
@@ -46,15 +47,15 @@ func TestInvP9_NoIOInPackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build.ImportDir failed: %v", err)
 	}
-	forbiddenImports := map[string]bool{
-		"os":      true,
-		"os/exec": false, // allowed only inside this isolation_test.go
-		"log":     true,
-	}
+	// Import paths that must never appear in the package's production
+	// sources (build.ImportDir excludes _test.go files, so os/exec used
+	// only by this file is naturally exempt — no allow-list needed).
+	forbiddenImports := []string{"os", "log", "fmt"}
 	for _, imp := range pkg.Imports {
-		if v, ok := forbiddenImports[imp]; ok && v {
-			t.Errorf("INV-P9 violated: scheduling/types imports %q", imp)
+		for _, f := range forbiddenImports {
+			if imp == f {
+				t.Errorf("INV-P9 violated: scheduling/types imports %q", imp)
+			}
 		}
 	}
-	// os/exec appears only in this test file, which is exempt.
 }
