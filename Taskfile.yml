@@ -61,6 +61,12 @@ tasks:
       - task: setup:scheduler
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  check:scheduling-isolation:
+    desc: Verify scheduling/* has no forbidden imports (INV-P2)
+    cmds:
+      - bash scripts/check_scheduling_isolation.sh
+
   go:mod:tidy:
     summary: Runs `go mod tidy`
     internal: true
