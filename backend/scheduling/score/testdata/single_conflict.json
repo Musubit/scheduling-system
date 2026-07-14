@@ -1,0 +1,254 @@
+{
+  "description": "single time conflict between two tasks",
+  "mode": "FULL_SCHEDULING",
+  "dimensions": [
+    "time",
+    "teacher",
+    "student",
+    "resource"
+  ],
+  "assignments": [
+    {
+      "TeachingTaskID": 1,
+      "DayOfWeek": 0,
+      "StartPeriod": 0,
+      "Span": 2,
+      "CourseID": 100,
+      "TeacherID": 10
+    },
+    {
+      "TeachingTaskID": 2,
+      "DayOfWeek": 0,
+      "StartPeriod": 0,
+      "Span": 2,
+      "CourseID": 200,
+      "TeacherID": 10
+    }
+  ],
+  "allocations": [
+    {
+      "LocalRef": 0,
+      "ClassroomID": 1000
+    },
+    {
+      "LocalRef": 1,
+      "ClassroomID": 1000
+    }
+  ],
+  "teachers": [
+    {
+      "ID": 10,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "code": "",
+      "name": "A",
+      "dept": "",
+      "status": "",
+      "preferNoEarly": false,
+      "preferNoLate": false,
+      "maxDaysPerWeek": 5,
+      "preferLowFloor": false,
+      "unavailableSlots": ""
+    }
+  ],
+  "classrooms": [
+    {
+      "ID": 1000,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "code": "",
+      "name": "",
+      "buildingId": 0,
+      "floor": 1,
+      "number": "",
+      "capacity": 60,
+      "roomType": "STANDARD",
+      "status": "",
+      "equipment": "",
+      "building": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "category": "",
+        "status": ""
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "ID": 1,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "courseId": 100,
+      "teacherId": 10,
+      "semesterId": 0,
+      "status": "",
+      "totalHours": 32,
+      "startWeek": 0,
+      "endWeek": 0,
+      "maxHoursPerWeek": 0,
+      "preferredSpan": 2,
+      "requiredRoomType": "",
+      "requiredEquipment": "",
+      "course": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "credit": 0,
+        "type": "",
+        "hours": 0,
+        "status": "",
+        "category": ""
+      },
+      "teacher": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "status": "",
+        "preferNoEarly": false,
+        "preferNoLate": false,
+        "maxDaysPerWeek": 0,
+        "preferLowFloor": false,
+        "unavailableSlots": ""
+      },
+      "semester": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "academicYear": "",
+        "term": "",
+        "startDate": "0001-01-01T00:00:00Z",
+        "endDate": "0001-01-01T00:00:00Z",
+        "status": ""
+      }
+    },
+    {
+      "ID": 2,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "courseId": 200,
+      "teacherId": 10,
+      "semesterId": 0,
+      "status": "",
+      "totalHours": 32,
+      "startWeek": 0,
+      "endWeek": 0,
+      "maxHoursPerWeek": 0,
+      "preferredSpan": 2,
+      "requiredRoomType": "",
+      "requiredEquipment": "",
+      "course": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "credit": 0,
+        "type": "",
+        "hours": 0,
+        "status": "",
+        "category": ""
+      },
+      "teacher": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "status": "",
+        "preferNoEarly": false,
+        "preferNoLate": false,
+        "maxDaysPerWeek": 0,
+        "preferLowFloor": false,
+        "unavailableSlots": ""
+      },
+      "semester": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "academicYear": "",
+        "term": "",
+        "startDate": "0001-01-01T00:00:00Z",
+        "endDate": "0001-01-01T00:00:00Z",
+        "status": ""
+      }
+    }
+  ],
+  "sportsCourseIDs": [],
+  "expected": {
+    "total": 100,
+    "teacherPref": 14.285714285714286,
+    "courseSpacing": 14.285714285714286,
+    "teacherDays": 14.285714285714286,
+    "lowFloorPref": 14.285714285714286,
+    "weekendAvoid": 14.285714285714286,
+    "pePeriodPref": 14.285714285714286,
+    "studentFatigue": 14.285714285714286,
+    "perCategoryMax": 14.29,
+    "enabledCategoryCount": 7,
+    "placedSessions": 2,
+    "expectedSessions": 2,
+    "completeness": 1,
+    "finalTotal": 100,
+    "buckets": {
+      "time": {
+        "value": 42.85714285714286,
+        "max": 42.87,
+        "details": {
+          "course_dispersed": 14.285714285714286,
+          "pe_preferred_periods": 14.285714285714286,
+          "weekend_avoid": 14.285714285714286
+        }
+      },
+      "teacher": {
+        "value": 28.571428571428573,
+        "max": 28.58,
+        "details": {
+          "teacher_days_limit": 14.285714285714286,
+          "teacher_preference": 14.285714285714286
+        }
+      },
+      "student": {
+        "value": 14.285714285714286,
+        "max": 14.29,
+        "details": {
+          "student_fatigue": 14.285714285714286
+        }
+      },
+      "resource": {
+        "value": 14.285714285714286,
+        "max": 14.29,
+        "details": {
+          "low_floor_preference": 14.285714285714286
+        }
+      }
+    },
+    "enabledDimensions": [
+      "time",
+      "teacher",
+      "student",
+      "resource"
+    ]
+  }
+}
