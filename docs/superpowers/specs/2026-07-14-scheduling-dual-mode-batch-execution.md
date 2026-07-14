@@ -87,10 +87,13 @@ INV-MI1~MI3。本执行 spec 追加两条:
 
 | 版本 | 引入 | 含义 |
 |---|---|---|
-| `v0.5.5-room` | refactor squash(pre-step) | Stage B Room 域完成 |
 | `v0.5.5-prep` | PR-03 | DTO / 元表 / SchedulingMode 字段就绪,行为不变 |
 | `v0.5.5-dbgate` | PR-09 | `time_assignments` 建表 + `schedule_entries.ClassroomID` 移除 |
 | `v0.5.5-release` | PR-10 | 主链路切至 Orchestrator |
+
+**说明**:refactor squash 里的 Room 域迁移(`MigrateRoomDomainV055`)使用 `settings` 表
+标记完成状态,不写入 `schema_migrations`。`schema_migrations` 从 `v0.5.5-prep` 起
+作为**新引入**的版本控制机制,不追溯归档 Room 域迁移。
 
 **API 契约**:
 ```go
@@ -182,8 +185,8 @@ git push origin main
 - **启动幂等验证**(手工):
   - 删本地 `scheduling.db`
   - 启动应用一次 → 关闭 → `select * from schema_migrations` 应见
-    `v0.5.5-room` 一行 + `v0.5.5-prep` 一行
-  - 再启动一次 → 仍只有那两行
+    `v0.5.5-prep` 一行(Room 域迁移用 settings 表标记,不写 schema_migrations)
+  - 再启动一次 → 仍只有 `v0.5.5-prep` 一行
 - `go test ./...` 全绿
 - `cd frontend && npm run build` 通过
 
