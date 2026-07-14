@@ -300,8 +300,13 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Save result to database
 	addProgress(85, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
-		// Soft-delete old entries for the semester (allows transaction rollback)
-		if err := tx.Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+		// Hard-delete old entries for the semester.
+		// Must use Unscoped (hard delete) because idx_schedule_room unique index
+		// does not include deleted_at — soft-deleted rows still occupy unique
+		// slots and would cause UNIQUE constraint violations on re-insert.
+		// Transaction rollback still works with hard delete in SQLite.
+		// Historical schedule data is preserved via Snapshot system, not soft delete.
+		if err := tx.Unscoped().Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
 			return fmt.Errorf("清空旧课表失败: %w", err)
 		}
 		if len(saResult.Entries) > 0 {
