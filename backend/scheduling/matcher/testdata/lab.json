@@ -1,0 +1,24 @@
+{
+  "task": {
+    "CourseID": 200,
+    "RequiredRoomType": "LAB"
+  },
+  "course": {
+    "Name": "物理实验",
+    "Category": "lab"
+  },
+  "classroom": {
+    "Name": "实验楼 A-201",
+    "RoomType": "LAB",
+    "Capacity": 40,
+    "Equipment": ""
+  },
+  "expected": {
+    "OK": true,
+    "Code": 0,
+    "Reason": "",
+    "RequiredType": "",
+    "ActualType": "",
+    "MissingEquipment": null
+  }
+}

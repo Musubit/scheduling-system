@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/glebarez/sqlite v1.11.0
+	github.com/google/go-cmp v0.7.0
 	github.com/wailsapp/wails/v3 v3.0.0-alpha2.116
 	golang.org/x/sys v0.43.0
 	gorm.io/gorm v1.31.2
