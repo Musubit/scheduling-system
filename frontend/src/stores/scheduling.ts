@@ -290,7 +290,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       const { useAppStore } = await import('./app')
       const appStore = useAppStore()
       const uiStore = useUiStore()
-      await useScheduleStore().loadSchedule(appStore.semesterFilter)
+      await useScheduleStore().loadSchedule(appStore.currentSemesterId)
       // Show dialog via uiStore (decoupled)
       uiStore.pendingScheduleNav = true
     } catch (e) {

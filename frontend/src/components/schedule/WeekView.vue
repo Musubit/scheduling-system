@@ -270,7 +270,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
 
     // 成功无需额外提示（课程已移动，用户能看到结果）
     scheduleStore.markDirty()  // H3: 累计未保存的手动调整数
-    await scheduleStore.loadSchedule('')
+    await scheduleStore.loadSchedule(0)
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))
   }

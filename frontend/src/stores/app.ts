@@ -175,7 +175,7 @@ export const useAppStore = defineStore('app', () => {
     // Dynamic import to avoid circular dependency
     const { useScheduleStore } = await import('./schedule')
     const { useResourceStore } = await import('./resource')
-    useScheduleStore().loadSchedule(name)
+    useScheduleStore().loadSchedule(id)
     useResourceStore().loadTeachingTasks(id)
   }
 

@@ -36,7 +36,7 @@ onMounted(async () => {
     }
     await Promise.all([
       resourceStore.loadAll(),
-      scheduleStore.loadSchedule(appStore.currentSemesterName),
+      scheduleStore.loadSchedule(appStore.currentSemesterId),
     ])
   } catch (err) {
     console.error('App init failed:', err)

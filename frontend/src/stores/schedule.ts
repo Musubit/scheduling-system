@@ -77,10 +77,10 @@ export const useScheduleStore = defineStore('schedule', () => {
     return displayEntries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
   }
 
-  async function loadSchedule(semester: string) {
+  async function loadSchedule(semesterId: number) {
     isLoading.value = true
     try {
-      const data = await GetScheduleEntries(semester)
+      const data = await GetScheduleEntries(semesterId)
       entries.value = (data || []) as ScheduleEntry[]
     } catch (e) {
       console.warn('Failed to load schedule from Go backend:', e)
@@ -174,7 +174,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   function clearVersionView() {
     viewMode.value = 'current'
     versionName.value = ''
-    loadSchedule('')
+    loadSchedule(0)
   }
 
   // ---- Manual adjustment tracking (H3 — post-adjustment snapshot save) ----
