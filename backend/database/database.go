@@ -171,7 +171,11 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 		return nil, err
 	}
 
-	// One-time migration: import departments from legacy settings JSON if table is empty
+	if err := EnsureMigrationApplied(adapter, "v0.5.5-prep"); err != nil {
+		log.Printf("[migrate] ensure v0.5.5-prep failed: %v", err)
+		return nil, err
+	}
+
 	MigrateDepartmentsFromSettings(adapter)
 
 	// v0.5.5 Stage B — Course category enum migration.
