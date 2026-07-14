@@ -31,6 +31,7 @@ type SchedulingConfig struct {
 	LockedSlotsJSON   string                    `json:"lockedSlotsJson,omitempty"`   // JSON string, avoids Wails enum serialization pitfall
 	SemesterID        uint                      `json:"semesterId,omitempty"`        // active semester ID
 	ConstraintWeights map[string]int            `json:"constraintWeights,omitempty"` // per-constraint weights (0-100)
+	MaxRetries        int                       `json:"maxRetries,omitempty"`        // Orchestrator internal retry limit, 0 = no retry
 }
 
 type SchedulingResult struct {
