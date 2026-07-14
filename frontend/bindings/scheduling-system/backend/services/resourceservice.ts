@@ -70,8 +70,10 @@ export function DeleteTeacher(id: number): $CancellablePromise<void> {
 }
 
 /**
- * GetActiveSemester returns the first semester with Status="active".
- * v0.5.5: 替代旧 IsActive 布尔逻辑，改用 Status 字段。
+ * GetActiveSemester returns the semester with Status="active", or (nil, nil)
+ * when none exists. v0.5.5 修订：新 seed 只造 planned 学期，未启用前查询会命中
+ * gorm.ErrRecordNotFound —— 这不是错误状态，前端 initSemester 需要区分
+ * "查询失败" 与 "尚无 active 学期"，因此正常返回空指针而不是抛错。
  */
 export function GetActiveSemester(): $CancellablePromise<models$0.Semester | null> {
     return $Call.ByID(1572033238);

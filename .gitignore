@@ -47,3 +47,6 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code superpowers skills lockfile (local, per-dev)
+skills-lock.json

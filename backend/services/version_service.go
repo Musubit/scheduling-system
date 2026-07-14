@@ -24,6 +24,21 @@ func NewVersionService(db database.DB) *VersionService {
 	return &VersionService{db: db}
 }
 
+// defaultModeForSemester 从最近一次自动 snapshot 继承 Mode，用作新 version 的默认值。
+// 场景：ManualAdjust 版本没有独立的模式选择器，与所在学期最近一次排课模式对齐；
+// 若没有 snapshot（新学期首次调整），回退到 FULL_SCHEDULING（Stable Core 行为）。
+func (s *VersionService) defaultModeForSemester(semesterID uint) string {
+	var snap models.ScheduleSnapshot
+	err := s.db.
+		Where("semester_id = ? AND mode <> ''", semesterID).
+		Order("created_at DESC").
+		First(&snap).Error()
+	if err != nil || snap.Mode == "" {
+		return "FULL_SCHEDULING"
+	}
+	return snap.Mode
+}
+
 // CreateVersion stores a new historical version from the given schedule entries.
 // It automatically enforces the per-semester retention limit (DefaultMaxVersions).
 //
@@ -59,6 +74,7 @@ func (s *VersionService) CreateVersion(semesterID uint, name, source string, sco
 		Score:      score,
 		EntryCount: len(versionEntries),
 		Solver:     solver,
+		Mode:       s.defaultModeForSemester(semesterID), // v0.5.5: 继承最近一次自动版本的模式
 		Entries:    versionEntries,
 	}
 

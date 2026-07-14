@@ -136,15 +136,11 @@ func seedBuildings(db DB) {
 // 幂等：所有 seed 使用 FirstOrCreate / seedIfAbsent。
 func seedBaseData(db DB) {
 	// ===== Semesters =====
-	// v0.5.5: 使用 AcademicYear + Term 复合唯一键，删除 Name/IsActive
-	semesters := []models.Semester{
-		{AcademicYear: "2025-2026", Term: models.SemesterTermSecond, StartDate: time.Date(2026, 2, 23, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2026, 7, 26, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusActive},
-		{AcademicYear: "2025-2026", Term: models.SemesterTermFirst, StartDate: time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusArchived},
-		{AcademicYear: "2024-2025", Term: models.SemesterTermSecond, StartDate: time.Date(2025, 2, 24, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2025, 7, 27, 0, 0, 0, 0, time.UTC), Status: models.SemesterStatusArchived},
-	}
-	for _, s := range semesters {
-		_ = db.FirstOrCreate(&s, "academic_year = ? AND term = ?", s.AcademicYear, s.Term)
-	}
+	// v0.5.5 修订：只 seed 一个"下一个即将开学"的学期（Status=planned），
+	// 由 nextUpcomingSemester(time.Now()) 动态推算 —— 用户可在设置里编辑或
+	// 直接启用。避免历史 seed 数据造成的"2 月有两个第一天"混淆。
+	sem := nextUpcomingSemester(time.Now())
+	_ = db.FirstOrCreate(&sem, "academic_year = ? AND term = ?", sem.AcademicYear, sem.Term)
 
 	// ===== Departments =====
 	// v0.5.5 Stage A: 首次将官方 19 学院写入 SSOT。
@@ -525,4 +521,73 @@ func loadClassroomByCode(db DB) map[string]models.Classroom {
 		out[r.Code] = r
 	}
 	return out
+}
+
+// nextUpcomingSemester 根据当前时间返回下一个即将开学的学期，Status=planned。
+// 规则（中国大陆高校常见节奏）：
+//   - 每年 3 月 1 日到 8 月 31 日：下一个学期 = 当年秋季学期（AY = 当年-次年，Term=FIRST，默认 9 月 1 日开学）。
+//   - 每年 9 月 1 日到次年 2 月末：下一个学期 = 次年春季学期（AY = 上一年-当年，Term=SECOND，
+//     默认 2 月第三个周一开学 —— 避开春节假期）。
+//
+// 内置默认第一天只是"合理起点"，用户可在设置里编辑；用户改过之后
+// 幂等 seed 不会覆盖（FirstOrCreate 只在同 AY+Term 缺席时插入）。
+func nextUpcomingSemester(now time.Time) models.Semester {
+	y := now.Year()
+	m := now.Month()
+
+	if m >= time.March && m <= time.August {
+		// 下一个：当年 9 月 1 日开学的秋季学期
+		start := time.Date(y, time.September, 1, 0, 0, 0, 0, time.UTC)
+		return models.Semester{
+			AcademicYear: firstTermAcademicYear(y),
+			Term:         models.SemesterTermFirst,
+			StartDate:    start,
+			EndDate:      start.AddDate(0, 0, 18*7-1),
+			Status:       models.SemesterStatusPlanned,
+		}
+	}
+	// 9 月-次年 2 月：下一个 = 次年春季（Term=SECOND）
+	springYear := y
+	if m >= time.September {
+		springYear = y + 1
+	}
+	start := nthMondayOfMonth(springYear, time.February, 3)
+	return models.Semester{
+		AcademicYear: secondTermAcademicYear(springYear),
+		Term:         models.SemesterTermSecond,
+		StartDate:    start,
+		EndDate:      start.AddDate(0, 0, 18*7-1),
+		Status:       models.SemesterStatusPlanned,
+	}
+}
+
+// firstTermAcademicYear: 秋季学期学年 = 当年-次年，如 y=2026 → "2026-2027"。
+func firstTermAcademicYear(y int) string {
+	return itoa4(y) + "-" + itoa4(y+1)
+}
+
+// secondTermAcademicYear: 春季学期学年 = 上一年-当年，如 springYear=2027 → "2026-2027"。
+func secondTermAcademicYear(springYear int) string {
+	return itoa4(springYear-1) + "-" + itoa4(springYear)
+}
+
+// nthMondayOfMonth: 返回给定年月的第 n 个周一（1-based，UTC）。
+func nthMondayOfMonth(y int, m time.Month, n int) time.Time {
+	first := time.Date(y, m, 1, 0, 0, 0, 0, time.UTC)
+	// Weekday(): Sun=0, Mon=1, …, Sat=6
+	offset := (int(time.Monday) - int(first.Weekday()) + 7) % 7
+	return first.AddDate(0, 0, offset+(n-1)*7)
+}
+
+// itoa4: 4 位年份格式化。避免引入 strconv 依赖爬到文件顶部（仅本文件内部使用）。
+func itoa4(y int) string {
+	// 年份始终 4 位；保守起见做一次 fmt-free 转换。
+	buf := [4]byte{'0', '0', '0', '0'}
+	i := 3
+	for y > 0 && i >= 0 {
+		buf[i] = byte('0' + y%10)
+		y /= 10
+		i--
+	}
+	return string(buf[:])
 }

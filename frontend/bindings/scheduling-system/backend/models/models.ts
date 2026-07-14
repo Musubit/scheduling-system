@@ -243,6 +243,13 @@ export interface ScheduleSnapshot {
     "trigger": string;
 
     /**
+     * v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
+     * 历史行(default:'FULL_SCHEDULING')在自动迁移时得到默认值，
+     * 后续读取路径可用它判断"资源分是禁用还是真 0"。空串等同 FULL。
+     */
+    "mode"?: string;
+
+    /**
      * Hard constraint pass/fail
      */
     "hardPassed": boolean;
@@ -336,6 +343,13 @@ export interface ScheduleVersion {
      * optional: which solver produced it
      */
     "solver": string;
+
+    /**
+     * v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
+     * 前端根据这个字段决定是否展示"教室"列 / 资源评分,避免 TIME_ONLY
+     * 历史版本被误解为"排课失败 - 教室分配 0"。
+     */
+    "mode"?: string;
     "entries"?: ScheduleVersionEntry[] | null;
 }
 

@@ -42,19 +42,41 @@ func isDevMode() bool {
 	return false
 }
 
+// devDataDir returns the in-tree writable data directory used during
+// `wails3 dev`, parameterised on baseDir so it can be unit-tested without
+// depending on cwd. It must never collide with the built binary path
+// (see devDataLeafName).
+func devDataDir(baseDir string) string {
+	return filepath.Join(baseDir, "bin", devDataLeafName())
+}
+
+// devDataLeafName picks the leaf directory name for dev-mode data.
+//
+// On Windows the built binary is bin/scheduling-system.exe, so a directory
+// named bin/scheduling-system/ does not collide. On Linux (and any POSIX
+// GOOS) the built binary is bin/scheduling-system (no suffix), so we need
+// a distinct leaf name; otherwise startup fails with "not a directory"
+// when trying to mkdir logs/ under a path that is already a regular file.
+// We reuse the same layout Windows has always used to avoid disturbing
+// existing installs.
+func devDataLeafName() string {
+	if runtime.GOOS == "windows" {
+		return "scheduling-system"
+	}
+	return "scheduling-system-data"
+}
+
 // DataDir returns the writable user-data directory.
 //
 //	Windows: %LOCALAPPDATA%\scheduling-system
 //	macOS:   ~/Library/Application Support/scheduling-system
 //	Linux:   ~/.local/share/scheduling-system
 //
-// In dev mode returns the project root so data stays in-tree.
+// In dev mode returns a subdirectory under bin/ that never shadows the
+// built binary — see devDataLeafName.
 func DataDir() string {
 	if isDevMode() {
-		// In dev, keep the writable data (db/logs/config) under bin/ so the
-		// project root stays clean and the layout mirrors the built app
-		// (bin/scheduling-system).
-		return filepath.Join(BaseDir(), "bin", "scheduling-system")
+		return devDataDir(BaseDir())
 	}
 	var base string
 	switch runtime.GOOS {

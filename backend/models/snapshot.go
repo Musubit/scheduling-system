@@ -16,6 +16,11 @@ type ScheduleSnapshot struct {
 	Dept       string `gorm:"size:50" json:"dept"`     // 院系范围，空=全校
 	Trigger    string `gorm:"size:20" json:"trigger"`   // "auto" | "manual"
 
+	// v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
+	// 历史行(default:'FULL_SCHEDULING')在自动迁移时得到默认值，
+	// 后续读取路径可用它判断"资源分是禁用还是真 0"。空串等同 FULL。
+	Mode string `gorm:"size:32;default:FULL_SCHEDULING" json:"mode,omitempty"`
+
 	// Hard constraint pass/fail
 	HardPassed       bool `json:"hardPassed"`
 	TeacherConflicts int  `json:"teacherConflicts"`

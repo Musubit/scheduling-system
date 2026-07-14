@@ -162,6 +162,10 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 		&models.Department{},
 		&models.ScheduleVersion{},
 		&models.ScheduleVersionEntry{},
+		// v0.5.5 PR-03: TimeAssignment 表 + schema_migrations 元表提前建表。
+		// 生产写路径尚未启用 —— 会到 PR-09 才切换。
+		&models.TimeAssignment{},
+		&models.SchemaMigration{},
 	)
 	if err != nil {
 		return nil, err

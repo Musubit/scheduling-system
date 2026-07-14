@@ -247,26 +247,80 @@ func (s *ResourceService) GetSemesters() ([]models.Semester, error) {
 	return semesters, result.Error()
 }
 
-// GetActiveSemester returns the first semester with Status="active".
-// v0.5.5: 替代旧 IsActive 布尔逻辑，改用 Status 字段。
+// GetActiveSemester returns the semester with Status="active", or (nil, nil)
+// when none exists. v0.5.5 修订：新 seed 只造 planned 学期，未启用前查询会命中
+// gorm.ErrRecordNotFound —— 这不是错误状态，前端 initSemester 需要区分
+// "查询失败" 与 "尚无 active 学期"，因此正常返回空指针而不是抛错。
 func (s *ResourceService) GetActiveSemester() (*models.Semester, error) {
 	var semester models.Semester
-	if err := s.db.Where("status = ?", models.SemesterStatusActive).First(&semester).Error(); err != nil {
+	err := s.db.Where("status = ?", models.SemesterStatusActive).First(&semester).Error()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &semester, nil
 }
 
 func (s *ResourceService) CreateSemester(sem models.Semester) error {
-	return s.db.Create(&sem).Error()
+	normalizeSemester(&sem)
+	if err := s.db.Create(&sem).Error(); err != nil {
+		return err
+	}
+	if sem.Status == models.SemesterStatusActive {
+		return s.demoteOtherActiveSemesters(sem.ID)
+	}
+	return nil
 }
 
 func (s *ResourceService) UpdateSemester(sem models.Semester) error {
-	return s.db.Save(&sem).Error()
+	normalizeSemester(&sem)
+	// Save() 会写全字段；EndDate 已由 normalizeSemester 补齐。
+	if err := s.db.Save(&sem).Error(); err != nil {
+		return err
+	}
+	if sem.Status == models.SemesterStatusActive {
+		return s.demoteOtherActiveSemesters(sem.ID)
+	}
+	return nil
 }
 
 func (s *ResourceService) DeleteSemester(id uint) error {
 	return s.db.Delete(&models.Semester{}, id).Error()
+}
+
+// normalizeSemester 做两件事：
+//  1. StartDate 非空但 EndDate 空/零值时，自动补 = StartDate + 18 周 - 1 天。
+//  2. Status 为空时默认 planned（前端只发 active/planned 二选一 switch 时兜底）。
+func normalizeSemester(sem *models.Semester) {
+	if sem.Status == "" {
+		sem.Status = models.SemesterStatusPlanned
+	}
+	if !sem.StartDate.IsZero() && sem.EndDate.IsZero() {
+		sem.EndDate = sem.StartDate.AddDate(0, 0, 18*7-1)
+	}
+}
+
+// demoteOtherActiveSemesters 保证任一时刻仅一个 active 学期：
+// 把除 keepID 外所有 active 学期改为 archived。前端"设为当前学期"开关只做启用，
+// 不触发降级到 planned —— 归档语义更贴合业务（历史学期不再动）。
+//
+// 使用 Find+Save 组合而非批量 UPDATE：DB interface 未暴露 Update；
+// active 学期在业务上通常最多 1 条，逐条 Save 的开销可忽略。
+func (s *ResourceService) demoteOtherActiveSemesters(keepID uint) error {
+	var others []models.Semester
+	if err := s.db.Where("status = ? AND id <> ?", models.SemesterStatusActive, keepID).
+		Find(&others).Error(); err != nil {
+		return err
+	}
+	for i := range others {
+		others[i].Status = models.SemesterStatusArchived
+		if err := s.db.Save(&others[i]).Error(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ===== Departments =====

@@ -1,7 +1,7 @@
 # ROADMAP.md — 高校智能排课系统
 
-> **最后更新**: 2026-07-13
-> **当前版本**: v0.5.5 Phase 1 completed (main `93e0d2f`) / 下一阶段 v0.5.5 Phase 2 待启动
+> **最后更新**: 2026-07-14
+> **当前版本**: v0.5.5 Phase 1 completed (main `93e0d2f`) / 下一阶段 v0.5.5 P0（核心引擎通用能力）待启动
 
 ---
 
@@ -59,7 +59,7 @@ v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
 | Goal 2 | `ResourcePage.vue` 相关 UI 移除（-94 行） | ✅ |
 | Goal 3 | Seed 幂等性修复 Count+Create → FirstOrCreate (`a69cb1a`) | ✅ |
 
-### v0.5.5 — Academic Calendar Foundation（分 3 Phase 推进）
+### v0.5.5 — Academic Calendar Foundation（先 P0 后 Phase 推进）
 
 #### v0.5.5 Phase 1 — Semester Domain Stabilization ✅ (已合并 `93e0d2f`, 未独立打 tag)
 
@@ -70,6 +70,18 @@ v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
 | Goal 3 | Services + SASolver + Seed + Bindings 级联同步 | ✅ |
 | Goal 4 | Seed 复合唯一键 (academic_year, term) | ✅ |
 
+#### v0.5.5 P0 — Core Engine Generalization ⏳ (最高优先级,部分完成)
+
+| Goal | 内容 | 状态 |
+|------|------|------|
+| Goal 1 | 排课模式主链路打通：`FULL_SCHEDULING` / `TIME_ONLY_SCHEDULING` | ✅ M1 完成 |
+| Goal 2 | 支持关闭教室分配后仍可完成课程时间安排 | ⚠️ 功能可用,但 INV-E1(TIME_ONLY 零教室行)未合规 |
+| Goal 3 | TIME_ONLY 评分维度对齐（资源维度禁用而非伪 0） | ⚠️ 靠 classrooms=nil 短路,非结构化 dimension 门控 |
+| Goal 4 | 前端模式开关与后端透传闭环 | ✅ M3 完成(结果面板 mode-aware badge + 冲突行/验证行隐藏 + 约束禁用提示) |
+| Goal 5 | 双模式最小回归门禁（go test / 前端 build / 核心流程） | ⏳ M4 未做 |
+
+**决策阻塞**: INV-E1 修复方案(ClassroomID nullable vs 拆表 time_assignments)、Orchestrator 装配是否本 P0 内做,均需签字。见 `docs/ACTIVE_TASK.md § 决策阻塞项`。
+
 #### v0.5.5 Phase 2 — Academic Calendar Extension ⏳ (待启动)
 
 | Item | 说明 |
@@ -78,17 +90,21 @@ v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
 | `services/academic_calendar/` 领域包 | CurrentSemester / CurrentWeek / WeekView 派生（TeachingWeek 不建表） |
 | Seed | 每学期 3 条 AcademicTerm 记录 |
 
-#### v0.5.5 Phase 3 — 前端清理 + Solver 感知 ⏳ (待启动)
+#### v0.5.5 Phase 3 — 前端清理 + Solver 感知 ⚙️ (部分就地完成)
 
-| Item | 说明 |
-|------|------|
-| 前端字段清理 | `stores/app.ts` / `SettingsPage.vue` / `AppToolbar.vue` / `SchedulingPage.vue` / `HistoryComparePage.vue` 中 `s.name`/`s.isActive` 引用 |
-| WeekView 日期派生 | 删除"当年 1 月 1 日 + week×7"硬编码，改用 Semester.StartDate |
-| Solver TermType 感知 | 可选：OR-Tools/SA 按 TermType 判断是否排入某周次 |
+| Item | 说明 | 状态 |
+|------|------|------|
+| 前端字段清理 | `stores/app.ts` 派生 `semesterSelectOptions`；`AppToolbar` / `SchedulingPage` / `SettingsPage` 已迁移；`HistoryComparePage` 用的是 snapshot.name(与 semester 无关,无需迁) | ✅ 消费端已切换 |
+| WeekView 日期派生 | 从 `appStore.currentSemester.startDate` 派生周日期 | ✅ 完成 |
+| Solver TermType 感知 | 需产品决策是否属于 v0.5.5 范围;当前 solver 完全 term-agnostic | ⏳ 决策待定 |
 
-### H3 — 调整后保存快照 (v0.4.0 遗留)
+### H3 — 调整后保存快照 (v0.4.0 遗留) ✅
 
-手动调课后用户主动生成快照。后端 `CreateManualSnapshot` 已存在，需前端对接。计划在 v0.5.5 Phase 3 之后处理。
+手动调课后用户主动生成快照:
+- Backend `CreateManualSnapshot` 已存在
+- ReportPage 生成报告按钮已接
+- **SchedulingPage 保存快照按钮 + dirtyMoveCount + 命名弹窗** 已就地完成
+- 后端 `snapshot_service_test.go` 契约 test 已补
 
 ---
 

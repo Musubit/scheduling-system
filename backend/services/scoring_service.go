@@ -36,6 +36,33 @@ type ScoreBreakdown struct {
 	ExpectedSessions int     `json:"expectedSessions,omitempty"`
 	Completeness     float64 `json:"completeness,omitempty"` // ratio in [0,1]
 	FinalTotal       float64 `json:"finalTotal"`
+
+	// v0.5.5 P0 M2: nullable buckets — Disabled 语义靠 nil 表达 (INV-S1/S2/I8)。
+	// 与上面的 float64 字段并存作为过渡：读侧优先 buckets（nil = Disabled;
+	// non-nil = 已评估分值），旧调用可继续读 float64（Disabled 与 真 0 都是 0）。
+	// 一旦所有前端消费方切到 buckets，float64 可在下版本删除。
+	Buckets *ScoreBuckets `json:"buckets,omitempty"`
+
+	// EnabledDimensions echoes the mode-derived dimension list (INV-S2)。
+	// TIME_ONLY → ["time","teacher","student"]；FULL → [...+"resource"]。
+	EnabledDimensions []string `json:"enabledDimensions,omitempty"`
+}
+
+// ScoreBuckets 按 spec 2.7 冻结的四桶结构表达当前排课结果分值。
+// 每个 bucket 用指针：nil 表示该维度被禁用（如 TIME_ONLY 的 Resource），
+// non-nil 但 Value=0 表示"评估了,得 0 分"。这是"Disabled = missing, not 0"的关键。
+type ScoreBuckets struct {
+	Time     *ScoreBucket `json:"time,omitempty"`
+	Teacher  *ScoreBucket `json:"teacher,omitempty"`
+	Student  *ScoreBucket `json:"student,omitempty"`
+	Resource *ScoreBucket `json:"resource,omitempty"` // TIME_ONLY 下必为 nil
+}
+
+// ScoreBucket 一个维度的评分聚合。Details 保留子约束分值以便前端做详情。
+type ScoreBucket struct {
+	Value   float64            `json:"value"`
+	Max     float64            `json:"max"`
+	Details map[string]float64 `json:"details,omitempty"`
 }
 
 // ScoreSchedule evaluates a full schedule against soft constraints.
@@ -57,6 +84,20 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	for _, c := range enabledConstraints {
 		enabled[c] = true
 	}
+
+	// v0.5.5 P0 M2: 结构化维度门控 —— 从 ctx.Mode.EnabledScoreDimensions() 派生
+	// 允许评估的维度集合，禁用的维度对应 sub-constraints 一律关闭。这样
+	// TIME_ONLY 模式下无论 EnabledConstraints 是否包含 low_floor_preference，
+	// 资源维度都不会被评分（对齐 INV-S1/S2/I8：Disabled = missing, not 0）。
+	dims := make(map[string]bool)
+	for _, d := range ctx.EffectiveMode().EnabledScoreDimensions() {
+		dims[d] = true
+	}
+	if !dims["resource"] {
+		enabled["low_floor_preference"] = false
+	}
+	// I8 前瞻：一旦未来新增 resource 子约束（capacity/type/equipment），
+	// 在此一次性禁用即可，无需散布在各评分函数内。
 
 	// Count enabled categories and per-category max
 	enabledCount := 0
@@ -165,6 +206,67 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		breakdown.Completeness = 1.0
 		breakdown.FinalTotal = breakdown.Total
 	}
+
+	// v0.5.5 P0 M2: 构建 nullable buckets (spec 2.7 冻结的 4 桶分配)。
+	// 未启用维度对应 bucket = nil (Disabled 语义); 启用但子约束全 disabled
+	// 对应 bucket = non-nil{Value:0}(评估了得 0 分)。
+	breakdown.EnabledDimensions = ctx.EffectiveMode().EnabledScoreDimensions()
+	dimSet := make(map[string]bool, len(breakdown.EnabledDimensions))
+	for _, d := range breakdown.EnabledDimensions {
+		dimSet[d] = true
+	}
+	buckets := &ScoreBuckets{}
+	// Time bucket: course_dispersed + avoid_saturday/sunday + pe_preferred_periods
+	if dimSet["time"] {
+		details := map[string]float64{}
+		val := 0.0
+		if enabled["course_dispersed"] {
+			details["course_dispersed"] = breakdown.CourseSpacing
+			val += breakdown.CourseSpacing
+		}
+		if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
+			details["weekend_avoid"] = breakdown.WeekendAvoid
+			val += breakdown.WeekendAvoid
+		}
+		if enabled["pe_preferred_periods"] {
+			details["pe_preferred_periods"] = breakdown.PePeriodPref
+			val += breakdown.PePeriodPref
+		}
+		buckets.Time = &ScoreBucket{Value: val, Max: breakdown.PerCategoryMax * 3, Details: details}
+	}
+	// Teacher bucket: teacher_preference + teacher_days_limit
+	if dimSet["teacher"] {
+		details := map[string]float64{}
+		val := 0.0
+		if enabled["teacher_preference"] {
+			details["teacher_preference"] = breakdown.TeacherPref
+			val += breakdown.TeacherPref
+		}
+		if enabled["teacher_days_limit"] {
+			details["teacher_days_limit"] = breakdown.TeacherDays
+			val += breakdown.TeacherDays
+		}
+		buckets.Teacher = &ScoreBucket{Value: val, Max: breakdown.PerCategoryMax * 2, Details: details}
+	}
+	// Student bucket: student_fatigue
+	if dimSet["student"] {
+		details := map[string]float64{}
+		if enabled["student_fatigue"] {
+			details["student_fatigue"] = breakdown.StudentFatigue
+		}
+		buckets.Student = &ScoreBucket{Value: breakdown.StudentFatigue, Max: breakdown.PerCategoryMax, Details: details}
+	}
+	// Resource bucket: low_floor_preference (spec §2.7)
+	// TIME_ONLY 时 dimSet["resource"] == false → Resource 保持 nil (INV-S1: Disabled = nil)
+	if dimSet["resource"] {
+		details := map[string]float64{}
+		if enabled["low_floor_preference"] {
+			details["low_floor_preference"] = breakdown.LowFloorPref
+		}
+		buckets.Resource = &ScoreBucket{Value: breakdown.LowFloorPref, Max: breakdown.PerCategoryMax, Details: details}
+	}
+	breakdown.Buckets = buckets
+
 	return breakdown
 }
 

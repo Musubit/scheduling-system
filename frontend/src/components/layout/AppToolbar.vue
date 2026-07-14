@@ -30,13 +30,13 @@ async function handleOpenDownloads() {
     </div>
     <div class="toolbar-spacer"></div>
 
-    <!-- 全局学期选择 -->
+    <!-- 全局学期选择 (v0.5.5 P2: 用 semesterSelectOptions 消除对 s.name 的依赖) -->
     <n-select
       :value="appStore.currentSemesterId"
       @update:value="appStore.setCurrentSemester($event)"
-      :options="appStore.semesters.map(s => ({ label: s.name, value: s.ID }))"
+      :options="appStore.semesterSelectOptions"
       size="small"
-      style="width: 170px"
+      style="width: 200px"
     />
 
     <!-- 打开下载目录 -->

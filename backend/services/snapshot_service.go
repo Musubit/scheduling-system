@@ -36,6 +36,7 @@ func (s *SnapshotService) CreateSnapshot(
 		SemesterID: semesterID,
 		Dept:       dept,
 		Trigger:    trigger,
+		Mode:       string(scoringCtx.EffectiveMode()), // v0.5.5: 记录快照对应模式
 		HardPassed: conflictCount == 0,
 
 		TotalScore:        breakdown.Total,
@@ -262,6 +263,7 @@ func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.Schedul
 		SemesterID:     semesterID,
 		Dept:           "全校",
 		Trigger:        models.TriggerManual,
+		Mode:           string(scoringCtx.EffectiveMode()), // v0.5.5: 继承最近一次自动快照的模式;fallback FULL
 		HardPassed:     conflicts == 0,
 		TotalScore:    breakdown.Total,
 		TeacherPref:   breakdown.TeacherPref,

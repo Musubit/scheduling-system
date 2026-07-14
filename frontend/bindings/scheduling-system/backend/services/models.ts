@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as types$0 from "../scheduling/types/models.js";
 
 /**
  * CheckMoveRequest is the input for CheckMove.
@@ -97,6 +100,7 @@ export interface ScheduleProgress {
 
 export interface SchedulingConfig {
     "scope": string;
+    "mode"?: types$0.SchedulingMode;
     "strategy": string;
     "iterations": number;
 
@@ -123,6 +127,7 @@ export interface SchedulingConfig {
 }
 
 export interface SchedulingResult {
+    "mode"?: string;
     "totalCourses": number;
     "scheduled": number;
     "tasksScheduled": number;
@@ -192,6 +197,45 @@ export interface ScoreBreakdown {
      */
     "completeness"?: number;
     "finalTotal": number;
+
+    /**
+     * v0.5.5 P0 M2: nullable buckets — Disabled 语义靠 nil 表达 (INV-S1/S2/I8)。
+     * 与上面的 float64 字段并存作为过渡：读侧优先 buckets（nil = Disabled;
+     * non-nil = 已评估分值），旧调用可继续读 float64（Disabled 与 真 0 都是 0）。
+     * 一旦所有前端消费方切到 buckets，float64 可在下版本删除。
+     */
+    "buckets"?: ScoreBuckets | null;
+
+    /**
+     * EnabledDimensions echoes the mode-derived dimension list (INV-S2)。
+     * TIME_ONLY → ["time","teacher","student"]；FULL → [...+"resource"]。
+     */
+    "enabledDimensions"?: string[] | null;
+}
+
+/**
+ * ScoreBucket 一个维度的评分聚合。Details 保留子约束分值以便前端做详情。
+ */
+export interface ScoreBucket {
+    "value": number;
+    "max": number;
+    "details"?: { [_ in string]?: number } | null;
+}
+
+/**
+ * ScoreBuckets 按 spec 2.7 冻结的四桶结构表达当前排课结果分值。
+ * 每个 bucket 用指针：nil 表示该维度被禁用（如 TIME_ONLY 的 Resource），
+ * non-nil 但 Value=0 表示"评估了,得 0 分"。这是"Disabled = missing, not 0"的关键。
+ */
+export interface ScoreBuckets {
+    "time"?: ScoreBucket | null;
+    "teacher"?: ScoreBucket | null;
+    "student"?: ScoreBucket | null;
+
+    /**
+     * TIME_ONLY 下必为 nil
+     */
+    "resource"?: ScoreBucket | null;
 }
 
 /**
@@ -206,10 +250,14 @@ export interface ScoreBreakdown {
  * 	      avoid_saturday/avoid_sunday, pe_preferred_periods, student_fatigue)
  * 	v2 — v0.5.2: added ExpectedTotalSessions for placement-completeness scaling
  * 	      of FinalTotal. Total field semantics unchanged (Stable Core compat).
+ * 	v3 — v0.5.5: added Mode so downstream scoring / snapshot / version writers
+ * 	      can distinguish TIME_ONLY from FULL. Absent (v1/v2 stored configs)
+ * 	      → treated as FULL_SCHEDULING for backward compatibility.
  */
 export interface ScoringContext {
     "version": number;
     "enabledConstraints": string[] | null;
+    "mode"?: types$0.SchedulingMode;
 }
 
 /**

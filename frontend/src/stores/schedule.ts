@@ -177,6 +177,19 @@ export const useScheduleStore = defineStore('schedule', () => {
     loadSchedule('')
   }
 
+  // ---- Manual adjustment tracking (H3 — post-adjustment snapshot save) ----
+  //
+  // dirtyMoveCount 记录自上次快照以来的手动调整次数。WeekView 拖拽后调用
+  // markDirty()，SchedulingPage 的"保存快照"按钮完成后调用 clearDirty()。
+  // 用户能一眼看到"还有 N 处未保存的调整"，避免生成快照垃圾。
+  const dirtyMoveCount = ref(0)
+  function markDirty() {
+    dirtyMoveCount.value++
+  }
+  function clearDirty() {
+    dirtyMoveCount.value = 0
+  }
+
   return {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
@@ -186,5 +199,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     getEntryAt, loadSchedule,
     viewMode, versionName,
     loadVersionEntries, clearVersionView,
+    // H3: manual adjustment dirty tracking
+    dirtyMoveCount, markDirty, clearDirty,
   }
 })

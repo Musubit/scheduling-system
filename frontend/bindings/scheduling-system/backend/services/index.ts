@@ -25,6 +25,8 @@ export type {
     SchedulingConfig,
     SchedulingResult,
     ScoreBreakdown,
+    ScoreBucket,
+    ScoreBuckets,
     ScoringContext,
     SnapshotCompareResult,
     TeacherSnapshotDiff,

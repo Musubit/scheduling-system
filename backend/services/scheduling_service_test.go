@@ -3,8 +3,47 @@ package services
 import (
 	"encoding/json"
 	"scheduling-system/backend/models"
+	schedtypes "scheduling-system/backend/scheduling/types"
 	"testing"
 )
+
+func TestConstraintsForMode_TimeOnlyRemovesLowFloor(t *testing.T) {
+	in := []string{"teacher_preference", "low_floor_preference", "student_fatigue"}
+	out := constraintsForMode(in, schedtypes.ModeTimeOnlyScheduling)
+
+	if len(out) != 2 {
+		t.Fatalf("expected 2 constraints after TIME_ONLY filtering, got %d: %v", len(out), out)
+	}
+	for _, c := range out {
+		if c == "low_floor_preference" {
+			t.Fatalf("low_floor_preference must be removed in TIME_ONLY mode")
+		}
+	}
+}
+
+func TestApplySyntheticClassroomIDsForTimeOnly_AssignsUniqueIDs(t *testing.T) {
+	entries := []models.ScheduleEntry{
+		{CourseID: 1, ClassroomID: 1},
+		{CourseID: 2, ClassroomID: 1},
+		{CourseID: 3, ClassroomID: 1},
+	}
+	classrooms := []models.Classroom{{}, {}}
+	classrooms[0].ID = 10
+	classrooms[1].ID = 20
+
+	applySyntheticClassroomIDsForTimeOnly(entries, classrooms)
+
+	seen := make(map[uint]bool)
+	for i, e := range entries {
+		if e.ClassroomID < 1_000_000 {
+			t.Fatalf("entry[%d] synthetic classroom id too small: %d", i, e.ClassroomID)
+		}
+		if seen[e.ClassroomID] {
+			t.Fatalf("entry[%d] duplicated synthetic classroom id: %d", i, e.ClassroomID)
+		}
+		seen[e.ClassroomID] = true
+	}
+}
 
 func TestLockedSlotsJSONParsing(t *testing.T) {
 	// Simulate what the frontend sends as lockedSlotsJson

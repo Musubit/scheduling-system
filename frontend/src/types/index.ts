@@ -192,10 +192,14 @@ export type PageId = 'schedule' | 'resource' | 'scheduling' | 'report' | 'settin
 /** 课表视图 */
 export type ScheduleView = 'week' | 'timeline' | 'month'
 
+/** 排课模式 */
+export type SchedulingMode = 'FULL_SCHEDULING' | 'TIME_ONLY_SCHEDULING'
+
 /** 排课配置 */
 export interface SchedulingConfig {
   scope: string
   semester: string
+  mode: SchedulingMode
   strategy: string
   iterations: number
   timeLimit?: number
@@ -212,6 +216,7 @@ export interface LockedTimeSlot {
 
 /** 排课结果 */
 export interface SchedulingResult {
+  mode?: SchedulingMode
   totalCourses: number
   scheduled: number
   tasksScheduled: number

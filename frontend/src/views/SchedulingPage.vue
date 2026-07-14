@@ -3,14 +3,17 @@ import { computed, ref, onUnmounted, watch } from 'vue'
 import { useSchedulingStore } from '../stores/scheduling'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
-import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, useDialog } from 'naive-ui'
+import { useScheduleStore } from '../stores/schedule'
+import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, NInput, NModal, NSpace, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
 const store = useSchedulingStore()
 const appStore = useAppStore()
 const uiStore = useUiStore()
+const scheduleStore = useScheduleStore()
 const dialog = useDialog()
+const message = useMessage()
 
 const scopeOptions = [
   { label: '全校所有院系', value: '全校所有院系' },
@@ -39,11 +42,21 @@ function toggleConfigPanel() {
   configCollapsed.value = !configCollapsed.value
 }
 
-const isConstraintEnabled = (key: string) => store.config.constraints.includes(key)
+const isConstraintEnabled = (key: string) => {
+  if (store.config.mode === 'TIME_ONLY_SCHEDULING' && key === 'low_floor_preference') {
+    return false
+  }
+  return store.config.constraints.includes(key)
+}
+
+// v0.5.5 P0 M3: TIME_ONLY 模式下不产生教室分配，教室冲突恒为 0。
+// 冲突汇总/详情/硬约束验证均对此模式做感知，避免误报"教室冲突"。
+const isTimeOnlyMode = computed(() => store.config.mode === 'TIME_ONLY_SCHEDULING')
 
 const totalConflicts = computed(() => {
   if (!store.result) return 0
-  return store.result.teacherConflicts + store.result.roomConflicts + store.result.classConflicts
+  const roomC = isTimeOnlyMode.value ? 0 : store.result.roomConflicts
+  return store.result.teacherConflicts + roomC + store.result.classConflicts
 })
 
 // Watch for pending navigation after scheduling completes
@@ -99,6 +112,44 @@ const weightLabels: Record<string, string> = {
   avoid_saturday: '避开周六',
   avoid_sunday: '避开周日',
 }
+
+// ===== H3: 保存快照 =====
+// 手动调整过课表(scheduleStore.dirtyMoveCount > 0)或跑完排课(store.result 非空)时,
+// 用户可以点"保存快照"生成一条命名的历史版本，方便后续对比。
+const showSnapshotModal = ref(false)
+const snapshotName = ref('')
+const isSavingSnapshot = ref(false)
+
+function openSnapshotModal() {
+  const ts = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  snapshotName.value = `手动快照 ${ts.getMonth()+1}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}`
+  showSnapshotModal.value = true
+}
+
+async function saveManualSnapshot() {
+  if (!appStore.currentSemesterId) {
+    message.error('请先在学期管理选择一个当前学期')
+    return
+  }
+  isSavingSnapshot.value = true
+  try {
+    const { CreateManualSnapshot, RenameSnapshot } =
+      await import('../../bindings/scheduling-system/backend/services/snapshotservice')
+    const snap = await CreateManualSnapshot(appStore.currentSemesterId)
+    // 用户填的名称通过 RenameSnapshot 落地(后端 CreateManualSnapshot 只写 DefaultSnapshotName)
+    if (snap?.ID && snapshotName.value.trim() && snapshotName.value.trim() !== snap.name) {
+      try { await RenameSnapshot(snap.ID, snapshotName.value.trim()) } catch { /* 命名失败不阻塞 */ }
+    }
+    scheduleStore.clearDirty()
+    showSnapshotModal.value = false
+    message.success(`快照已保存：${snapshotName.value.trim() || snap?.name || '(默认名)'}`)
+  } catch (e: any) {
+    message.error('保存快照失败：' + (e?.message || e))
+  } finally {
+    isSavingSnapshot.value = false
+  }
+}
 </script>
 
 <template>
@@ -122,10 +173,7 @@ const weightLabels: Record<string, string> = {
           <n-select
             :value="appStore.currentSemesterId"
             @update:value="appStore.setCurrentSemester($event)"
-            :options="appStore.semesters.map(s => ({
-              label: s.name + (s.isActive ? '（当前）' : ''),
-              value: s.ID
-            }))"
+            :options="appStore.semesterSelectOptions"
             size="small"
             :consistent-menu-width="true"
           />
@@ -135,6 +183,17 @@ const weightLabels: Record<string, string> = {
         <div class="form-group">
           <label class="form-label">排课范围</label>
           <n-select v-model:value="store.config.scope" :options="scopeOptions" filterable :filter="fuzzyFilterFn" size="small" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">排课模式</label>
+          <n-checkbox
+            :checked="store.config.mode === 'TIME_ONLY_SCHEDULING'"
+            @update:checked="(checked: boolean) => { store.config.mode = checked ? 'TIME_ONLY_SCHEDULING' : 'FULL_SCHEDULING' }"
+          >
+            关闭教室场地分配（仅排上课时间）
+          </n-checkbox>
+          <span class="form-hint">启用后将忽略教室容量/占用分配，仅计算课程时间安排</span>
         </div>
 
         <!-- 约束预设 -->
@@ -157,10 +216,14 @@ const weightLabels: Record<string, string> = {
               v-for="opt in store.constraintOptions"
               :key="opt.key"
               :checked="store.config.constraints.includes(opt.key)"
+              :disabled="isTimeOnlyMode && opt.key === 'low_floor_preference'"
               size="small"
               @update:checked="store.toggleConstraint(opt.key)"
             >
               {{ opt.label }}
+              <span v-if="isTimeOnlyMode && opt.key === 'low_floor_preference'" class="constraint-disabled-hint">
+                (TIME_ONLY 模式不评估)
+              </span>
             </n-checkbox>
           </div>
         </div>
@@ -209,6 +272,20 @@ const weightLabels: Record<string, string> = {
       <div class="result-panel">
         <div class="result-header">
           <h3 class="panel-title">排课进度与结果</h3>
+          <div class="mode-badge" :class="isTimeOnlyMode ? 'mode-time-only' : 'mode-full'" v-if="store.result">
+            {{ isTimeOnlyMode ? '⏱ 仅时间模式' : '🏫 完整模式（时间+教室）' }}
+          </div>
+          <n-button
+            size="tiny"
+            v-if="store.result || scheduleStore.dirtyMoveCount > 0"
+            @click="openSnapshotModal"
+            class="save-snapshot-btn"
+          >
+            📸 保存快照
+            <span v-if="scheduleStore.dirtyMoveCount > 0" class="dirty-badge">
+              +{{ scheduleStore.dirtyMoveCount }}
+            </span>
+          </n-button>
           <button v-if="configCollapsed" class="expand-btn" @click="toggleConfigPanel">▶ 展开配置</button>
         </div>
 
@@ -254,7 +331,7 @@ const weightLabels: Record<string, string> = {
             <div class="stat-label">待处理冲突</div>
             <div class="stat-detail" v-if="store.result && totalConflicts > 0">
               <span>教师 {{ store.result.teacherConflicts }}</span>
-              <span>教室 {{ store.result.roomConflicts }}</span>
+              <span v-if="!isTimeOnlyMode">教室 {{ store.result.roomConflicts }}</span>
               <span>班级 {{ store.result.classConflicts }}</span>
             </div>
           </div>
@@ -317,7 +394,7 @@ const weightLabels: Record<string, string> = {
               <span class="verify-label">教师时间冲突</span>
               <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
             </div>
-            <div class="verify-item">
+            <div class="verify-item" v-if="!isTimeOnlyMode">
               <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
                 {{ store.result.conflicts === 0 ? '✅' : '❌' }}
               </span>
@@ -348,6 +425,30 @@ const weightLabels: Record<string, string> = {
         </div>
       </div>
     </div>
+
+    <!-- H3: 保存快照弹窗 -->
+    <n-modal v-model:show="showSnapshotModal" preset="card" title="保存快照" style="width: 420px;">
+      <div class="setting-desc" style="margin-bottom:12px">
+        <span v-if="scheduleStore.dirtyMoveCount > 0">
+          自上次快照后有 {{ scheduleStore.dirtyMoveCount }} 处手动调整。
+        </span>
+        <span v-else>
+          将把当前学期的排课结果保存为一条快照，方便后续在"历史对比"中查看。
+        </span>
+      </div>
+      <n-input
+        v-model:value="snapshotName"
+        placeholder="快照名称（可留空使用默认）"
+        maxlength="80"
+        show-count
+      />
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showSnapshotModal = false" :disabled="isSavingSnapshot">取消</n-button>
+          <n-button type="primary" :loading="isSavingSnapshot" @click="saveManualSnapshot">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -385,6 +486,49 @@ const weightLabels: Record<string, string> = {
 .config-header .panel-title,
 .result-header .panel-title {
   margin-bottom: 0;
+}
+
+/* v0.5.5 P0 M3: mode badge in result header */
+.mode-badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  margin-left: auto;
+  margin-right: 12px;
+}
+.mode-badge.mode-full {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  border: 1px solid var(--b3-theme-primary-light);
+}
+.mode-badge.mode-time-only {
+  background: var(--b3-theme-warning-lightest, #fff4e6);
+  color: var(--b3-theme-warning, #d97706);
+  border: 1px solid var(--b3-theme-warning-light, #fbbf24);
+}
+.constraint-disabled-hint {
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  margin-left: 4px;
+}
+
+/* v0.5.5 H3: 保存快照按钮 + dirty badge */
+.save-snapshot-btn {
+  margin-right: 8px;
+}
+.dirty-badge {
+  background: var(--b3-theme-error);
+  color: white;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+.setting-desc {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
 }
 
 .collapse-btn {

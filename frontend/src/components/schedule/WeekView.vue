@@ -3,12 +3,14 @@ import { inject, computed, ref, onMounted } from 'vue'
 import { PERIODS, DAY_NAMES } from '../../types'
 import type { ScheduleEntry, LockedTimeSlot } from '../../types'
 import { useScheduleStore } from '../../stores/schedule'
+import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 import { courseColorStyle } from '../../utils/courseColor'
 import { DEFAULT_LOCKED } from '../../stores/scheduling'
 import LockedTimeGrid from '../scheduling/LockedTimeGrid.vue'
 
 const scheduleStore = useScheduleStore()
+const appStore = useAppStore()
 const drawerRef = inject<any>('drawerRef')
 const message = useMessage()
 
@@ -82,12 +84,28 @@ const todayDow = computed(() => {
   return d === 0 ? 6 : d - 1
 })
 
+// v0.5.5 P2 Step 25: 从 appStore.currentSemester.startDate 派生周日期，
+// 替代原来"当年 1 月 1 日 + (week-1)*7"的硬编码 —— 后者会让跨年学期
+// (SECOND 学期 2 月开学) 的日期标签串到上一年。currentSemester.startDate
+// 是 ISO 字符串(Go time.Time 序列化后带 T00:00:00Z)；缺失时兜底当年 1 月 1 日。
 const weekDates = computed(() => {
-  const now = new Date()
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
-  const daysSinceStart = (scheduleStore.currentWeek - 1) * 7
-  const base = new Date(startOfYear.getTime() + daysSinceStart * 86400000)
-  const monday = new Date(base.getTime() - (base.getDay() === 0 ? 6 : base.getDay() - 1) * 86400000)
+  const semester = appStore.currentSemester as any
+  let anchor: Date
+  if (semester?.startDate) {
+    anchor = new Date(semester.startDate)
+    if (isNaN(anchor.getTime())) {
+      // 解析失败兜底
+      anchor = new Date(new Date().getFullYear(), 0, 1)
+    }
+  } else {
+    // 无学期时兜底当年 1 月 1 日
+    anchor = new Date(new Date().getFullYear(), 0, 1)
+  }
+  // 对齐 anchor 到当周周一 (getDay: Sun=0..Sat=6)
+  const anchorDow = anchor.getDay() === 0 ? 6 : anchor.getDay() - 1
+  const anchorMonday = new Date(anchor.getTime() - anchorDow * 86400000)
+  // 从学期第一周周一 + (currentWeek - 1) * 7 天派生本周周一
+  const monday = new Date(anchorMonday.getTime() + (scheduleStore.currentWeek - 1) * 7 * 86400000)
   return DAY_NAMES.map((_, i) => {
     const d = new Date(monday.getTime() + i * 86400000)
     return `${d.getMonth() + 1}/${d.getDate()}`
@@ -251,6 +269,7 @@ async function onDrop(e: DragEvent, day: number, period: number) {
     }
 
     // 成功无需额外提示（课程已移动，用户能看到结果）
+    scheduleStore.markDirty()  // H3: 累计未保存的手动调整数
     await scheduleStore.loadSchedule('')
   } catch (err: any) {
     message.error('调整失败：' + (err?.message || err))

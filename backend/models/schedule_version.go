@@ -18,6 +18,11 @@ type ScheduleVersion struct {
 	EntryCount int     `json:"entryCount"`
 	Solver     string  `gorm:"size:30" json:"solver"` // optional: which solver produced it
 
+	// v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
+	// 前端根据这个字段决定是否展示"教室"列 / 资源评分,避免 TIME_ONLY
+	// 历史版本被误解为"排课失败 - 教室分配 0"。
+	Mode string `gorm:"size:32;default:FULL_SCHEDULING" json:"mode,omitempty"`
+
 	Entries []ScheduleVersionEntry `gorm:"foreignKey:VersionID" json:"entries,omitempty"`
 }
 

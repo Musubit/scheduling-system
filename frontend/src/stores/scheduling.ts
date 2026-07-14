@@ -123,6 +123,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const config = ref<SchedulingConfig>({
     scope: '全校所有院系',
     semester: '',  // populated from active semester
+    mode: 'FULL_SCHEDULING',
     strategy: 'auto',
     iterations: 5000,
     timeLimit: 60,
@@ -209,6 +210,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       const goConfig: any = {
         scope: config.value.scope,
         semester: semesterName,
+        mode: config.value.mode,
         strategy: 'auto',
         iterations: 5000,
         timeLimit: 60,
@@ -235,6 +237,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       if (goResult?.error) {
         logs.value.push('❌ ' + goResult.error)
         result.value = {
+          mode: goResult.mode,
           totalCourses: goResult.totalCourses || 0,
           scheduled: goResult.scheduled || 0,
           tasksScheduled: goResult.tasksScheduled || 0,
@@ -255,6 +258,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
       if (goResult) {
         result.value = {
+          mode: goResult.mode,
           totalCourses: goResult.totalCourses || 0,
           scheduled: goResult.scheduled || 0,
           tasksScheduled: goResult.tasksScheduled || 0,

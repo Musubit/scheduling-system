@@ -116,8 +116,17 @@ export const useAppStore = defineStore('app', () => {
   const deptFilter = ref('全部院系')
 
   // ===== 全局学期上下文 (Single Source of Truth) =====
-  const semesters = ref<Array<{ ID: number; name: string; isActive?: boolean }>>([])
+  // v0.5.5 修订：后端 Semester 已改为结构化字段（academicYear + term + status）。
+  // 为避免同期重构大量旧读取点，store 在 loadSemesters() 里派生兼容 `name`/`isActive`。
+  const semesters = ref<Array<{ ID: number; name: string; isActive?: boolean; academicYear?: string; term?: string; status?: string; startDate?: string }>>([])
   const currentSemesterId = ref<number>(0)
+
+  // 与后端 Semester.DisplayName() 保持一致，前端 SettingsPage 中 displayName() 同源。
+  function semesterDisplayName(s: { academicYear?: string; term?: string; name?: string }): string {
+    if (s.name) return s.name // 兼容旧 mock/测试数据
+    const label = s.term === 'SECOND' ? '第二学期' : '第一学期'
+    return `${s.academicYear || ''}${label}`
+  }
 
   const currentSemester = computed(() =>
     semesters.value.find(s => s.ID === currentSemesterId.value) || null
@@ -137,6 +146,22 @@ export const useAppStore = defineStore('app', () => {
   // Legacy: stable ref for n-select options (derived from semesters)
   const semesterOptions = computed(() =>
     semesters.value.map(s => ({ label: s.name, value: s.name }))
+  )
+
+  // v0.5.5 P2: 结构化 select options —— 消费端应逐步迁移到这个 computed，
+  // 而不再依赖 semesters[].name / semesters[].isActive。label 附带状态标记
+  // (● 当前 / ○ 预排 / □ 归档)，value 是 semester.ID(数字)。
+  const semesterSelectOptions = computed(() =>
+    semesters.value.map(s => {
+      let mark = ''
+      if (s.status === 'active') mark = '（当前）'
+      else if (s.status === 'planned') mark = '（预排）'
+      else if (s.status === 'archived') mark = '（已归档）'
+      return {
+        label: semesterDisplayName(s) + mark,
+        value: s.ID,
+      }
+    })
   )
 
   // ===== 学期切换入口 =====
@@ -172,7 +197,17 @@ export const useAppStore = defineStore('app', () => {
   async function loadSemesters() {
     try {
       const result = await GetSemesters()
-      semesters.value = result || []
+      // 派生兼容字段：把后端结构化学期投影成 {name, isActive} 供其他旧代码继续读。
+      semesters.value = (result || []).map((s: any) => ({
+        ID: s.ID,
+        academicYear: s.academicYear,
+        term: s.term,
+        status: s.status,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        name: semesterDisplayName(s),
+        isActive: s.status === 'active',
+      }))
     } catch (e) {
       console.warn('[appStore] loadSemesters FAILED:', e)
     }
@@ -198,7 +233,11 @@ export const useAppStore = defineStore('app', () => {
 	    // legacy compat (proxied to currentSemesterId)
 	    semesterFilter,
 	    semesterOptions,
+	    // v0.5.5 P2: structured select options — prefer this over semesterOptions
+	    semesterSelectOptions,
 	    semesters,
+	    // helper: derive display name from a semester row (backend DisplayName() equivalent)
+	    semesterDisplayName,
 	    loadSemesters,
 	    // filters
 	    searchQuery,
