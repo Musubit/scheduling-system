@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"scheduling-system/backend/appenv"
 	"scheduling-system/backend/config"
@@ -137,15 +138,32 @@ func startSchedulerIfAvailable(orchestrator *services.SolverOrchestrator, baseDi
 	schedulerDir := filepath.Join(baseDir, "scheduler")
 	scriptPath := filepath.Join(schedulerDir, "solver.py")
 	if _, err := os.Stat(scriptPath); err == nil {
-		// Find Python in .venv
-		venvPython := filepath.Join(schedulerDir, ".venv", "Scripts", "python.exe")
-		if _, err := os.Stat(venvPython); err != nil {
-			venvPython = filepath.Join(schedulerDir, ".venv", "bin", "python")
+		// Locate a venv Python interpreter. Windows uses .venv/Scripts/python.exe,
+		// POSIX uses .venv/bin/python. We probe the current-platform path first
+		// to skip a wasted os.Stat on the wrong layout.
+		var venvCandidates []string
+		if runtime.GOOS == "windows" {
+			venvCandidates = []string{
+				filepath.Join(schedulerDir, ".venv", "Scripts", "python.exe"),
+				filepath.Join(schedulerDir, ".venv", "bin", "python"),
+			}
+		} else {
+			venvCandidates = []string{
+				filepath.Join(schedulerDir, ".venv", "bin", "python"),
+				filepath.Join(schedulerDir, ".venv", "Scripts", "python.exe"),
+			}
+		}
+		var venvPython string
+		for _, cand := range venvCandidates {
+			if _, err := os.Stat(cand); err == nil {
+				venvPython = cand
+				break
+			}
 		}
 
 		pythonPath := cfg.PythonPath
 		if pythonPath == "" {
-			if _, err := os.Stat(venvPython); err == nil {
+			if venvPython != "" {
 				pythonPath = venvPython
 			} else {
 				pythonPath = "python"
@@ -161,13 +179,22 @@ func startSchedulerIfAvailable(orchestrator *services.SolverOrchestrator, baseDi
 		return
 	}
 
-	// Check for scheduler.exe in scheduler/ subdirectory (production mode)
-	schedulerExe := filepath.Join(baseDir, "scheduler", "scheduler.exe")
-	if _, err := os.Stat(schedulerExe); err == nil {
-		log.Printf("Scheduler: found scheduler.exe")
-		// scheduler.exe accepts port as CLI arg
+	// Check for the PyInstaller-bundled scheduler binary in scheduler/
+	// subdirectory (production mode). Windows produces scheduler.exe; Linux
+	// produces plain "scheduler". We probe both so the same portable layout
+	// works on either platform without an OS-specific config switch.
+	candidates := []string{
+		filepath.Join(baseDir, "scheduler", "scheduler.exe"),
+		filepath.Join(baseDir, "scheduler", "scheduler"),
+	}
+	for _, schedulerExe := range candidates {
+		if _, err := os.Stat(schedulerExe); err != nil {
+			continue
+		}
+		log.Printf("Scheduler: found bundled binary %s", schedulerExe)
+		// Bundled binary accepts port as CLI arg (no script path).
 		if err := orchestrator.StartORTools(schedulerExe, "", port); err != nil {
-			log.Printf("Scheduler: failed to start exe: %v", err)
+			log.Printf("Scheduler: failed to start bundled binary: %v", err)
 		} else {
 			log.Printf("Scheduler: started on port %d", port)
 		}

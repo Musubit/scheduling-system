@@ -1,0 +1,55 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+# Linux Taskfile — mirrors build/windows/Taskfile.yml, minus MSIX/NSIS/signing.
+# Native builds on Linux use CGO=0 by default (pure-Go SQLite via glebarez).
+# For CGO builds (e.g. if a future dep needs it), set CGO_ENABLED=1 and ensure
+# libgtk-4-dev + libwebkitgtk-6.0-dev are installed (Ubuntu 24.04+).
+
+tasks:
+  build:
+    summary: Builds the application for Linux
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+          OBFUSCATED:
+            ref: .OBFUSCATED
+          DEV:
+            ref: .DEV
+      - task: common:generate:icons
+    cmds:
+      # DEV keeps symbols + inlining for debuggability; production build strips
+      # + trimpath + tags production, mirroring the Windows target.
+      - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}"'
+    vars:
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+    env:
+      GOOS: linux
+      CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  package:
+    summary: Packages the Linux build (deb / rpm / tar.gz via nfpm)
+    desc: |
+      Requires nfpm in PATH. Install: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+      Set FORMAT to select packager: deb (default) | rpm | archlinux
+    deps:
+      - task: build
+    cmds:
+      - nfpm package --config ./build/linux/nfpm/nfpm.yaml --packager {{.FORMAT | default "deb"}} --target ./{{.BIN_DIR}}/
+    vars:
+      FORMAT: '{{.FORMAT | default "deb"}}'
+    preconditions:
+      - sh: command -v nfpm >/dev/null 2>&1
+        msg: |
+          nfpm not found in PATH.
+          Install: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+  run:
+    cmds:
+      - './{{.BIN_DIR}}/{{.APP_NAME}}'

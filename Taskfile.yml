@@ -14,6 +14,7 @@ vars:
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
 
 tasks:
   build:
@@ -31,24 +32,36 @@ tasks:
       - task: "{{.GOOS}}:package"
 
   build:scheduler:
-    summary: 用 PyInstaller 将 OR-Tools 微服务打包为 scheduler.exe
+    summary: |
+      Packages the OR-Tools microservice into a single-file binary via PyInstaller.
+      Windows → scheduler/dist/scheduler.exe (bundling ortools/.libs/*.dll)
+      Linux   → scheduler/dist/scheduler     (bundling ortools/.libs/*.so*)
+      Platform is dispatched by `platforms:` on each cmd so `sources`/`generates`
+      remain stable across OSes for correct up-to-date detection.
     deps:
       - task: setup:scheduler
     cmds:
-      - scheduler/.venv/Scripts/pyinstaller.exe --onefile --name scheduler --distpath scheduler/dist --add-binary "scheduler/.venv/Lib/site-packages/ortools/.libs/*.dll;ortools/.libs" --hidden-import=ortools.sat.python.cp_model --hidden-import=flask scheduler/solver.py
-    generates:
-      - scheduler/dist/scheduler.exe
+      - cmd: scheduler/.venv/Scripts/pyinstaller.exe --onefile --name scheduler --distpath scheduler/dist --add-binary "scheduler/.venv/Lib/site-packages/ortools/.libs/*.dll;ortools/.libs" --hidden-import=ortools.sat.python.cp_model --hidden-import=flask scheduler/solver.py
+        platforms: [windows]
+      - cmd: scheduler/.venv/bin/pyinstaller --onefile --name scheduler --distpath scheduler/dist --add-binary "scheduler/.venv/lib/python*/site-packages/ortools/.libs/*.so*:ortools/.libs" --hidden-import=ortools.sat.python.cp_model --hidden-import=flask scheduler/solver.py
+        platforms: [linux]
     sources:
       - scheduler/solver.py
       - scheduler/pyproject.toml
 
   package:portable:
-    summary: 打包便携版 ZIP（解压即用，无需安装）
+    summary: |
+      打包便携版归档（解压即用，无需安装）。
+      Windows → bin/<app>-portable-v<ver>.zip via package-portable.ps1
+      Linux   → bin/<app>-portable-v<ver>-linux-<arch>.tar.gz via package-portable.sh
     deps:
       - task: build:scheduler
     cmds:
-      - task: windows:build
-      - powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -BinDir {{.BIN_DIR}} -AppName {{.APP_NAME}} -Version {{.VERSION}}
+      - cmd: task {{.GOOS}}:build
+      - cmd: powershell -ExecutionPolicy Bypass -File ./build/scripts/package-portable.ps1 -BinDir {{.BIN_DIR}} -AppName {{.APP_NAME}} -Version {{.VERSION}}
+        platforms: [windows]
+      - cmd: bash ./build/scripts/package-portable.sh --bin-dir {{.BIN_DIR}} --app-name {{.APP_NAME}} --version {{.VERSION}}
+        platforms: [linux]
 
   run:
     summary: Runs the application
@@ -84,15 +97,20 @@ tasks:
       - pyproject.toml
       - uv.lock
       - solver.py
+    # `generates` uses a wildcard so up-to-date detection works on both
+    # Windows (.venv/Scripts/python.exe) and Linux (.venv/bin/python).
     generates:
-      - .venv/Scripts/python.exe
+      - .venv/**
     preconditions:
       - sh: uv --version
         msg: "uv is required. Install it from https://docs.astral.sh/uv/"
     cmds:
       - uv sync
+    # `status` checks a platform-appropriate python entrypoint. Windows uses
+    # Scripts/python.exe, POSIX uses bin/python. Skips uv sync when the venv
+    # already looks healthy for the current OS.
     status:
-      - test -f .venv/Scripts/python.exe
+      - '{{if eq OS "windows"}}test -f .venv/Scripts/python.exe{{else}}test -x .venv/bin/python{{end}}'
 
   install:frontend:deps:
     summary: Install frontend dependencies
