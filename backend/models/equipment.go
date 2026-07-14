@@ -1,6 +1,9 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sort"
+)
 
 // EquipmentSet 封装设备集合，提供语义化查询方法。
 // 存储格式: JSON array string，如 `["projector","smartboard","aircon"]`
@@ -41,12 +44,13 @@ func (s EquipmentSet) ContainsAll(required EquipmentSet) bool {
 	return true
 }
 
-// Items 返回设备列表（排序无关，用于遍历和诊断）。
+// Items 返回设备列表（按字典序排序，保证确定性）。
 func (s EquipmentSet) Items() []string {
 	out := make([]string, 0, len(s.items))
 	for item := range s.items {
 		out = append(out, item)
 	}
+	sort.Strings(out)
 	return out
 }
 
@@ -55,15 +59,12 @@ func (s EquipmentSet) IsEmpty() bool {
 	return len(s.items) == 0
 }
 
-// ToJSON 序列化回 JSON string。
+// ToJSON 序列化回 JSON string（按字典序排序，保证确定性）。
 func (s EquipmentSet) ToJSON() string {
 	if len(s.items) == 0 {
 		return ""
 	}
-	arr := make([]string, 0, len(s.items))
-	for item := range s.items {
-		arr = append(arr, item)
-	}
+	arr := s.Items()
 	b, _ := json.Marshal(arr)
 	return string(b)
 }
