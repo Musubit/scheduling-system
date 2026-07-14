@@ -43,7 +43,7 @@ function formatDate(raw: string | Date): string {
 async function loadSnapshots() {
   loadingSnapshots.value = true
   try {
-    const result = await GetSnapshots(appStore.semesterFilter)
+    const result = await GetSnapshots(appStore.currentSemesterId)
     snapshots.value = result || []
     if (snapshots.value.length === 0) {
       message.warning('暂无快照，请先去「自动排课」或「验证报告」生成快照')

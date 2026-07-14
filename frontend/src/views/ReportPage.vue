@@ -62,7 +62,7 @@ async function loadSnapshots() {
   try {
     // Dynamic import of Go binding — works at build time
     const { GetSnapshots } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
-    const snapshotResult = await GetSnapshots(appStore.semesterFilter)
+    const snapshotResult = await GetSnapshots(appStore.currentSemesterId)
     snapshots.value = snapshotResult || []
     if (snapshots.value.length > 0 && !selectedSnapshot.value) {
       selectSnapshot(snapshots.value[0])
@@ -96,7 +96,7 @@ function selectSnapshot(snapshot: any) {
 async function loadWorkload() {
   try {
     const { AnalyzeTeacherWorkload } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
-    const data = await AnalyzeTeacherWorkload(appStore.semesterFilter)
+    const data = await AnalyzeTeacherWorkload(appStore.currentSemesterId)
     workloadData.value = data || []
   } catch {
     workloadData.value = []
@@ -181,7 +181,7 @@ async function generateManualReport() {
   try {
     loading.value = true
     const { CreateManualSnapshot } = await import('../../bindings/scheduling-system/backend/services/snapshotservice')
-    await CreateManualSnapshot(appStore.semesterFilter)
+    await CreateManualSnapshot(appStore.currentSemesterId)
     await loadSnapshots()
   } catch (e: any) {
     console.warn('Failed to generate manual report:', e)
