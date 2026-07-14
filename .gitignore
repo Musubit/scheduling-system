@@ -4,6 +4,9 @@
 *.swp
 *.swo
 
+# Trae
+.trae/
+
 # ZCode
 .zcode/
 
