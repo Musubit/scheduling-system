@@ -2,6 +2,7 @@ package matcher
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"scheduling-system/backend/models"
@@ -65,6 +66,7 @@ func Match(task models.TeachingTask, course models.Course, room models.Classroom
 			}
 		}
 		if len(missing) > 0 {
+			sort.Strings(missing)
 			return MatchResult{
 				OK:               false,
 				Code:             CodeEquipmentMissing,
