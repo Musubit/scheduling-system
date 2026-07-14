@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
 	"strconv"
@@ -79,7 +80,13 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 
 	// Load all other entries for the same semester (excluding this one)
 	var others []models.ScheduleEntry
-	s.db.Where("semester_id = ? AND id != ?", entry.SemesterID, entry.ID).Find(&others)
+	if err := s.db.Where("semester_id = ? AND id != ?", entry.SemesterID, entry.ID).Find(&others).Error(); err != nil {
+		result.Valid = false
+		result.Conflicts = append(result.Conflicts, MoveConflict{
+			Type: "error", Description: fmt.Sprintf("加载课表数据失败: %v", err),
+		})
+		return result
+	}
 
 	// Load locked slots via shared package-level function
 	lockedSlots := loadLockedSlotsDB(s.db)
@@ -208,7 +215,13 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 	var entryClassIDs []uint
 	if entry.TeachingTaskID != nil && entry.TeachingTask != nil {
 		var ttClasses []models.TeachingTaskClass
-		s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses)
+		if err := s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses).Error(); err != nil {
+			result.Valid = false
+			result.Conflicts = append(result.Conflicts, MoveConflict{
+				Type: "error", Description: fmt.Sprintf("加载教学任务班级失败: %v", err),
+			})
+			return result
+		}
 		for _, tc := range ttClasses {
 			entryClassIDs = append(entryClassIDs, tc.ClassGroupID)
 		}
@@ -341,7 +354,10 @@ func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResu
 func (s *MoveService) getClassIDs(entry models.ScheduleEntry) []uint {
 	if entry.TeachingTaskID != nil {
 		var ttClasses []models.TeachingTaskClass
-		s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses)
+		if err := s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses).Error(); err != nil {
+			log.Printf("[WARN] getClassIDs: 查询教学任务班级失败: %v", err)
+			return nil
+		}
 		ids := make([]uint, len(ttClasses))
 		for i, tc := range ttClasses {
 			ids[i] = tc.ClassGroupID
@@ -447,10 +463,12 @@ func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 	// and student_fatigue calculation)
 	var teachingTasks []models.TeachingTask
 	if semesterID > 0 {
-		s.db.Where("semester_id = ?", semesterID).
+		if err := s.db.Where("semester_id = ?", semesterID).
 			Preload("Course").Preload("Teacher").
 			Preload("Classes.ClassGroup").
-			Find(&teachingTasks)
+			Find(&teachingTasks).Error(); err != nil {
+			return nil, fmt.Errorf("加载教学任务失败: %w", err)
+		}
 	}
 
 	// Build sports course IDs

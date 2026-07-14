@@ -209,9 +209,13 @@ func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.Schedul
 	}
 
 	var teachers []models.Teacher
-	s.db.Find(&teachers)
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return nil, fmt.Errorf("加载教师失败: %w", err)
+	}
 	var classrooms []models.Classroom
-	s.db.Find(&classrooms)
+	if err := s.db.Find(&classrooms).Error(); err != nil {
+		return nil, fmt.Errorf("加载教室失败: %w", err)
+	}
 
 	// Read EnabledConstraints from the latest auto-snapshot
 	storedConfig := readLatestStoredConfig(s.db, semesterID)
@@ -226,9 +230,11 @@ func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.Schedul
 
 	// Load teaching tasks for student_fatigue scoring
 	var teachingTasks []models.TeachingTask
-	s.db.Where("semester_id = ?", semesterID).
+	if err := s.db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classes.ClassGroup").
-		Find(&teachingTasks)
+		Find(&teachingTasks).Error(); err != nil {
+		return nil, fmt.Errorf("加载教学任务失败: %w", err)
+	}
 
 	// v0.5.2: for manual snapshots we don't know the "original expected total".
 	// Compute it from the linked teaching tasks so completeness reflects reality;
@@ -249,10 +255,11 @@ func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.Schedul
 	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
 
 	conflicts := 0
-	roomSlots := make(map[string]bool)
+	roomSlots := make(map[uint64]bool)
 	for _, e := range entries {
+		day := int(e.DayOfWeek)
 		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := fmt.Sprintf("r-%d-%d-%d", e.ClassroomID, e.DayOfWeek, p)
+			key := occKey(day, int(p), e.ClassroomID)
 			if roomSlots[key] { conflicts++ }
 			roomSlots[key] = true
 		}
@@ -478,7 +485,9 @@ func (s *SnapshotService) AnalyzeTeacherWorkload(semesterID uint) ([]TeacherWork
 	}
 
 	var teachers []models.Teacher
-	s.db.Find(&teachers)
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return nil, fmt.Errorf("加载教师失败: %w", err)
+	}
 
 	scorer := NewScoringService()
 	return scorer.AnalyzeTeacherWorkload(entries, teachers), nil

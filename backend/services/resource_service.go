@@ -26,31 +26,39 @@ func NewResourceService(db database.DB) *ResourceService {
 // ===== Code auto-generation =====
 
 // generateTeacherCode creates a code like "T001" if none provided.
-func (s *ResourceService) generateTeacherCode() string {
+func (s *ResourceService) generateTeacherCode() (string, error) {
 	var teachers []models.Teacher
-	s.db.Order("code DESC").Find(&teachers)
-	return nextCodeSlice(teachers, "T")
+	if err := s.db.Order("code DESC").Find(&teachers).Error(); err != nil {
+		return "", fmt.Errorf("生成教师编码失败: %w", err)
+	}
+	return nextCodeSlice(teachers, "T"), nil
 }
 
 // generateClassroomCode creates a code like "R001" if none provided.
-func (s *ResourceService) generateClassroomCode() string {
+func (s *ResourceService) generateClassroomCode() (string, error) {
 	var classrooms []models.Classroom
-	s.db.Order("code DESC").Find(&classrooms)
-	return nextCodeSlice(classrooms, "R")
+	if err := s.db.Order("code DESC").Find(&classrooms).Error(); err != nil {
+		return "", fmt.Errorf("生成教室编码失败: %w", err)
+	}
+	return nextCodeSlice(classrooms, "R"), nil
 }
 
 // generateCourseCode creates a code like "C001" if none provided.
-func (s *ResourceService) generateCourseCode() string {
+func (s *ResourceService) generateCourseCode() (string, error) {
 	var courses []models.Course
-	s.db.Order("code DESC").Find(&courses)
-	return nextCodeSlice(courses, "C")
+	if err := s.db.Order("code DESC").Find(&courses).Error(); err != nil {
+		return "", fmt.Errorf("生成课程编码失败: %w", err)
+	}
+	return nextCodeSlice(courses, "C"), nil
 }
 
 // generateClassGroupCode creates a code like "G001" if none provided.
-func (s *ResourceService) generateClassGroupCode() string {
+func (s *ResourceService) generateClassGroupCode() (string, error) {
 	var groups []models.ClassGroup
-	s.db.Order("code DESC").Find(&groups)
-	return nextCodeSlice(groups, "G")
+	if err := s.db.Order("code DESC").Find(&groups).Error(); err != nil {
+		return "", fmt.Errorf("生成班级编码失败: %w", err)
+	}
+	return nextCodeSlice(groups, "G"), nil
 }
 
 // nextCode extracts the numeric part after prefix and returns prefix + padded counter.
@@ -101,7 +109,11 @@ func (s *ResourceService) GetTeachers() ([]models.Teacher, error) {
 
 func (s *ResourceService) CreateTeacher(t models.Teacher) error {
 	if strings.TrimSpace(t.Code) == "" {
-		t.Code = s.generateTeacherCode()
+		code, err := s.generateTeacherCode()
+		if err != nil {
+			return err
+		}
+		t.Code = code
 	}
 	return s.db.Create(&t).Error()
 }
@@ -124,7 +136,11 @@ func (s *ResourceService) GetCourses() ([]models.Course, error) {
 
 func (s *ResourceService) CreateCourse(c models.Course) error {
 	if strings.TrimSpace(c.Code) == "" {
-		c.Code = s.generateCourseCode()
+		code, err := s.generateCourseCode()
+		if err != nil {
+			return err
+		}
+		c.Code = code
 	}
 	return s.db.Create(&c).Error()
 }
@@ -158,7 +174,11 @@ func (s *ResourceService) GetClassrooms() ([]models.Classroom, error) {
 
 func (s *ResourceService) CreateClassroom(c models.Classroom) error {
 	if strings.TrimSpace(c.Code) == "" {
-		c.Code = s.generateClassroomCode()
+		code, err := s.generateClassroomCode()
+		if err != nil {
+			return err
+		}
+		c.Code = code
 	}
 	return s.db.Create(&c).Error()
 }
@@ -181,7 +201,11 @@ func (s *ResourceService) GetClassGroups() ([]models.ClassGroup, error) {
 
 func (s *ResourceService) CreateClassGroup(c models.ClassGroup) error {
 	if strings.TrimSpace(c.Code) == "" {
-		c.Code = s.generateClassGroupCode()
+		code, err := s.generateClassGroupCode()
+		if err != nil {
+			return err
+		}
+		c.Code = code
 	}
 	return s.db.Create(&c).Error()
 }
