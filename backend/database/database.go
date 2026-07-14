@@ -124,8 +124,9 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 
 	dbPath := filepath.Join(resourcesDir, "schedule.db")
 
-	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+	gormDB, err := gorm.Open(sqlite.Open(dbPath+"?_foreign_keys=on"), &gorm.Config{
+		Logger:                                   logger.Default.LogMode(logger.Warn),
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		return nil, err
