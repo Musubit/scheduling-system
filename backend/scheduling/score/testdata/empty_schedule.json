@@ -1,0 +1,69 @@
+{
+  "description": "empty schedule",
+  "mode": "FULL_SCHEDULING",
+  "dimensions": [
+    "time",
+    "teacher",
+    "student",
+    "resource"
+  ],
+  "assignments": [],
+  "allocations": [],
+  "teachers": [],
+  "classrooms": [],
+  "tasks": [],
+  "sportsCourseIDs": [],
+  "expected": {
+    "total": 100,
+    "teacherPref": 16.666666666666668,
+    "courseSpacing": 16.666666666666668,
+    "teacherDays": 16.666666666666668,
+    "lowFloorPref": 16.666666666666668,
+    "weekendAvoid": 16.666666666666668,
+    "pePeriodPref": 16.666666666666668,
+    "studentFatigue": 0,
+    "perCategoryMax": 16.67,
+    "enabledCategoryCount": 6,
+    "completeness": 1,
+    "finalTotal": 100,
+    "buckets": {
+      "time": {
+        "value": 50,
+        "max": 50.010000000000005,
+        "details": {
+          "course_dispersed": 16.666666666666668,
+          "pe_preferred_periods": 16.666666666666668,
+          "weekend_avoid": 16.666666666666668
+        }
+      },
+      "teacher": {
+        "value": 33.333333333333336,
+        "max": 33.34,
+        "details": {
+          "teacher_days_limit": 16.666666666666668,
+          "teacher_preference": 16.666666666666668
+        }
+      },
+      "student": {
+        "value": 0,
+        "max": 16.67,
+        "details": {
+          "student_fatigue": 0
+        }
+      },
+      "resource": {
+        "value": 16.666666666666668,
+        "max": 16.67,
+        "details": {
+          "low_floor_preference": 16.666666666666668
+        }
+      }
+    },
+    "enabledDimensions": [
+      "time",
+      "teacher",
+      "student",
+      "resource"
+    ]
+  }
+}

@@ -1,0 +1,275 @@
+{
+  "description": "TIME_ONLY mode, resource dimension disabled",
+  "mode": "TIME_ONLY_SCHEDULING",
+  "dimensions": [
+    "time",
+    "teacher",
+    "student"
+  ],
+  "assignments": [
+    {
+      "TeachingTaskID": 1,
+      "DayOfWeek": 0,
+      "StartPeriod": 0,
+      "Span": 2,
+      "CourseID": 100,
+      "TeacherID": 10
+    },
+    {
+      "TeachingTaskID": 2,
+      "DayOfWeek": 0,
+      "StartPeriod": 2,
+      "Span": 2,
+      "CourseID": 100,
+      "TeacherID": 10
+    },
+    {
+      "TeachingTaskID": 3,
+      "DayOfWeek": 1,
+      "StartPeriod": 0,
+      "Span": 2,
+      "CourseID": 200,
+      "TeacherID": 10
+    }
+  ],
+  "allocations": [],
+  "teachers": [
+    {
+      "ID": 10,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "code": "",
+      "name": "A",
+      "dept": "",
+      "status": "",
+      "preferNoEarly": false,
+      "preferNoLate": false,
+      "maxDaysPerWeek": 5,
+      "preferLowFloor": false,
+      "unavailableSlots": ""
+    }
+  ],
+  "classrooms": [],
+  "tasks": [
+    {
+      "ID": 1,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "courseId": 100,
+      "teacherId": 10,
+      "semesterId": 0,
+      "status": "",
+      "totalHours": 32,
+      "startWeek": 0,
+      "endWeek": 0,
+      "maxHoursPerWeek": 0,
+      "preferredSpan": 2,
+      "requiredRoomType": "",
+      "requiredEquipment": "",
+      "course": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "credit": 0,
+        "type": "",
+        "hours": 0,
+        "status": "",
+        "category": ""
+      },
+      "teacher": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "status": "",
+        "preferNoEarly": false,
+        "preferNoLate": false,
+        "maxDaysPerWeek": 0,
+        "preferLowFloor": false,
+        "unavailableSlots": ""
+      },
+      "semester": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "academicYear": "",
+        "term": "",
+        "startDate": "0001-01-01T00:00:00Z",
+        "endDate": "0001-01-01T00:00:00Z",
+        "status": ""
+      }
+    },
+    {
+      "ID": 2,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "courseId": 100,
+      "teacherId": 10,
+      "semesterId": 0,
+      "status": "",
+      "totalHours": 32,
+      "startWeek": 0,
+      "endWeek": 0,
+      "maxHoursPerWeek": 0,
+      "preferredSpan": 2,
+      "requiredRoomType": "",
+      "requiredEquipment": "",
+      "course": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "credit": 0,
+        "type": "",
+        "hours": 0,
+        "status": "",
+        "category": ""
+      },
+      "teacher": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "status": "",
+        "preferNoEarly": false,
+        "preferNoLate": false,
+        "maxDaysPerWeek": 0,
+        "preferLowFloor": false,
+        "unavailableSlots": ""
+      },
+      "semester": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "academicYear": "",
+        "term": "",
+        "startDate": "0001-01-01T00:00:00Z",
+        "endDate": "0001-01-01T00:00:00Z",
+        "status": ""
+      }
+    },
+    {
+      "ID": 3,
+      "CreatedAt": "0001-01-01T00:00:00Z",
+      "UpdatedAt": "0001-01-01T00:00:00Z",
+      "DeletedAt": null,
+      "courseId": 200,
+      "teacherId": 10,
+      "semesterId": 0,
+      "status": "",
+      "totalHours": 16,
+      "startWeek": 0,
+      "endWeek": 0,
+      "maxHoursPerWeek": 0,
+      "preferredSpan": 2,
+      "requiredRoomType": "",
+      "requiredEquipment": "",
+      "course": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "credit": 0,
+        "type": "",
+        "hours": 0,
+        "status": "",
+        "category": ""
+      },
+      "teacher": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "code": "",
+        "name": "",
+        "dept": "",
+        "status": "",
+        "preferNoEarly": false,
+        "preferNoLate": false,
+        "maxDaysPerWeek": 0,
+        "preferLowFloor": false,
+        "unavailableSlots": ""
+      },
+      "semester": {
+        "ID": 0,
+        "CreatedAt": "0001-01-01T00:00:00Z",
+        "UpdatedAt": "0001-01-01T00:00:00Z",
+        "DeletedAt": null,
+        "academicYear": "",
+        "term": "",
+        "startDate": "0001-01-01T00:00:00Z",
+        "endDate": "0001-01-01T00:00:00Z",
+        "status": ""
+      }
+    }
+  ],
+  "sportsCourseIDs": [],
+  "expected": {
+    "total": 95.83,
+    "teacherPref": 16.666666666666668,
+    "courseSpacing": 12.5,
+    "teacherDays": 16.666666666666668,
+    "lowFloorPref": 0,
+    "weekendAvoid": 16.666666666666668,
+    "pePeriodPref": 16.666666666666668,
+    "studentFatigue": 16.666666666666668,
+    "perCategoryMax": 16.67,
+    "enabledCategoryCount": 6,
+    "placedSessions": 3,
+    "expectedSessions": 3,
+    "completeness": 1,
+    "finalTotal": 95.83,
+    "buckets": {
+      "time": {
+        "value": 45.833333333333336,
+        "max": 50.010000000000005,
+        "details": {
+          "course_dispersed": 12.5,
+          "pe_preferred_periods": 16.666666666666668,
+          "weekend_avoid": 16.666666666666668
+        }
+      },
+      "teacher": {
+        "value": 33.333333333333336,
+        "max": 33.34,
+        "details": {
+          "teacher_days_limit": 16.666666666666668,
+          "teacher_preference": 16.666666666666668
+        }
+      },
+      "student": {
+        "value": 16.666666666666668,
+        "max": 16.67,
+        "details": {
+          "student_fatigue": 16.666666666666668
+        }
+      }
+    },
+    "enabledDimensions": [
+      "time",
+      "teacher",
+      "student"
+    ]
+  }
+}

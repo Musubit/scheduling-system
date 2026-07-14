@@ -39,3 +39,14 @@ func (m SchedulingMode) EnabledScoreDimensions() []string {
 	}
 	return []string{"time", "teacher", "student", "resource"}
 }
+
+func SchedulingModeFromString(s string) SchedulingMode {
+	switch s {
+	case "FULL_SCHEDULING":
+		return ModeFullScheduling
+	case "TIME_ONLY_SCHEDULING":
+		return ModeTimeOnlyScheduling
+	default:
+		return ModeFullScheduling
+	}
+}
