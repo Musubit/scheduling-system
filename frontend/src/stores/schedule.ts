@@ -35,18 +35,14 @@ export const useScheduleStore = defineStore('schedule', () => {
     return week >= start && week <= end
   }
 
-  // Perspective filtering — three dimensions: teacher, classroom, class
-  const perspective = ref<'teacher' | 'classroom' | 'class'>('teacher')
+  // Perspective filtering — two dimensions: teacher, class
+  const perspective = ref<'teacher' | 'class'>('teacher')
   const selectedTeacherId = ref<number | null>(null)
-  const selectedClassroomId = ref<number | null>(null)
   const selectedClassId = ref<number | null>(null)
 
   const displayEntries = computed(() => {
     if (perspective.value === 'teacher' && selectedTeacherId.value) {
       return entries.value.filter(e => e.teacherId === selectedTeacherId.value && isInWeek(e, currentWeek.value))
-    }
-    if (perspective.value === 'classroom' && selectedClassroomId.value) {
-      return entries.value.filter(e => e.classroomId === selectedClassroomId.value && isInWeek(e, currentWeek.value))
     }
     if (perspective.value === 'class' && selectedClassId.value) {
       return entries.value.filter(e => {
@@ -64,10 +60,9 @@ export const useScheduleStore = defineStore('schedule', () => {
     return []
   })
 
-  function setPerspective(p: 'teacher' | 'classroom' | 'class') {
+  function setPerspective(p: 'teacher' | 'class') {
     perspective.value = p
     selectedTeacherId.value = null
-    selectedClassroomId.value = null
     selectedClassId.value = null
   }
 
@@ -194,7 +189,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     currentView, currentWeek, currentMonth, currentYear,
     switchView, prevWeek, nextWeek, prevMonth, nextMonth,
     entries, displayEntries, filteredCount, isLoading,
-    perspective, selectedTeacherId, selectedClassroomId, selectedClassId,
+    perspective, selectedTeacherId, selectedClassId,
     setPerspective,
     getEntryAt, loadSchedule,
     viewMode, versionName,

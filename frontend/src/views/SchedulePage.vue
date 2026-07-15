@@ -44,7 +44,7 @@ async function handleSaveVersion() {
   }
 }
 
-// Perspective state — three dimensions
+// Perspective state
 const perspectives = [
   { label: '教师', value: 'teacher' as const },
   { label: '班级', value: 'class' as const },
@@ -63,13 +63,11 @@ function selectPerspective(p: 'teacher' | 'class') {
 
 function syncTeacher() {
   scheduleStore.selectedTeacherId = filterTeacherId.value
-  scheduleStore.selectedClassroomId = null
   scheduleStore.selectedClassId = null
 }
 function syncClass() {
   scheduleStore.selectedClassId = filterClassId.value
   scheduleStore.selectedTeacherId = null
-  scheduleStore.selectedClassroomId = null
 }
 
 // Department options
@@ -208,8 +206,8 @@ async function exportSchedulePDF() {
   try {
     // 空数据保护：检查是否有可导出的课程
     if (scheduleStore.displayEntries.length === 0) {
-      const hasSelection = scheduleStore.selectedTeacherId || scheduleStore.selectedClassroomId || scheduleStore.selectedClassId
-      window.alert(hasSelection ? '当前对象暂无课程' : '当前没有可导出的课表，请先选择教师、班级或教室')
+      const hasSelection = scheduleStore.selectedTeacherId || scheduleStore.selectedClassId
+      window.alert(hasSelection ? '当前对象暂无课程' : '当前没有可导出的课表，请先选择教师或班级')
       return
     }
 
