@@ -268,37 +268,70 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
 
-	// Try OR-Tools first if available
-	var saResult *SAResult
+	// Run OR-Tools and SA in parallel if both available, pick the better result.
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
-	if s.orchestrator != nil {
-		addProgress(35, "OR-Tools求解")
-		if ortoolsResult := s.tryORTools(teachingTasks, teachers, solverClassrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog); ortoolsResult != nil {
+	var saResult *SAResult
+
+	if s.orchestrator != nil && s.orchestrator.IsORToolsAvailable() {
+		// Both engines available — run in parallel
+		addProgress(35, "OR-Tools + SA 并行求解")
+
+		var ortoolsResult *SAResult
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			ortoolsResult = s.tryORTools(teachingTasks, teachers, solverClassrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog)
+		}()
+
+		go func() {
+			defer wg.Done()
+			solver := NewSASolver()
+			result := solver.SolveMultiRun(
+				teachingTasks, teachers, solverClassrooms, classGroups,
+				lockedSlots, effectiveConstraints, config.SemesterID,
+				saConfig, 3, nil, nil,
+			)
+			result.Entries = solver.PostOptimize(
+				result.Entries, teachingTasks, teachers, solverClassrooms,
+				lockedSlots, effectiveConstraints,
+				max(5, len(result.Entries)/10),
+				isTimeOnly,
+			)
+			saResult = result
+		}()
+
+		wg.Wait()
+
+		// Pick the better result (score after unified scoring below)
+		if ortoolsResult != nil && saResult != nil {
+			addLog(fmt.Sprintf("并行求解完成: OR-Tools %.1f分 vs SA %.1f分",
+				ortoolsResult.Score, saResult.Score))
+			if ortoolsResult.Score > saResult.Score {
+				saResult = ortoolsResult
+				addLog("选择 OR-Tools 结果")
+			} else {
+				addLog("选择 SA 结果")
+			}
+		} else if ortoolsResult != nil {
 			saResult = ortoolsResult
 		}
-	}
-
-	// Fall back to SA solver if OR-Tools didn't produce a result
-	if saResult == nil {
+	} else {
+		// Only SA available
 		addProgress(45, "模拟退火优化")
 		solver := NewSASolver()
 		saResult = solver.SolveMultiRun(
 			teachingTasks, teachers, solverClassrooms, classGroups,
 			lockedSlots, effectiveConstraints, config.SemesterID,
-			saConfig,
-			3, // 3 runs with different seeds
-			nil,
-			nil,
+			saConfig, 3, nil, nil,
 		)
-
-		// Greedy post-optimization on worst entries
 		saResult.Entries = solver.PostOptimize(
 			saResult.Entries, teachingTasks, teachers, solverClassrooms,
 			lockedSlots, effectiveConstraints,
 			max(5, len(saResult.Entries)/10),
 			isTimeOnly,
 		)
-
 		addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms",
 			saResult.Iterations, float64(saResult.ElapsedMs)))
 	}
