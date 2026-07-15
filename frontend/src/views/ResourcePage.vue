@@ -754,40 +754,42 @@ function downloadTemplate() {
       <input ref="importFileRef" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileChange" />
     </div>
 
-    <div v-if="showPreview" class="import-preview">
-      <div class="preview-header">
-        <span>预览导入数据（{{ previewRows.length }} 条）</span>
-        <n-space>
-          <n-button size="small" type="primary" @click="confirmImport" :loading="previewImporting">确认导入</n-button>
-          <n-button size="small" @click="cancelPreview">取消</n-button>
-        </n-space>
+    <!-- 导入预览弹窗 -->
+    <NModal v-model:show="showPreview" preset="card" title="导入预览" style="width: 90vw; max-width: 1200px; max-height: 85vh;" :bordered="false" :segmented="{ content: true }">
+      <div class="preview-meta">
+        <span>共 <strong>{{ previewRows.length }}</strong> 条数据待导入</span>
       </div>
-      <div class="preview-table" style="max-height: 400px; overflow: auto;">
+      <div class="preview-table" style="max-height: 55vh; overflow: auto;">
         <table>
           <thead><tr><th v-for="h in previewHeaders" :key="h">{{ h }}</th></tr></thead>
           <tbody><tr v-for="(row, idx) in previewRows" :key="idx"><td v-for="(cell, ci) in row" :key="ci">{{ cell }}</td></tr></tbody>
         </table>
       </div>
-    </div>
+      <template #action>
+        <n-space>
+          <n-button @click="cancelPreview">取消</n-button>
+          <n-button type="primary" @click="confirmImport" :loading="previewImporting">确认导入 ({{ previewRows.length }}条)</n-button>
+        </n-space>
+      </template>
+    </NModal>
 
-    <!-- 导入错误列表 -->
-    <div v-if="showErrors && importErrors.length > 0" class="import-errors">
-      <div class="preview-header">
-        <span style="color: var(--b3-theme-error)">导入错误（{{ importErrors.length }} 行）</span>
-        <n-button size="small" @click="showErrors.value = false; importErrors.value = []">关闭</n-button>
+    <!-- 导入错误弹窗 -->
+    <NModal v-model:show="showErrors" preset="card" title="导入错误" style="width: 70vw; max-width: 800px; max-height: 70vh;" :bordered="false" :segmented="{ content: true }">
+      <div class="preview-meta">
+        <span style="color: var(--b3-theme-error)">{{ importErrors.length }} 行导入失败</span>
       </div>
-      <div class="preview-table" style="max-height: 300px; overflow: auto;">
+      <div class="preview-table" style="max-height: 50vh; overflow: auto;">
         <table>
-          <thead><tr><th>行号</th><th>错误信息</th></tr></thead>
+          <thead><tr><th style="width: 60px">行号</th><th>错误信息</th></tr></thead>
           <tbody>
             <tr v-for="(err, idx) in importErrors" :key="idx">
-              <td style="width: 60px; text-align: center">{{ idx + 1 }}</td>
+              <td style="text-align: center">{{ idx + 1 }}</td>
               <td>{{ err }}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    </div>
+    </NModal>
 
 	    <div class="resource-table">
 	      <n-data-table v-if="resourceStore.activeTab === 'teacher'" :columns="teacherCols" :data="resourceStore.filteredTeachers" :single-line="false" size="small" />
@@ -944,19 +946,9 @@ function downloadTemplate() {
 }
 
 /* ===== Import Preview ===== */
-.import-preview {
-  background: var(--card-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid var(--border-color);
-}
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.preview-meta {
   margin-bottom: 12px;
-  font-weight: 600;
+  font-size: 14px;
 }
 .preview-table table {
   width: 100%;
@@ -972,12 +964,6 @@ function downloadTemplate() {
   background: var(--table-header-color);
   position: sticky;
   top: 0;
-}
-.import-errors {
-  background: var(--card-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid var(--b3-theme-error);
+  z-index: 1;
 }
 </style>

@@ -78,7 +78,7 @@ export function CreateVersionFromSchedule(semesterID: number, dept: string, trig
 }
 
 /**
- * DeleteVersion removes a version and its entries/details by ID.
+ * DeleteVersion removes a version and its entries/details by ID in a single transaction.
  */
 export function DeleteVersion(id: number): $CancellablePromise<void> {
     return $Call.ByID(2322552237, id);
