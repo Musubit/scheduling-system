@@ -27,7 +27,7 @@ async function loadVersions() {
   isLoading.value = true
   try {
     const { ListVersions } = await import('../../bindings/scheduling-system/backend/services/versionservice')
-    const data = await ListVersions(appStore.currentSemesterName)
+    const data = await ListVersions(appStore.currentSemesterId)
     versions.value = (data || []) as VersionListItem[]
   } catch (e) {
     console.warn('Failed to load versions:', e)
@@ -88,7 +88,7 @@ function confirmClearAll() {
       clearing.value = true
       try {
         const { ClearSemesterVersions } = await import('../../bindings/scheduling-system/backend/services/versionservice')
-        const deleted = await ClearSemesterVersions(appStore.currentSemesterName)
+        const deleted = await ClearSemesterVersions(appStore.currentSemesterId)
         message.success(`已清空 ${deleted ?? count} 个方案`)
         await loadVersions()
       } catch (e) {

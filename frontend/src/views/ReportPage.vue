@@ -374,7 +374,7 @@ const rankedDetails = computed(() => {
 
 	/** Overall grade from total score */
 	const gradeLabel = computed(() => {
-	  const s = selectedSnapshot.value?.totalScore ?? 0
+	  const s = selectedSnapshot.value?.finalScore ?? selectedSnapshot.value?.totalScore ?? 0
 	  if (s >= 95) return { label: 'A+', color: '#18a058' }
 	  if (s >= 85) return { label: 'A',  color: '#18a058' }
 	  if (s >= 75) return { label: 'B',  color: '#3575f0' }
@@ -490,8 +490,8 @@ onMounted(() => {
             >{{ snap.name || '未命名' }}</div>
             <div class="snap-meta">
               <span class="snap-date">{{ formatDate(snap.CreatedAt || snap.createdAt) }}</span>
-              <span class="snap-score" :style="{ color: scoreColor(snap.totalScore) }">
-                {{ snap.totalScore?.toFixed(2) }}分
+              <span class="snap-score" :style="{ color: scoreColor(snap.finalScore || snap.totalScore) }">
+                {{ (snap.finalScore || snap.totalScore)?.toFixed(2) }}分
               </span>
             </div>
           </div>
@@ -502,8 +502,8 @@ onMounted(() => {
           <!-- Score overview -->
           <n-card title="综合评分" size="small" class="score-card">
             <div class="total-score-row">
-              <div class="total-score" :style="{ color: scoreColor(selectedSnapshot.totalScore) }">
-                {{ selectedSnapshot.totalScore?.toFixed(2) }}
+              <div class="total-score" :style="{ color: scoreColor(selectedSnapshot.finalScore || selectedSnapshot.totalScore) }">
+                {{ (selectedSnapshot.finalScore || selectedSnapshot.totalScore)?.toFixed(2) }}
                 <span class="score-unit">/ 100</span>
               </div>
               <span class="grade-badge" :style="{ background: gradeLabel.color }">
