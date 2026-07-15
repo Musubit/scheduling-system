@@ -99,34 +99,84 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	// I8 前瞻：一旦未来新增 resource 子约束（capacity/type/equipment），
 	// 在此一次性禁用即可，无需散布在各评分函数内。
 
-	// Count enabled categories and per-category max
+	// Weighted scoring: each category's max is proportional to its constraint weights.
+	// When ConstraintWeights is nil (legacy), fall back to equal weighting.
+	weights := ctx.ConstraintWeights
+	getWeight := func(key string) int {
+		if weights != nil {
+			if w, ok := weights[key]; ok && w > 0 {
+				return w
+			}
+		}
+		return 1 // equal weight when no weights configured
+	}
+
+	// Compute per-category weight and total
+	type categoryWeight struct {
+		weight int
+		keys   []string // sub-constraint keys contributing to this category
+	}
+	categories := []categoryWeight{
+		{keys: []string{"teacher_preference"}},
+		{keys: []string{"course_dispersed"}},
+		{keys: []string{"teacher_days_limit"}},
+		{keys: []string{"low_floor_preference"}},
+		{keys: []string{"avoid_saturday", "avoid_sunday"}},
+		{keys: []string{"pe_preferred_periods"}},
+		{keys: []string{"student_fatigue"}},
+	}
+	// Apply enablement: zero out disabled categories
+	if !enabled["teacher_preference"] {
+		categories[0].keys = nil
+	}
+	if !enabled["course_dispersed"] {
+		categories[1].keys = nil
+	}
+	if !enabled["teacher_days_limit"] {
+		categories[2].keys = nil
+	}
+	if !enabled["low_floor_preference"] {
+		categories[3].keys = nil
+	}
+	if !enabled["avoid_saturday"] && !enabled["avoid_sunday"] {
+		categories[4].keys = nil
+	}
+	if !enabled["pe_preferred_periods"] || sportsCourseIDs == nil {
+		categories[5].keys = nil
+	}
+	if !enabled["student_fatigue"] || len(ttList) == 0 {
+		categories[6].keys = nil
+	}
+
+	// Compute per-category weight (max of sub-constraint weights) and total
+	totalWeight := 0
+	for i := range categories {
+		maxW := 0
+		for _, k := range categories[i].keys {
+			if w := getWeight(k); w > maxW {
+				maxW = w
+			}
+		}
+		categories[i].weight = maxW
+		totalWeight += maxW
+	}
+
 	enabledCount := 0
-	if enabled["teacher_preference"] {
-		enabledCount++
+	for _, c := range categories {
+		if c.weight > 0 {
+			enabledCount++
+		}
 	}
-	if enabled["course_dispersed"] {
-		enabledCount++
-	}
-	if enabled["teacher_days_limit"] {
-		enabledCount++
-	}
-	if enabled["low_floor_preference"] {
-		enabledCount++
-	}
-	if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
-		enabledCount++
-	}
-	if enabled["pe_preferred_periods"] && sportsCourseIDs != nil {
-		enabledCount++
-	}
-	if enabled["student_fatigue"] && len(ttList) > 0 {
-		enabledCount++
-	}
+
+	// Per-category max: proportional to weight, or equal if no weights configured
 	var perCategoryMax float64
 	if enabledCount == 0 {
 		perCategoryMax = 25.0
-	} else {
+	} else if weights == nil {
+		// Legacy equal weighting
 		perCategoryMax = 100.0 / float64(enabledCount)
+	} else {
+		perCategoryMax = 100.0 / float64(totalWeight)
 	}
 	breakdown.PerCategoryMax = math.Round(perCategoryMax*100) / 100
 	breakdown.EnabledCategoryCount = enabledCount
@@ -141,39 +191,48 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		classroomMap[c.ID] = c
 	}
 
+	// Weighted category maxes: each category's max = its weight × perCategoryMax
+	teacherMax := float64(categories[0].weight) * perCategoryMax
+	courseMax := float64(categories[1].weight) * perCategoryMax
+	daysMax := float64(categories[2].weight) * perCategoryMax
+	floorMax := float64(categories[3].weight) * perCategoryMax
+	weekendMax := float64(categories[4].weight) * perCategoryMax
+	peMax := float64(categories[5].weight) * perCategoryMax
+	fatigueMax := float64(categories[6].weight) * perCategoryMax
+
 	// 1. Teacher preference scoring
 	if enabled["teacher_preference"] {
-		breakdown.TeacherPref = s.scoreTeacherPreferences(entries, teacherMap, perCategoryMax)
+		breakdown.TeacherPref = s.scoreTeacherPreferences(entries, teacherMap, teacherMax)
 	}
 
 	// 2. Course spacing scoring
 	if enabled["course_dispersed"] {
-		breakdown.CourseSpacing = s.scoreCourseSpacing(entries, perCategoryMax)
+		breakdown.CourseSpacing = s.scoreCourseSpacing(entries, courseMax)
 	}
 
 	// 3. Teacher days per week scoring
 	if enabled["teacher_days_limit"] {
-		breakdown.TeacherDays = s.scoreTeacherDays(entries, teacherMap, perCategoryMax)
+		breakdown.TeacherDays = s.scoreTeacherDays(entries, teacherMap, daysMax)
 	}
 
 	// 4. Low floor preference scoring
 	if enabled["low_floor_preference"] {
-		breakdown.LowFloorPref = s.scoreLowFloorPref(entries, teacherMap, classroomMap, perCategoryMax)
+		breakdown.LowFloorPref = s.scoreLowFloorPref(entries, teacherMap, classroomMap, floorMax)
 	}
 
 	// 5. Weekend avoidance scoring
 	if enabled["avoid_saturday"] || enabled["avoid_sunday"] {
-		breakdown.WeekendAvoid = s.scoreWeekendAvoid(entries, enabled, perCategoryMax)
+		breakdown.WeekendAvoid = s.scoreWeekendAvoid(entries, enabled, weekendMax)
 	}
 
 	// 6. Sports period preference
 	if enabled["pe_preferred_periods"] && sportsCourseIDs != nil {
-		breakdown.PePeriodPref = s.scorePePeriodPref(entries, sportsCourseIDs, perCategoryMax)
+		breakdown.PePeriodPref = s.scorePePeriodPref(entries, sportsCourseIDs, peMax)
 	}
 
 	// 7. Student fatigue scoring (requires teaching task data)
 	if enabled["student_fatigue"] && len(ttList) > 0 {
-		breakdown.StudentFatigue = s.scoreStudentFatigue(entries, ttList, perCategoryMax)
+		breakdown.StudentFatigue = s.scoreStudentFatigue(entries, ttList, fatigueMax)
 	}
 
 	breakdown.Total = math.Round((breakdown.TeacherPref + breakdown.CourseSpacing + breakdown.TeacherDays + breakdown.LowFloorPref + breakdown.WeekendAvoid + breakdown.PePeriodPref + breakdown.StudentFatigue)*100) / 100
@@ -234,7 +293,7 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 			details["pe_preferred_periods"] = breakdown.PePeriodPref
 			val += breakdown.PePeriodPref
 		}
-		buckets.Time = &ScoreBucket{Value: val, Max: breakdown.PerCategoryMax * 3, Details: details}
+		buckets.Time = &ScoreBucket{Value: val, Max: courseMax + weekendMax + peMax, Details: details}
 	}
 	// Teacher bucket: teacher_preference + teacher_days_limit
 	if dimSet["teacher"] {
@@ -248,7 +307,7 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 			details["teacher_days_limit"] = breakdown.TeacherDays
 			val += breakdown.TeacherDays
 		}
-		buckets.Teacher = &ScoreBucket{Value: val, Max: breakdown.PerCategoryMax * 2, Details: details}
+		buckets.Teacher = &ScoreBucket{Value: val, Max: teacherMax + daysMax, Details: details}
 	}
 	// Student bucket: student_fatigue
 	if dimSet["student"] {
@@ -256,7 +315,7 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		if enabled["student_fatigue"] {
 			details["student_fatigue"] = breakdown.StudentFatigue
 		}
-		buckets.Student = &ScoreBucket{Value: breakdown.StudentFatigue, Max: breakdown.PerCategoryMax, Details: details}
+		buckets.Student = &ScoreBucket{Value: breakdown.StudentFatigue, Max: fatigueMax, Details: details}
 	}
 	// Resource bucket: low_floor_preference (spec §2.7)
 	// TIME_ONLY 时 dimSet["resource"] == false → Resource 保持 nil (INV-S1: Disabled = nil)
@@ -265,7 +324,7 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		if enabled["low_floor_preference"] {
 			details["low_floor_preference"] = breakdown.LowFloorPref
 		}
-		buckets.Resource = &ScoreBucket{Value: breakdown.LowFloorPref, Max: breakdown.PerCategoryMax, Details: details}
+		buckets.Resource = &ScoreBucket{Value: breakdown.LowFloorPref, Max: floorMax, Details: details}
 	}
 	breakdown.Buckets = buckets
 

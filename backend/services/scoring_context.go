@@ -31,6 +31,11 @@ type ScoringContext struct {
 	// v0.5.2: expected weekly session count used by ScoreSchedule to compute
 	// FinalTotal via completeness scaling. 0 = legacy path, no scaling.
 	ExpectedTotalSessions int `json:"-"`
+
+	// v0.5.6: per-constraint weights (0-100). When nil or empty, ScoreSchedule
+	// falls back to equal weighting (100 / enabledCount per category).
+	// Weights are persisted so snapshots/versions remember the configuration.
+	ConstraintWeights map[string]int `json:"constraintWeights,omitempty"`
 }
 
 // NewScoringContext creates a scoring context for the current scheduling run.
@@ -84,6 +89,14 @@ func (ctx ScoringContext) WithMode(mode schedtypes.SchedulingMode) ScoringContex
 	return ctx
 }
 
+// WithConstraintWeights sets per-constraint weights on the context and returns a copy.
+// Chainable: ctx := NewScoringContext(...).WithConstraintWeights(weights).
+// When weights is nil or empty, ScoreSchedule uses equal weighting.
+func (ctx ScoringContext) WithConstraintWeights(weights map[string]int) ScoringContext {
+	ctx.ConstraintWeights = weights
+	return ctx
+}
+
 // EffectiveMode returns the mode with backward-compat default: empty → FULL.
 // All read paths on scoring should use this rather than raw Mode.
 func (ctx ScoringContext) EffectiveMode() schedtypes.SchedulingMode {
@@ -95,10 +108,12 @@ func (ctx ScoringContext) EffectiveMode() schedtypes.SchedulingMode {
 
 // StoredConfig is the persisted subset of ScoringContext stored in a snapshot.
 // v3 adds Mode; v1/v2 rows omit it and read back as FULL_SCHEDULING.
+// v4 adds ConstraintWeights; v1/v2/v3 rows omit it and read back as nil (equal weighting).
 type StoredConfig struct {
 	Version            int                       `json:"version"`
 	EnabledConstraints []string                  `json:"enabledConstraints"`
 	Mode               schedtypes.SchedulingMode `json:"mode,omitempty"`
+	ConstraintWeights  map[string]int            `json:"constraintWeights,omitempty"`
 }
 
 // ToStoredConfig extracts the persistable subset.
@@ -107,6 +122,7 @@ func (ctx ScoringContext) ToStoredConfig() StoredConfig {
 		Version:            ctx.Version,
 		EnabledConstraints: ctx.EnabledConstraints,
 		Mode:               ctx.EffectiveMode(),
+		ConstraintWeights:  ctx.ConstraintWeights,
 	}
 }
 
@@ -147,6 +163,7 @@ func ScoringContextFromStored(
 		Mode:               mode,
 		SportsCourseIDs:    sportsIDs,
 		TeachingTasks:      tasks,
+		ConstraintWeights:  stored.ConstraintWeights,
 	}
 }
 
