@@ -502,8 +502,8 @@ const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
   teacher: {
     columns: [
       { header: '姓名', field: 'name', required: true, hint: '如：张三' },
-      { header: '院系', field: 'dept', required: false, hint: '如：理学院，选填' },
       { header: '工号', field: 'code', required: false, hint: '留空自动生成' },
+      { header: '院系', field: 'dept', required: false, hint: '如：理学院' },
       { header: '避免早课', field: 'preferNoEarly', required: false, hint: '是/否，默认否' },
       { header: '避免晚课', field: 'preferNoLate', required: false, hint: '是/否，默认否' },
       { header: '最大到校天数', field: 'maxDaysPerWeek', required: false, hint: '1-7，默认3' },
@@ -513,8 +513,8 @@ const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
   classroom: {
     columns: [
       { header: '名称', field: 'name', required: true, hint: '如：A301教室' },
-      { header: '楼栋编号', field: 'buildingId', required: true, hint: '楼栋ID数字，如：1' },
       { header: '教室编号', field: 'code', required: false, hint: '留空自动生成' },
+      { header: '楼栋编号', field: 'buildingId', required: false, hint: '楼栋ID数字' },
       { header: '楼层', field: 'floor', required: false, hint: '数字，默认1' },
       { header: '容量', field: 'capacity', required: false, hint: '人数，如：60' },
       { header: '类型', field: 'roomType', required: false, hint: '教室/实验室/机房，默认教室' },
@@ -523,9 +523,9 @@ const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
   course: {
     columns: [
       { header: '名称', field: 'name', required: true, hint: '如：数据结构' },
-      { header: '院系', field: 'dept', required: false, hint: '如：计算机学院，选填' },
-      { header: '学时', field: 'hours', required: true, hint: '如：64，影响每周排课次数' },
       { header: '课程代码', field: 'code', required: false, hint: '留空自动生成' },
+      { header: '院系', field: 'dept', required: false, hint: '如：计算机学院' },
+      { header: '学时', field: 'hours', required: false, hint: '如：64，影响每周排课次数' },
       { header: '学分', field: 'credit', required: false, hint: '如：3.0' },
       { header: '类型', field: 'type', required: false, hint: '专业必修/专业选修/通识必修/通识选修' },
     ],
@@ -533,8 +533,8 @@ const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
   class: {
     columns: [
       { header: '名称', field: 'name', required: true, hint: '如：计算机2301' },
-      { header: '院系', field: 'dept', required: false, hint: '如：计算机学院，选填' },
       { header: '班级代码', field: 'code', required: false, hint: '留空自动生成' },
+      { header: '院系', field: 'dept', required: false, hint: '如：计算机学院' },
       { header: '人数', field: 'students', required: false, hint: '如：60' },
       { header: '年级', field: 'grade', required: false, hint: '如：2023' },
     ],

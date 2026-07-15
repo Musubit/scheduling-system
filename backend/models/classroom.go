@@ -11,13 +11,13 @@ import "gorm.io/gorm"
 //   - Code 字段仅是"唯一标识字符串"，无内在结构约束；编号解析规则在 adapter 层
 type Classroom struct {
 	gorm.Model
-	Code       string `gorm:"uniqueIndex;size:20;not null" json:"code"`
-	Name       string `gorm:"size:100;not null" json:"name"`
-	BuildingID uint   `gorm:"index;not null" json:"buildingId"`
+	Code       string `gorm:"uniqueIndex;size:20" json:"code"`
+	Name       string `gorm:"size:100" json:"name"`
+	BuildingID uint   `gorm:"index" json:"buildingId"`
 	Floor      int    `gorm:"default:1" json:"floor"`
 	Number     string `gorm:"size:10" json:"number"`
 	Capacity   int    `json:"capacity"`
-	RoomType   string `gorm:"size:20;not null;index" json:"roomType"`
+	RoomType   string `gorm:"size:20;index" json:"roomType"`
 	Status     string `gorm:"size:20;default:available" json:"status"`
 
 	// +v0.5.3: 设备列表 JSON array，如 ["projector","smartboard","aircon"]
