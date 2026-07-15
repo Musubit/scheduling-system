@@ -374,14 +374,22 @@ func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (retRes *MoveAndSc
 	if req.NewClassroom > 0 {
 		entry.ClassroomID = req.NewClassroom
 	}
-	if err := s.db.Save(&entry).Error(); err != nil {
-		return nil, fmt.Errorf("移动课程失败: %w", err)
-	}
 
-	// Compute score AFTER the move
-	afterBD, err := s.computeScore(entry.SemesterID)
-	if err != nil {
-		return nil, fmt.Errorf("重评分失败: %w", err)
+	// Wrap Save + computeScore in a transaction so the score is computed
+	// against the updated state and rolls back atomically on failure.
+	var afterBD *ScoreBreakdown
+	if err := s.db.Transaction(func(tx database.DB) error {
+		if err := tx.Save(&entry).Error(); err != nil {
+			return fmt.Errorf("移动课程失败: %w", err)
+		}
+		var scoreErr error
+		afterBD, scoreErr = s.computeScoreDB(tx, entry.SemesterID)
+		if scoreErr != nil {
+			return fmt.Errorf("重评分失败: %w", scoreErr)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	afterScore := afterBD.Total
 
@@ -482,9 +490,15 @@ func weeksOverlap(a, b string) bool {
 // snapshot so the score is directly comparable to what the user saw after
 // the last full scheduling run.
 func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
+	return s.computeScoreDB(s.db, semesterID)
+}
+
+// computeScoreDB is the transaction-aware variant of computeScore.
+// Callers inside a db.Transaction pass the tx handle so reads see uncommitted writes.
+func (s *MoveService) computeScoreDB(db database.DB, semesterID uint) (*ScoreBreakdown, error) {
 	// Load all entries for the semester
 	var entries []models.ScheduleEntry
-	if err := s.db.Where("semester_id = ?", semesterID).
+	if err := db.Where("semester_id = ?", semesterID).
 		Preload("Course").Preload("Teacher").Preload("Classroom").
 		Preload("TeachingTask.Classes.ClassGroup").
 		Find(&entries).Error(); err != nil {
@@ -493,13 +507,13 @@ func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 
 	// Load all teachers
 	var teachers []models.Teacher
-	if err := s.db.Find(&teachers).Error(); err != nil {
+	if err := db.Find(&teachers).Error(); err != nil {
 		return nil, err
 	}
 
 	// Load all classrooms
 	var classrooms []models.Classroom
-	if err := s.db.Find(&classrooms).Error(); err != nil {
+	if err := db.Find(&classrooms).Error(); err != nil {
 		return nil, err
 	}
 
@@ -507,7 +521,7 @@ func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 	// and student_fatigue calculation)
 	var teachingTasks []models.TeachingTask
 	if semesterID > 0 {
-		if err := s.db.Where("semester_id = ?", semesterID).
+		if err := db.Where("semester_id = ?", semesterID).
 			Preload("Course").Preload("Teacher").
 			Preload("Classes.ClassGroup").
 			Find(&teachingTasks).Error(); err != nil {
@@ -519,7 +533,7 @@ func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 
 	// Use the same constraints that were active during the original scheduling run
-	constraints := s.loadLatestConstraints(semesterID)
+	constraints := s.loadLatestConstraintsDB(db, semesterID)
 
 	scoringCtx := NewScoringContext(constraints, sportsCourseIDs, teachingTasks)
 	breakdown := NewScoringService().ScoreSchedule(entries, teachers, classrooms, scoringCtx)
@@ -530,8 +544,13 @@ func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
 // auto-snapshot for the given semester. Falls back to FullDefaultConstraints
 // when no snapshot exists.
 func (s *MoveService) loadLatestConstraints(semesterID uint) []string {
+	return s.loadLatestConstraintsDB(s.db, semesterID)
+}
+
+// loadLatestConstraintsDB is the transaction-aware variant of loadLatestConstraints.
+func (s *MoveService) loadLatestConstraintsDB(db database.DB, semesterID uint) []string {
 	var snap models.ScheduleSnapshot
-	if err := s.db.Where("semester_id = ?", semesterID).
+	if err := db.Where("semester_id = ?", semesterID).
 		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
 		var constraints []string
 		if err := json.Unmarshal([]byte(snap.EnabledConstraints), &constraints); err == nil && len(constraints) > 0 {

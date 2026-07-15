@@ -555,6 +555,9 @@ func (s *ScoringService) scoreLowFloorPref(entries []models.ScheduleEntry, teach
 	stats := make(map[uint]*floorStat)
 
 	for _, e := range entries {
+		if e.IsVirtual {
+			continue // TIME_ONLY: virtual classroom, skip floor scoring
+		}
 		t, ok := teacherMap[e.TeacherID]
 		if !ok || !t.PreferLowFloor {
 			continue

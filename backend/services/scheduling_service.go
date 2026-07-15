@@ -576,14 +576,8 @@ func buildVirtualClassroomsForTimeOnly(teachingTasks []models.TeachingTask, clas
 }
 
 func applySyntheticClassroomIDsForTimeOnly(entries []models.ScheduleEntry, classrooms []models.Classroom) {
-	base := uint(1_000_000)
-	for _, c := range classrooms {
-		if c.ID >= base {
-			base = c.ID + 1
-		}
-	}
 	for i := range entries {
-		entries[i].ClassroomID = base + uint(i)
+		entries[i].IsVirtual = true
 	}
 }
 

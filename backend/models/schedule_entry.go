@@ -15,6 +15,7 @@ type ScheduleEntry struct {
 	StartPeriod Period    `gorm:"uniqueIndex:idx_schedule_room;not null" json:"startPeriod"` // 0=第1节..10=第11节
 	Span        int       `gorm:"default:2" json:"span"`      // consecutive periods
 	Weeks       string    `gorm:"size:50;default:1-16" json:"weeks"`
+	IsVirtual   bool      `gorm:"default:false" json:"isVirtual"` // TIME_ONLY: virtual classroom, skip room scoring
 
 	// Associations
 	Course       Course        `gorm:"foreignKey:CourseID" json:"course,omitempty"`

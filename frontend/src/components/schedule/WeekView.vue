@@ -6,6 +6,7 @@ import { useScheduleStore } from '../../stores/schedule'
 import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 import { courseColorStyle } from '../../utils/courseColor'
+import { getWeekDates, formatShortDate } from '../../utils/weekView'
 import { DEFAULT_LOCKED } from '../../stores/scheduling'
 import LockedTimeGrid from '../scheduling/LockedTimeGrid.vue'
 
@@ -84,32 +85,12 @@ const todayDow = computed(() => {
   return d === 0 ? 6 : d - 1
 })
 
-// v0.5.5 P2 Step 25: 从 appStore.currentSemester.startDate 派生周日期，
-// 替代原来"当年 1 月 1 日 + (week-1)*7"的硬编码 —— 后者会让跨年学期
-// (SECOND 学期 2 月开学) 的日期标签串到上一年。currentSemester.startDate
-// 是 ISO 字符串(Go time.Time 序列化后带 T00:00:00Z)；缺失时兜底当年 1 月 1 日。
+// 从 appStore.currentSemester.startDate 派生本周 7 天日期标签。
+// 逻辑下沉到 utils/weekView.ts，缺失 startDate 时自动兜底当年 1 月 1 日。
 const weekDates = computed(() => {
   const semester = appStore.currentSemester as any
-  let anchor: Date
-  if (semester?.startDate) {
-    anchor = new Date(semester.startDate)
-    if (isNaN(anchor.getTime())) {
-      // 解析失败兜底
-      anchor = new Date(new Date().getFullYear(), 0, 1)
-    }
-  } else {
-    // 无学期时兜底当年 1 月 1 日
-    anchor = new Date(new Date().getFullYear(), 0, 1)
-  }
-  // 对齐 anchor 到当周周一 (getDay: Sun=0..Sat=6)
-  const anchorDow = anchor.getDay() === 0 ? 6 : anchor.getDay() - 1
-  const anchorMonday = new Date(anchor.getTime() - anchorDow * 86400000)
-  // 从学期第一周周一 + (currentWeek - 1) * 7 天派生本周周一
-  const monday = new Date(anchorMonday.getTime() + (scheduleStore.currentWeek - 1) * 7 * 86400000)
-  return DAY_NAMES.map((_, i) => {
-    const d = new Date(monday.getTime() + i * 86400000)
-    return `${d.getMonth() + 1}/${d.getDate()}`
-  })
+  const dates = getWeekDates(semester?.startDate || '', scheduleStore.currentWeek)
+  return dates.map(formatShortDate)
 })
 
 // Returns ALL courses at a given cell
