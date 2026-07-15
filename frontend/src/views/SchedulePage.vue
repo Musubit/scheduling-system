@@ -16,6 +16,8 @@ const scheduleStore = useScheduleStore()
 const resourceStore = useResourceStore()
 const appStore = useAppStore()
 const exporting = ref(false)
+const batchExporting = ref(false)
+const batchProgress = ref({ current: 0, total: 0, label: '' })
 const message = useMessage()
 
 // Save-as-version modal
@@ -201,6 +203,85 @@ async function exportSchedule(mode: 'teacher' | 'class') {
   }
 }
 
+async function captureSchedulePage(title: string): Promise<HTMLCanvasElement> {
+  const grid = document.querySelector('.schedule-grid') as HTMLElement
+  if (!grid) {
+    throw new Error('课表网格未加载，请刷新后重试')
+  }
+
+  const EXPORT_W = 1400
+  const container = document.createElement('div')
+  // B3 主题变量（保证克隆grid的样式继承）
+  const b3Vars: Record<string, string> = {
+    '--b3-theme-background': '#ffffff',
+    '--b3-theme-surface': '#f6f6f6',
+    '--b3-theme-on-surface': '#333333',
+    '--b3-theme-on-background': '#222222',
+    '--b3-theme-on-surface-light': '#999999',
+    '--b3-border-color': '#e0e0e0',
+    '--b3-border-radius': '6px',
+    '--b3-border-radius-s': '4px',
+    '--b3-theme-primary': '#3575f0',
+    '--b3-theme-primary-light': '#5b8af7',
+    '--b3-theme-primary-lightest': '#e8f0fe',
+    '--b3-theme-error': '#e53935',
+  }
+  container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
+  for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
+
+  // 标题（DOM API 构建，防止 XSS）
+  const dateStr = new Date().toLocaleString()
+  const titleEl = document.createElement('div')
+  titleEl.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;'
+  titleEl.textContent = title
+  container.appendChild(titleEl)
+  const subEl = document.createElement('div')
+  subEl.style.cssText = 'font-size:12px;color:#888;margin-bottom:12px;'
+  subEl.textContent = `第${scheduleStore.currentWeek}周　生成时间：${dateStr}`
+  container.appendChild(subEl)
+
+  // 克隆课表网格
+  const gridClone = grid.cloneNode(true) as HTMLElement
+  gridClone.style.setProperty('overflow', 'visible')
+  gridClone.style.setProperty('height', 'auto')
+  gridClone.style.setProperty('flex', 'none')
+  // 移除工具栏（如果被clone进来了——WeekView的工具栏是grid的兄弟，cloneNode只clone grid本身所以不会带）
+  gridClone.querySelector('.week-toolbar')?.remove()
+  container.appendChild(gridClone)
+  document.body.appendChild(container)
+
+  try {
+    const canvas = await html2canvas(container, { scale: 3, backgroundColor: '#ffffff' })
+    return canvas
+  } finally {
+    document.body.removeChild(container)
+  }
+}
+
+function saveCanvasAsPDF(canvas: HTMLCanvasElement, title: string): void {
+  const pdf = new jsPDF('l', 'mm', 'a4')
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const imgW = pageW - 14
+  const imgH = (canvas.height * imgW) / canvas.width
+  const imgData = canvas.toDataURL('image/png')
+
+  let heightLeft = imgH
+  let position = 7
+  pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+  heightLeft -= (pageH - position)
+  while (heightLeft > 0) {
+    position -= pageH
+    pdf.addPage()
+    pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
+    heightLeft -= pageH
+  }
+
+  const fileDate = new Date().toISOString().slice(0, 10)
+  const hash6 = Math.random().toString(16).slice(2, 8)
+  pdf.save(`${title}_${fileDate}_${hash6}.pdf`)
+}
+
 async function exportSchedulePDF() {
   exporting.value = true
   try {
@@ -227,63 +308,79 @@ async function exportSchedulePDF() {
       title = '班级课表'
     }
 
-    // 构建专用导出容器：克隆课表网格 + DOM标题（避免jsPDF中文乱码）
-    const grid = document.querySelector('.schedule-grid') as HTMLElement
-    if (!grid) {
-      window.alert('课表网格未加载，请刷新后重试')
-      return
+    const canvas = await captureSchedulePage(title)
+    saveCanvasAsPDF(canvas, title)
+  } catch (err: any) {
+    window.alert('导出PDF失败：' + (err?.message || err))
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function batchExportPDF(mode: 'teacher' | 'class') {
+  const entries = scheduleStore.entries
+  if (entries.length === 0) {
+    window.alert('当前没有课表数据')
+    return
+  }
+
+  // 收集所有不重复的教师/班级
+  const idMap = new Map<number, string>()
+  for (const e of entries) {
+    if (mode === 'teacher' && e.teacher) {
+      idMap.set(e.teacherId, e.teacher.name)
+    } else if (mode === 'class') {
+      const tt = (e as any).teachingTask
+      if (tt?.classes) {
+        for (const c of tt.classes) {
+          const cgId = c.classGroupId || c.ClassGroupID
+          const cgName = c.classGroup?.name || c.ClassGroup?.name || `班级#${cgId}`
+          if (cgId) idMap.set(cgId, cgName)
+        }
+      }
+      if (e.classGroupId) {
+        idMap.set(e.classGroupId, (e as any).classGroup?.name || `班级#${e.classGroupId}`)
+      }
     }
+  }
 
-    const EXPORT_W = 1400
-    const container = document.createElement('div')
-    // B3 主题变量（保证克隆grid的样式继承）
-    const b3Vars: Record<string, string> = {
-      '--b3-theme-background': '#ffffff',
-      '--b3-theme-surface': '#f6f6f6',
-      '--b3-theme-on-surface': '#333333',
-      '--b3-theme-on-background': '#222222',
-      '--b3-theme-on-surface-light': '#999999',
-      '--b3-border-color': '#e0e0e0',
-      '--b3-border-radius': '6px',
-      '--b3-border-radius-s': '4px',
-      '--b3-theme-primary': '#3575f0',
-      '--b3-theme-primary-light': '#5b8af7',
-      '--b3-theme-primary-lightest': '#e8f0fe',
-      '--b3-theme-error': '#e53935',
-    }
-    container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
-    for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
+  if (idMap.size === 0) {
+    window.alert(mode === 'teacher' ? '没有教师数据' : '没有班级数据')
+    return
+  }
 
-    // 标题（DOM API 构建，防止 XSS）
-    const dateStr = new Date().toLocaleString()
-    const titleEl = document.createElement('div')
-    titleEl.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;'
-    titleEl.textContent = title
-    container.appendChild(titleEl)
-    const subEl = document.createElement('div')
-    subEl.style.cssText = 'font-size:12px;color:#888;margin-bottom:12px;'
-    subEl.textContent = `第${scheduleStore.currentWeek}周　生成时间：${dateStr}`
-    container.appendChild(subEl)
+  const label = mode === 'teacher' ? '教师' : '班级'
+  if (!window.confirm(`将导出 ${idMap.size} 个${label}的课表 PDF，是否继续？`)) return
 
-    // 克隆课表网格
-    const gridClone = grid.cloneNode(true) as HTMLElement
-    gridClone.style.setProperty('overflow', 'visible')
-    gridClone.style.setProperty('height', 'auto')
-    gridClone.style.setProperty('flex', 'none')
-    // 移除工具栏（如果被clone进来了——WeekView的工具栏是grid的兄弟，cloneNode只clone grid本身所以不会带）
-    gridClone.querySelector('.week-toolbar')?.remove()
-    container.appendChild(gridClone)
-    document.body.appendChild(container)
+  batchExporting.value = true
+  batchProgress.value = { current: 0, total: idMap.size, label: '' }
 
-    try {
-      const canvas = await html2canvas(container, { scale: 3, backgroundColor: '#ffffff' })
+  const pdf = new jsPDF('l', 'mm', 'a4')
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  let firstPage = true
 
-      const pdf = new jsPDF('l', 'mm', 'a4')
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
+  try {
+    for (const [id, name] of idMap) {
+      batchProgress.value = { current: batchProgress.value.current + 1, total: idMap.size, label: name }
+
+      scheduleStore.setPerspective(mode)
+      if (mode === 'teacher') {
+        scheduleStore.selectedTeacherId = id
+      } else {
+        scheduleStore.selectedClassId = id
+      }
+
+      await new Promise(r => setTimeout(r, 300))
+      if (scheduleStore.displayEntries.length === 0) continue
+
+      const canvas = await captureSchedulePage(`${name} 课表`)
       const imgW = pageW - 14
       const imgH = (canvas.height * imgW) / canvas.width
       const imgData = canvas.toDataURL('image/png')
+
+      if (!firstPage) pdf.addPage()
+      firstPage = false
 
       let heightLeft = imgH
       let position = 7
@@ -295,17 +392,16 @@ async function exportSchedulePDF() {
         pdf.addImage(imgData, 'PNG', 7, position, imgW, imgH)
         heightLeft -= pageH
       }
-
-      const fileDate = new Date().toISOString().slice(0, 10)
-      const hash6 = Math.random().toString(16).slice(2, 8)
-      pdf.save(`${title}_${fileDate}_${hash6}.pdf`)
-    } finally {
-      document.body.removeChild(container)
     }
+
+    const fileDate = new Date().toISOString().slice(0, 10)
+    pdf.save(`课表_${label}_${fileDate}.pdf`)
   } catch (err: any) {
-    window.alert('导出PDF失败：' + (err?.message || err))
+    window.alert('批量导出失败：' + (err?.message || err))
   } finally {
-    exporting.value = false
+    batchExporting.value = false
+    batchProgress.value = { current: 0, total: 0, label: '' }
+    scheduleStore.setPerspective(scheduleStore.perspective)
   }
 }
 
@@ -319,12 +415,19 @@ const combinedExportOptions: any[] = [
   { type: 'group', key: 'excel-header', label: 'Excel（数据）' },
   ...exportOptions.map(o => ({ key: 'excel:' + o.key, label: '　' + o.label })),
   { type: 'divider', key: 'div1' },
-  { key: 'pdf', label: 'PDF（当前课表）' },
+  { type: 'group', key: 'pdf-header', label: 'PDF' },
+  { key: 'pdf', label: '　当前课表' },
+  { key: 'pdf-batch:teacher', label: '　全部教师（批量）' },
+  { key: 'pdf-batch:class', label: '　全部班级（批量）' },
 ]
 
 function handleExportSelect(key: string) {
   if (key === 'pdf') {
     exportSchedulePDF()
+  } else if (key === 'pdf-batch:teacher') {
+    batchExportPDF('teacher')
+  } else if (key === 'pdf-batch:class') {
+    batchExportPDF('class')
   } else if (key.startsWith('excel:')) {
     exportSchedule(key.slice(6) as 'teacher' | 'class')
   }
@@ -362,6 +465,9 @@ function handleExportSelect(key: string) {
         <n-dropdown trigger="click" :options="combinedExportOptions" @select="handleExportSelect">
           <n-button size="small" :loading="exporting">导出</n-button>
         </n-dropdown>
+        <span v-if="batchExporting" class="batch-progress">
+          导出中 {{ batchProgress.current }}/{{ batchProgress.total }} {{ batchProgress.label }}
+        </span>
       </div>
     </div>
 
@@ -571,5 +677,39 @@ function handleExportSelect(key: string) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.batch-progress {
+  font-size: 12px;
+  color: var(--b3-theme-primary);
+  margin-left: 8px;
+}
+
+/* ===== Print optimization ===== */
+@media print {
+  .schedule-header,
+  .schedule-toolbar,
+  .perspective-bar,
+  .week-toolbar,
+  .batch-progress,
+  .app-header,
+  .app-sidebar,
+  nav {
+    display: none !important;
+  }
+  .schedule-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .schedule-grid {
+    width: 100% !important;
+    overflow: visible !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+  .schedule-grid {
+    page-break-inside: avoid;
+  }
 }
 </style>
