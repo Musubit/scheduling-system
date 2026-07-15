@@ -66,6 +66,41 @@ const totalConflicts = computed(() => {
   return store.result.teacherConflicts + roomC + store.result.classConflicts
 })
 
+// 排课状态提示 — 回答"结果能用吗？我该怎么办？"
+const scheduleStatus = computed(() => {
+  if (store.isRunning) {
+    return { type: 'info' as const, icon: '⏳', text: `正在排课...（${store.currentStage || '初始化'}）` }
+  }
+  const r = store.result
+  if (!r) return null
+
+  // 错误
+  if (r.error) {
+    return { type: 'error' as const, icon: '❌', text: `排课失败：${r.error}` }
+  }
+
+  const score = r.score ?? 0
+  const tasks = r.tasksScheduled ?? 0
+  const total = r.totalCourses ?? 0
+  const conflicts = totalConflicts.value
+
+  // 部分未排
+  if (total > 0 && tasks < total) {
+    return { type: 'warning' as const, icon: '⚠️', text: `排课完成，${tasks}/${total} 个任务已排入。剩余任务可能因约束过严或资源不足未能排入。` }
+  }
+
+  // 有冲突
+  if (conflicts > 0) {
+    return { type: 'warning' as const, icon: '⚠️', text: `排课完成，${tasks} 个任务已排入，但有 ${conflicts} 处冲突。建议到周视图手动调整。` }
+  }
+
+  // 全部排入 + 无冲突 — 按评分分档
+  if (score >= 80) {
+    return { type: 'success' as const, icon: '✅', text: `排课完成，${tasks} 个任务全部排入，无冲突。可直接使用。` }
+  }
+  return { type: 'warning' as const, icon: '⚠️', text: `排课完成，综合评分 ${score.toFixed(1)} 分偏低。建议调整约束权重或增加教室资源后重试。` }
+})
+
 // Watch for pending navigation after scheduling completes — auto-navigate to week view
 const stopWatchNav = watch(() => uiStore.pendingScheduleNav, (val) => {
   if (val) {
@@ -333,6 +368,18 @@ async function saveManualSnapshot() {
             <div class="stat-label">综合评分</div>
           </div>
         </div>
+
+        <!-- 排课状态提示 -->
+        <n-alert
+          v-if="scheduleStatus"
+          :type="scheduleStatus.type"
+          :show-icon="false"
+          size="small"
+          style="margin-bottom: 16px;"
+        >
+          <span style="margin-right: 6px;">{{ scheduleStatus.icon }}</span>
+          {{ scheduleStatus.text }}
+        </n-alert>
 
         <!-- 评分明细 -->
         <div class="score-breakdown" v-if="store.result?.scoreDetail">
