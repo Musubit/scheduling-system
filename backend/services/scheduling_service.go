@@ -217,6 +217,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	} else {
 		saConfig.MaxTimeSeconds = 60
 	}
+	saConfig.TimeOnly = isTimeOnly
 
 	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
@@ -249,6 +250,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			saResult.Entries, teachingTasks, teachers, solverClassrooms,
 			lockedSlots, effectiveConstraints,
 			max(5, len(saResult.Entries)/10),
+			isTimeOnly,
 		)
 
 		addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms",
@@ -590,6 +592,7 @@ func (s *SchedulingService) tryORTools(
 	}
 
 	// Map teaching tasks (with multi-session + room type support)
+	isTimeOnly := config.Mode.IsTimeOnly()
 	taskMap := make(map[uint]models.TeachingTask)
 	for _, tt := range teachingTasks {
 		classIDs := make([]uint, len(tt.Classes))
@@ -597,11 +600,24 @@ func (s *SchedulingService) tryORTools(
 			classIDs[j] = c.ClassGroupID
 		}
 		// v0.5.3: unified resource matching — Go computes allowed rooms, Python just reads the list
-		requiredRoomType := InferRoomType(tt, tt.Course)
-		allowedRooms := AllowedRooms(tt, tt.Course, classrooms)
-		allowedIDs := make([]uint, len(allowedRooms))
-		for i, r := range allowedRooms {
-			allowedIDs[i] = r.ID
+		// TIME_ONLY mode: skip room type filtering — all virtual classrooms are allowed.
+		// Virtual classrooms are all NORMAL type, so filtering would exclude tasks
+		// needing COMPUTER/LAB/GYM, causing them to be unplaced.
+		var requiredRoomType string
+		var allowedIDs []uint
+		if isTimeOnly {
+			// All virtual classrooms are allowed — no room type constraint
+			allowedIDs = make([]uint, len(classrooms))
+			for i, r := range classrooms {
+				allowedIDs[i] = r.ID
+			}
+		} else {
+			requiredRoomType = InferRoomType(tt, tt.Course)
+			allowedRooms := AllowedRooms(tt, tt.Course, classrooms)
+			allowedIDs = make([]uint, len(allowedRooms))
+			for i, r := range allowedRooms {
+				allowedIDs[i] = r.ID
+			}
 		}
 
 		// TotalHours fallback: same as SA solver (sa_solver.go line 136-138)

@@ -25,6 +25,7 @@ type SAConfig struct {
 	MinTemp           float64 // stop when temperature drops below this (default 0.1)
 	MaxTimeSeconds    float64 // maximum solve time (0 = unlimited, default 60)
 	Seed              int64   // random seed (0 = time-based)
+	TimeOnly          bool    // TIME_ONLY mode: skip room type matching
 }
 
 func defaultSAConfig() SAConfig {
@@ -64,6 +65,7 @@ type schedulingContext struct {
 	constraints     []string
 	semesterID      uint
 	sportsCourseIDs map[uint]bool // course IDs for sports courses
+	timeOnly        bool          // TIME_ONLY mode: skip room type matching
 
 	// v0.5.2: total sessions the solver expects to place across all tasks.
 	// Used by ScoreSchedule to compute FinalTotal via completeness scaling.
@@ -188,6 +190,7 @@ func (s *SASolver) Solve(
 		constraints:           constraints,
 		semesterID:            semesterID,
 		sportsCourseIDs:       sportsCourseIDs,
+		timeOnly:              config.TimeOnly,
 		teacherUnavailable:    teacherUnavailable,
 		classGroupStudents:    classGroupStudents,
 		expectedTotalSessions: expectedTotalSessions,

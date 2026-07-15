@@ -15,6 +15,7 @@ func (s *SASolver) PostOptimize(
 	lockedSlots []LockedTimeSlot,
 	constraints []string,
 	topN int,
+	timeOnly bool,
 ) []models.ScheduleEntry {
 	if len(entries) == 0 || topN <= 0 {
 		return entries
@@ -307,7 +308,8 @@ func (s *SASolver) PostOptimize(
 				td, tdOk := taskMap[*e.TeachingTaskID]
 				for _, room := range classrooms {
 					// v0.5.3: use ResourceMatcher for room type + equipment check
-					if tdOk {
+					// TIME_ONLY mode: skip room type matching
+					if tdOk && !timeOnly {
 						if !Match(td.Task, td.Task.Course, room).OK {
 							continue
 						}

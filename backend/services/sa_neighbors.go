@@ -135,7 +135,8 @@ func (ctx *schedulingContext) tryMove(currentScore float64) float64 {
 
 	for _, room := range rooms {
 		// v0.5.3: use ResourceMatcher for room type + equipment check
-		if td := ctx.findTaskDataByEntry(entry); td != nil {
+		// TIME_ONLY mode: skip room type matching
+		if td := ctx.findTaskDataByEntry(entry); td != nil && !ctx.timeOnly {
 			if !Match(td.Task, td.Task.Course, room).OK {
 				continue
 			}

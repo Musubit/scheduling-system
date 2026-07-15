@@ -207,7 +207,9 @@ func (ctx *schedulingContext) tryPlaceSession(td teachingTaskData, days []int, s
 
 			for _, room := range rooms {
 				// v0.5.3: unified resource matching (room type + equipment)
-				if !Match(td.Task, td.Task.Course, room).OK {
+				// TIME_ONLY mode: skip room type matching — virtual classrooms are all NORMAL,
+				// so matching would exclude tasks needing COMPUTER/LAB/GYM.
+				if !ctx.timeOnly && !Match(td.Task, td.Task.Course, room).OK {
 					continue
 				}
 				// Check room capacity

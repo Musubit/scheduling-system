@@ -47,7 +47,7 @@ func TestPostOptimizeMonotoneScore(t *testing.T) {
 	optimized := solver.PostOptimize(
 		result.Entries, tasks, teachers, classrooms,
 		nil, FullDefaultConstraints(),
-		max(5, len(result.Entries)/10),
+		max(5, len(result.Entries)/10), false,
 	)
 
 	after := NewScoringService().ScoreSchedule(optimized, teachers, classrooms, ctx).FinalTotal
@@ -80,8 +80,8 @@ func TestPostOptimizeDeterministicOrdering(t *testing.T) {
 	entries2 := make([]models.ScheduleEntry, len(base.Entries))
 	copy(entries2, base.Entries)
 
-	_ = solver.PostOptimize(entries1, tasks, teachers, classrooms, nil, FullDefaultConstraints(), 5)
-	_ = solver.PostOptimize(entries2, tasks, teachers, classrooms, nil, FullDefaultConstraints(), 5)
+	_ = solver.PostOptimize(entries1, tasks, teachers, classrooms, nil, FullDefaultConstraints(), 5, false)
+	_ = solver.PostOptimize(entries2, tasks, teachers, classrooms, nil, FullDefaultConstraints(), 5, false)
 
 	// The marginal ranking is deterministic given the input; the local placement search
 	// still uses an rng seeded from time so results can differ slightly. We only
