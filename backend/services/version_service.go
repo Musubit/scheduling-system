@@ -203,6 +203,65 @@ func (s *VersionService) DeleteVersion(id uint) error {
 	return nil
 }
 
+// RestoreVersion restores a historical version as the current schedule.
+// It loads the version entries, replaces the current schedule for the semester,
+// and creates a new version with source=Restore to record the action.
+func (s *VersionService) RestoreVersion(versionID uint) error {
+	// Load the version with entries
+	var version models.ScheduleVersion
+	if err := s.db.Preload("Entries").First(&version, versionID).Error(); err != nil {
+		return fmt.Errorf("version: 未找到版本 ID=%d: %w", versionID, err)
+	}
+	if len(version.Entries) == 0 {
+		return fmt.Errorf("version: 版本 %q 无课表数据", version.Name)
+	}
+
+	// Build ScheduleEntry rows from version entries
+	entries := make([]models.ScheduleEntry, 0, len(version.Entries))
+	for _, ve := range version.Entries {
+		entries = append(entries, models.ScheduleEntry{
+			CourseID:       ve.CourseID,
+			TeacherID:      ve.TeacherID,
+			ClassroomID:    ve.ClassroomID,
+			TeachingTaskID: ve.TeachingTaskID,
+			SemesterID:     version.SemesterID,
+			DayOfWeek:      models.DayOfWeek(ve.DayOfWeek),
+			StartPeriod:    models.Period(ve.StartPeriod),
+			Span:           ve.Span,
+			Weeks:          ve.Weeks,
+		})
+	}
+
+	// Replace current schedule in a single transaction
+	return s.db.Transaction(func(tx database.DB) error {
+		// Hard-delete old entries
+		if err := tx.Unscoped().Where("semester_id = ?", version.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
+			return fmt.Errorf("version: 清空旧课表失败: %w", err)
+		}
+		// Insert restored entries
+		if len(entries) > 0 {
+			if err := tx.Create(&entries).Error(); err != nil {
+				return fmt.Errorf("version: 写入恢复课表失败: %w", err)
+			}
+		}
+		// Create a Restore version to record the action
+		restoreName := fmt.Sprintf("恢复: %s", version.Name)
+		v := &models.ScheduleVersion{
+			SemesterID: version.SemesterID,
+			Name:       restoreName,
+			Source:     models.VersionSourceRestore,
+			Score:      version.Score,
+			EntryCount: len(entries),
+			Solver:     version.Solver,
+			Mode:       version.Mode,
+		}
+		if err := tx.Create(v).Error(); err != nil {
+			return fmt.Errorf("version: 创建恢复版本记录失败: %w", err)
+		}
+		return nil
+	})
+}
+
 // ClearSemesterVersions removes every ScheduleVersion (and its entries)
 // belonging to the given semester in a single transaction. Only affects
 // the specified semester; other semesters, courses, teachers, classrooms,

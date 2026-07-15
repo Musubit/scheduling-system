@@ -43,6 +43,26 @@ function viewVersion(id: number) {
   })
 }
 
+function confirmRestore(id: number, name: string) {
+  dialog.warning({
+    title: '恢复版本',
+    content: `确定要将「${name}」恢复为当前课表吗？当前课表将被替换，操作会自动创建一个恢复记录。`,
+    positiveText: '恢复',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const { RestoreVersion } = await import('../../bindings/scheduling-system/backend/services/versionservice')
+        await RestoreVersion(id)
+        message.success('版本已恢复为当前课表')
+        await loadVersions()
+      } catch (e: any) {
+        console.warn('Restore version failed:', e)
+        message.error('恢复失败: ' + (e?.message || e))
+      }
+    },
+  })
+}
+
 function confirmDelete(id: number) {
   dialog.warning({
     title: '确认删除',
@@ -125,9 +145,9 @@ onMounted(loadVersions)
   <div class="schedule-center-page">
     <div class="page-header">
       <div class="page-header-text">
-        <h2 class="page-title">课表中心</h2>
+        <h2 class="page-title">课表方案</h2>
         <p class="page-desc">
-          管理历史排课版本。点击「查看」浏览完整课表，点击「恢复」将版本设为当前课表（开发中）。
+          管理历史排课版本。点击「查看」浏览完整课表，点击「恢复」将版本设为当前课表。
         </p>
       </div>
       <div class="page-header-actions" v-if="!isLoading && versions.length > 0">
@@ -168,6 +188,7 @@ onMounted(loadVersions)
         </div>
         <div class="version-actions">
           <n-button size="tiny" type="primary" ghost @click.stop="viewVersion(v.ID)">查看</n-button>
+          <n-button size="tiny" type="warning" ghost @click.stop="confirmRestore(v.ID, v.name)">恢复</n-button>
           <n-button size="tiny" type="error" ghost @click.stop="confirmDelete(v.ID)">删除</n-button>
         </div>
       </div>
