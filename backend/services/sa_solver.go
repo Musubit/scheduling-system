@@ -21,13 +21,14 @@ func NewSASolver() *SASolver {
 
 // SAConfig holds parameters for the simulated annealing run.
 type SAConfig struct {
-	InitialTemp       float64 // starting temperature (default 10.0)
-	CoolingRate       float64 // multiplicative cooling per step (default 0.95)
-	IterationsPerTemp int     // neighbor moves per temperature level (default 200)
-	MinTemp           float64 // stop when temperature drops below this (default 0.1)
-	MaxTimeSeconds    float64 // maximum solve time (0 = unlimited, default 60)
-	Seed              int64   // random seed (0 = time-based)
-	TimeOnly          bool    // TIME_ONLY mode: skip room type matching
+	InitialTemp       float64         // starting temperature (default 10.0)
+	CoolingRate       float64         // multiplicative cooling per step (default 0.95)
+	IterationsPerTemp int             // neighbor moves per temperature level (default 200)
+	MinTemp           float64         // stop when temperature drops below this (default 0.1)
+	MaxTimeSeconds    float64         // maximum solve time (0 = unlimited, default 60)
+	Seed              int64           // random seed (0 = time-based)
+	TimeOnly          bool            // TIME_ONLY mode: skip room type matching
+	ConstraintWeights map[string]int  // per-constraint weights (0-100), nil = equal weighting
 }
 
 func defaultSAConfig() SAConfig {
@@ -207,7 +208,7 @@ func (s *SASolver) Solve(
 		ctx.cachedTTList[i] = td.Task
 	}
 	ctx.cachedScorer = NewScoringService()
-	ctx.cachedScoreCtx = NewScoringContextWithExpected(constraints, sportsCourseIDs, ctx.cachedTTList, expectedTotalSessions)
+	ctx.cachedScoreCtx = NewScoringContextWithExpected(constraints, sportsCourseIDs, ctx.cachedTTList, expectedTotalSessions).WithConstraintWeights(config.ConstraintWeights)
 
 	// v0.5.2 Goal 3 delta-score: build cache & memoize enabled set.
 	ctx.sCache = newScoreCache(teachers, classrooms, taskData)

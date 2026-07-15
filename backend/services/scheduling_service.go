@@ -264,6 +264,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		saConfig.MaxTimeSeconds = 60
 	}
 	saConfig.TimeOnly = isTimeOnly
+	saConfig.ConstraintWeights = config.ConstraintWeights
 
 	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
