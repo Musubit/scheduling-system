@@ -4,6 +4,7 @@ import { useSchedulingStore } from '../stores/scheduling'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import { useScheduleStore } from '../stores/schedule'
+import { useResourceStore } from '../stores/resource'
 import { NButton, NSelect, NCheckbox, NProgress, NSteps, NStep, NCollapse, NCollapseItem, NSlider, NInput, NModal, NSpace, useDialog, useMessage } from 'naive-ui'
 import { DEPARTMENTS } from '../types'
 import { fuzzyFilterFn } from '../utils/fuzzyFilter'
@@ -12,8 +13,22 @@ const store = useSchedulingStore()
 const appStore = useAppStore()
 const uiStore = useUiStore()
 const scheduleStore = useScheduleStore()
+const resourceStore = useResourceStore()
 const dialog = useDialog()
 const message = useMessage()
+
+// 根因 → 资源管理跳转
+function rootCauseAction(cause: string): { tab: 'classroom' | 'teacher'; label: string } | null {
+  if (!cause) return null
+  if (cause.includes('教室')) return { tab: 'classroom', label: '→ 去添加教室' }
+  if (cause.includes('教师')) return { tab: 'teacher', label: '→ 去调整教师' }
+  return null // 求解器兜底原因，无直达操作
+}
+
+function goToResource(tab: 'classroom' | 'teacher') {
+  resourceStore.setActiveTab(tab)
+  appStore.navigateTo('resource', tab === 'classroom' ? '教室管理' : '教师管理')
+}
 
 const scopeOptions = [
   { label: '全校所有院系', value: '全校所有院系' },
@@ -390,8 +405,19 @@ async function saveManualSnapshot() {
               <span class="ds-course">{{ u.courseName }}</span>
               <span class="ds-teacher">{{ u.teacherName }}</span>
               <span v-if="u.className" class="ds-class">{{ u.className }}</span>
-              <span class="ds-cause">{{ u.rootCause }}</span>
+              <span class="ds-cause">
+                {{ u.rootCause }}
+                <n-button
+                  v-if="rootCauseAction(u.rootCause)"
+                  size="tiny"
+                  text
+                  type="primary"
+                  @click="goToResource(rootCauseAction(u.rootCause)!.tab)"
+                  style="margin-left: 8px;"
+                >{{ rootCauseAction(u.rootCause)!.label }}</n-button>
+              </span>
             </div>
+            <div class="ds-hint">修改数据后回到此页面重新排课即可。</div>
           </div>
         </div>
 
@@ -811,6 +837,14 @@ async function saveManualSnapshot() {
   color: var(--b3-theme-error);
   font-size: 12px;
   margin-left: auto;
+}
+
+.ds-hint {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--b3-border-color);
 }
 
 .log-section {
