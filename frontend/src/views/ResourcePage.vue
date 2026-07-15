@@ -490,98 +490,84 @@ const importFileRef = ref<HTMLInputElement>()
 function triggerImport() { importFileRef.value?.click() }
 
 // ===== 导入导出模板定义 =====
+// 第一性原理：模板 3 行分离 —— 纯列名 / 必填标记 / 填写说明
 interface TemplateColumn {
-  header: string     // 中文列名（不含选项提示）
+  header: string     // 纯列名（不含任何提示）
   field: string      // 内部字段名
   required: boolean  // 是否必填
-  hint?: string      // 可选值提示，如 "是/否"、"普通教室/多媒体教室/实验室"
+  hint?: string      // 填写说明 + 示例值（放在第3行）
 }
 
-// 每个标签的列定义 + 示例数据
-const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[]; examples: string[] }> = {
+const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
   teacher: {
     columns: [
+      { header: '姓名', field: 'name', required: true, hint: '如：张三' },
+      { header: '院系', field: 'dept', required: true, hint: '如：理学院' },
       { header: '工号', field: 'code', required: false, hint: '留空自动生成' },
-      { header: '姓名', field: 'name', required: true },
-      { header: '院系', field: 'dept', required: true },
-      { header: '避免早课', field: 'preferNoEarly', required: false, hint: '是/否' },
-      { header: '避免晚课', field: 'preferNoLate', required: false, hint: '是/否' },
-      { header: '最大到校天数', field: 'maxDaysPerWeek', required: false, hint: '1-7' },
-      { header: '优先低楼层', field: 'preferLowFloor', required: false, hint: '是/否' },
+      { header: '避免早课', field: 'preferNoEarly', required: false, hint: '是/否，默认否' },
+      { header: '避免晚课', field: 'preferNoLate', required: false, hint: '是/否，默认否' },
+      { header: '最大到校天数', field: 'maxDaysPerWeek', required: false, hint: '1-7，默认3' },
+      { header: '优先低楼层', field: 'preferLowFloor', required: false, hint: '是/否，默认否' },
     ],
-    examples: ['', '张三', '理学院', '是', '否', '3', '是'],
   },
   classroom: {
     columns: [
+      { header: '名称', field: 'name', required: true, hint: '如：A301教室' },
+      { header: '楼栋编号', field: 'buildingId', required: true, hint: '楼栋ID数字，如：1' },
       { header: '教室编号', field: 'code', required: false, hint: '留空自动生成' },
-      { header: '名称', field: 'name', required: true },
-      { header: '楼栋', field: 'building', required: true },
-      { header: '楼层', field: 'floor', required: false, hint: '数字' },
-      { header: '容量', field: 'capacity', required: false, hint: '人数' },
-      { header: '类型', field: 'type', required: false, hint: '普通教室/多媒体教室/实验室/机房' },
+      { header: '楼层', field: 'floor', required: false, hint: '数字，默认1' },
+      { header: '容量', field: 'capacity', required: false, hint: '人数，如：60' },
+      { header: '类型', field: 'roomType', required: false, hint: '教室/实验室/机房，默认教室' },
     ],
-    examples: ['', 'A999教室', 'A栋', '1', '100', '普通教室'],
   },
   course: {
     columns: [
-      { header: '课程代码', field: 'code', required: false, hint: '留空自动生成' },
-      { header: '名称', field: 'name', required: true },
+      { header: '名称', field: 'name', required: true, hint: '如：数据结构' },
       { header: '院系', field: 'dept', required: true, hint: '如：计算机学院' },
-      { header: '学时', field: 'hours', required: true, hint: '如：64（影响每周排课次数）' },
-      { header: '学分', field: 'credit', required: false, hint: '数字' },
+      { header: '学时', field: 'hours', required: true, hint: '如：64，影响每周排课次数' },
+      { header: '课程代码', field: 'code', required: false, hint: '留空自动生成' },
+      { header: '学分', field: 'credit', required: false, hint: '如：3.0' },
       { header: '类型', field: 'type', required: false, hint: '专业必修/专业选修/通识必修/通识选修' },
     ],
-    examples: ['', '新课程', '计算机学院', '64', '3.0', '专业选修'],
   },
   class: {
     columns: [
+      { header: '名称', field: 'name', required: true, hint: '如：计算机2301' },
+      { header: '院系', field: 'dept', required: true, hint: '如：计算机学院' },
       { header: '班级代码', field: 'code', required: false, hint: '留空自动生成' },
-      { header: '名称', field: 'name', required: true },
-      { header: '院系', field: 'dept', required: true },
-      { header: '人数', field: 'students', required: false, hint: '人数' },
+      { header: '人数', field: 'students', required: false, hint: '如：60' },
       { header: '年级', field: 'grade', required: false, hint: '如：2023' },
     ],
-    examples: ['', '班级名', '计算机学院', '60', '2023'],
   },
   teachingTask: {
     columns: [
-      { header: '课程代码', field: 'courseCode', required: true, hint: '如：CS301' },
-      { header: '工号', field: 'teacherCode', required: true, hint: '如：T007' },
+      { header: '课程代码', field: 'courseCode', required: true, hint: '如：CS301，须已导入' },
+      { header: '工号', field: 'teacherCode', required: true, hint: '如：T007，须已导入' },
       { header: '班级代码', field: 'classGroupIds', required: false, hint: '逗号分隔，如：CS2301,CS2302' },
       { header: '总学时', field: 'totalHours', required: false, hint: '如：64，留空取课程默认' },
-      { header: '起始周', field: 'startWeek', required: false, hint: '如：1' },
-      { header: '结束周', field: 'endWeek', required: false, hint: '如：16' },
+      { header: '起始周', field: 'startWeek', required: false, hint: '如：1，默认1' },
+      { header: '结束周', field: 'endWeek', required: false, hint: '如：16，默认16' },
       { header: '周最大学时', field: 'maxHoursPerWeek', required: false, hint: '如：8，留空不限' },
     ],
-    examples: ['CS301', 'T007', 'CS2301,CS2302', '64', '1', '16', ''],
   },
 }
 
-/** 从 TEMPLATE_COLUMNS 构建输出用的行和映射表 */
+/** 从 TEMPLATE_COLUMNS 构建 3 行模板：纯列名 / 必填标记 / 填写说明 */
 function buildSchema(tab: string) {
   const def = TEMPLATE_COLUMNS[tab]
-  // 表头行：必填加 *，有选项提示的追加到列名
-  const headerRow = def.columns.map(c => {
-    let text = c.required ? `*${c.header}` : c.header
-    if (c.hint) text += `（${c.hint}）`
-    return text
-  })
-  // 标识行：必填/选填
+  const headerRow = def.columns.map(c => c.header)
   const indicatorRow = def.columns.map(c => c.required ? '必填' : '选填')
-  // 示例行：首列加【示例】标记
-  const exampleRow = [...def.examples]
-  if (exampleRow.length > 0) exampleRow[0] = `【示例】${exampleRow[0]}`
-  // 字段映射：纯列名 → 字段名
+  const hintRow = def.columns.map(c => c.hint || '')
   const fieldMap: Record<string, string> = {}
   def.columns.forEach(c => { fieldMap[c.header] = c.field })
-  return { headerRow, indicatorRow, exampleRow, fieldMap }
+  return { headerRow, indicatorRow, hintRow, fieldMap }
 }
 
-/** 把中文表头行映射为内部字段名 */
+/** 把中文表头行映射为内部字段名（兼容新旧格式） */
 function mapRow(fieldMap: Record<string, string>, headers: string[], row: any[]): Record<string, any> {
   const item: Record<string, any> = {}
   headers.forEach((h, j) => {
-    // 去掉 * 前缀和（选项提示）后缀，得到纯列名
+    // 兼容旧格式：去掉 * 前缀和（提示）后缀
     const key = h.trim().replace(/^\*/, '').replace(/[（(][^)）]*[)）]/, '').trim()
     const field = fieldMap[key] || key
     let val: any = row[j] ?? ''
@@ -595,13 +581,20 @@ function mapRow(fieldMap: Record<string, string>, headers: string[], row: any[])
   return item
 }
 
-/** 检测某行是否为「必填/选填」标识行或示例行 */
-function isMetaRow(row: any[]): boolean {
-  if (row.length === 0) return true
+/** 检测某行是否为「必填/选填」标记行（整行所有单元格都是必填或选填） */
+function isIndicatorRow(row: any[]): boolean {
+  if (row.length === 0) return false
+  return row.every(c => {
+    const v = String(c || '').trim()
+    return v === '必填' || v === '选填'
+  })
+}
+
+/** 检测某行是否为旧格式的示例行 */
+function isExampleRow(row: any[]): boolean {
+  if (row.length === 0) return false
   const first = String(row[0] || '').trim()
-  if (first.includes('必填') || first.includes('选填')) return true
-  if (first.startsWith('【示例】') || first.startsWith('示例')) return true
-  return false
+  return first.startsWith('【示例】') || first.startsWith('示例')
 }
 
 async function handleFileChange(e: Event) {
@@ -616,7 +609,15 @@ async function handleFileChange(e: Event) {
       const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
       if (rows.length < 2) { message.warning('文件为空或格式不正确'); return }
       const headers = rows[0] as string[]
-      const dataRows = rows.slice(1).filter((r: any) => !isMetaRow(r) && r.length > 0 && String(r[0]).trim())
+      // 跳过元数据行：找到"必填/选填"标记行，跳过它和它后面的说明行
+      let dataStartIdx = 1
+      for (let r = 1; r < rows.length; r++) {
+        if (isIndicatorRow(rows[r])) {
+          dataStartIdx = r + 2 // 跳过标记行 + 说明行
+          break
+        }
+      }
+      const dataRows = rows.slice(dataStartIdx).filter((r: any) => !isExampleRow(r) && r.length > 0 && String(r[0]).trim())
       if (dataRows.length === 0) { message.warning('没有可导入的数据行'); return }
       previewHeaders.value = headers
       previewRows.value = dataRows
@@ -720,7 +721,7 @@ async function confirmImport() {
 function downloadTemplate() {
   const tab = resourceStore.activeTab
   const schema = buildSchema(tab)
-  const rows = [schema.headerRow, schema.indicatorRow, schema.exampleRow]
+  const rows = [schema.headerRow, schema.indicatorRow, schema.hintRow]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
