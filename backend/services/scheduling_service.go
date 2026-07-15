@@ -20,6 +20,11 @@ type SchedulingService struct {
 	orchestrator      *SolverOrchestrator
 	runMu             sync.Mutex
 	schedulingRunning atomic.Bool
+
+	// Cross-run best result cache: only overwritten when a new run scores higher.
+	bestCachedScore   float64
+	bestCachedEntries []models.ScheduleEntry
+	bestCachedResult  *SchedulingResult
 }
 
 func NewSchedulingService(db database.DB, snapshots *SnapshotService, versions *VersionService, orchestrator *SolverOrchestrator) *SchedulingService {
@@ -333,6 +338,14 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		result.ScoreDetail = &breakdown
 	}
 
+	// === Cross-run best result cache ===
+	// If the new run does not beat the cached score, return the cached result.
+	if s.bestCachedResult != nil && !ScoreGreater(result.Score, s.bestCachedScore) {
+		cached := *s.bestCachedResult
+		cached.Logs = append(cached.Logs, fmt.Sprintf("本次评分 %.1f ≤ 缓存最优 %.1f，返回缓存结果", result.Score, s.bestCachedScore))
+		return &cached
+	}
+
 	// Post-solve analysis
 	addProgress(70, "分析冲突")
 
@@ -516,6 +529,18 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		result.TotalCourses, result.Scheduled, result.Conflicts, len(result.Logs))
 
 	addProgress(100, "排课完成")
+
+	// Cache final result for cross-run comparison (deep copy ScoreDetail pointer).
+	{
+		cached := *result
+		if result.ScoreDetail != nil {
+			sd := *result.ScoreDetail
+			cached.ScoreDetail = &sd
+		}
+		s.bestCachedScore = result.Score
+		s.bestCachedEntries = append([]models.ScheduleEntry(nil), saResult.Entries...)
+		s.bestCachedResult = &cached
+	}
 
 	return result
 }

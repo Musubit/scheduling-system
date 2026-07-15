@@ -7,6 +7,22 @@ import (
 	"sort"
 )
 
+const ScoreEpsilon = 0.01
+
+// ScoreEquals determines whether two scores are considered equal within epsilon.
+func ScoreEquals(a, b float64) bool {
+	diff := a - b
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff < ScoreEpsilon
+}
+
+// ScoreGreater determines whether a is significantly greater than b.
+func ScoreGreater(a, b float64) bool {
+	return a > b+ScoreEpsilon
+}
+
 // ScoringService evaluates a schedule's quality against soft constraints.
 type ScoringService struct{}
 

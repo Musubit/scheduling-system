@@ -2,9 +2,7 @@ package services
 
 import (
 	"encoding/json"
-	"math/rand"
 	"scheduling-system/backend/models"
-	"time"
 )
 
 func (s *SASolver) PostOptimize(
@@ -109,8 +107,6 @@ func (s *SASolver) PostOptimize(
 	// This replaces the previous random shuffle disguised as "worst entries".
 	//
 	// Cost: O(N × ScoreSchedule) — acceptable at the end of solving (N ≤ ~50).
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	scorer := NewScoringService()
 	ttListFull := make([]models.TeachingTask, len(teachingTasks))
 	copy(ttListFull, teachingTasks)
@@ -247,7 +243,7 @@ func (s *SASolver) PostOptimize(
 			return p
 		}
 
-		for _, day := range rng.Perm(7) {
+		for day := 0; day < 7; day++ {
 			// Check locked slots (at day level)
 			lsBlocked := false
 			for _, ls := range lockedSlots {
@@ -367,7 +363,7 @@ func (s *SASolver) PostOptimize(
 	// becomes a hard guarantee.
 	if improved > 0 {
 		finalBreakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
-		if finalBreakdown.FinalTotal < baselineScore {
+		if ScoreGreater(baselineScore, finalBreakdown.FinalTotal) {
 			// Roll back all changes by returning the pristine copy captured earlier.
 			copy(entries, pristine)
 		}

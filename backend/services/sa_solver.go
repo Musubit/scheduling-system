@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const defaultPatienceRuns = 2 // stop after this many consecutive runs with no score improvement
+
 // SASolver implements Simulated Annealing for course scheduling.
 // Pure Go, zero external dependencies beyond the standard library.
 type SASolver struct{}
@@ -273,7 +275,7 @@ func (s *SASolver) Solve(
 			// Accept if better, or with probability if worse
 			if delta > 0 || (temperature > 0 && rng.Float64() < math.Exp(delta/temperature)) {
 				currentScore = neighborScore
-				if currentScore > bestScore {
+				if ScoreGreater(currentScore, bestScore) {
 					bestScore = currentScore
 					bestEntries = make([]models.ScheduleEntry, len(ctx.entries))
 					copy(bestEntries, ctx.entries)
@@ -406,6 +408,8 @@ func (s *SASolver) SolveMultiRun(
 	runConfig.MaxTimeSeconds = timePerRun
 
 	var bestResult *SAResult
+	var bestScore float64
+	noImproveCount := 0
 	totalIterations := 0
 
 	for i := 0; i < runs; i++ {
@@ -426,10 +430,21 @@ func (s *SASolver) SolveMultiRun(
 		result := s.Solve(teachingTasks, teachers, classrooms, classGroups,
 			lockedSlots, constraints, semesterID, runConfig, cancelCh, nil)
 
+		if result == nil {
+			continue
+		}
+
 		totalIterations += result.Iterations
 
-		if bestResult == nil || result.Score > bestResult.Score {
+		if bestResult == nil || ScoreGreater(result.Score, bestScore) {
 			bestResult = result
+			bestScore = result.Score
+			noImproveCount = 0
+		} else {
+			noImproveCount++
+			if noImproveCount >= defaultPatienceRuns {
+				break
+			}
 		}
 	}
 
