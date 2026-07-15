@@ -514,8 +514,9 @@ const TEMPLATE_COLUMNS: Record<string, { columns: TemplateColumn[] }> = {
     columns: [
       { header: '名称', field: 'name', required: true, hint: '如：A301教室' },
       { header: '教室编号', field: 'code', required: false, hint: '留空自动生成' },
-      { header: '楼栋编号', field: 'buildingId', required: false, hint: '楼栋ID数字' },
-      { header: '楼层', field: 'floor', required: false, hint: '数字，默认1' },
+      { header: '楼栋', field: 'buildingName', required: false, hint: '如：A栋、1教，须已在楼栋管理中创建' },
+      { header: '楼层', field: 'floor', required: false, hint: '数字，如：3' },
+      { header: '房间号', field: 'number', required: false, hint: '如：301' },
       { header: '容量', field: 'capacity', required: false, hint: '人数，如：60' },
       { header: '类型', field: 'roomType', required: false, hint: '教室/实验室/机房，默认教室' },
     ],
@@ -655,6 +656,19 @@ async function confirmImport() {
     // 非教学任务并行导入：收集 promise，循环结束后统一等待
     const createPromises: Promise<void>[] = []
     const createRowIndexMap: number[] = []
+    // 教室导入：预加载楼栋名称→ID映射
+    let buildingNameMap: Record<string, number> = {}
+    if (tab === 'classroom') {
+      try {
+        const buildings = await RS.GetBuildings()
+        if (buildings) {
+          for (const b of buildings) {
+            buildingNameMap[b.name] = b.id
+            if (b.code) buildingNameMap[b.code] = b.id
+          }
+        }
+      } catch { /* ignore — buildingNameMap stays empty */ }
+    }
     for (let i = 0; i < dataRows.length; i++) {
       const item = mapRow(schema.fieldMap, headers, dataRows[i])
       try {
@@ -670,6 +684,18 @@ async function confirmImport() {
           teachingTaskRows.push([courseCode, teacherCode, classCodes.join(','), totalHours, startWeek, endWeek, maxHoursPerWeek])
           teachingTaskRowIndexMap.push(i + 1)
         } else {
+          // 教室导入：将 buildingName 转换为 buildingId
+          if (tab === 'classroom' && item.buildingName) {
+            const bName = String(item.buildingName).trim()
+            const bId = buildingNameMap[bName]
+            if (bId) {
+              item.buildingId = bId
+            } else {
+              errors.push(`第${i + 1}行: 楼栋"${bName}"未找到，请先在楼栋管理中创建`)
+              continue
+            }
+            delete item.buildingName
+          }
           createPromises.push(callCreate(tab, item))
           createRowIndexMap.push(i + 1)
         }
