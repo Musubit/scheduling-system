@@ -47,31 +47,23 @@ async function handleSaveVersion() {
 // Perspective state — three dimensions
 const perspectives = [
   { label: '教师', value: 'teacher' as const },
-  { label: '教室', value: 'classroom' as const },
   { label: '班级', value: 'class' as const },
 ]
 const filterDept = ref<string | null>(null)
 const filterTeacherId = ref<number | null>(null)
-const filterClassroomId = ref<number | null>(null)
 const filterClassId = ref<number | null>(null)
 
 // Sync to store
-function selectPerspective(p: 'teacher' | 'classroom' | 'class') {
+function selectPerspective(p: 'teacher' | 'class') {
   scheduleStore.setPerspective(p)
   filterDept.value = null
   filterTeacherId.value = null
-  filterClassroomId.value = null
   filterClassId.value = null
 }
 
 function syncTeacher() {
   scheduleStore.selectedTeacherId = filterTeacherId.value
   scheduleStore.selectedClassroomId = null
-  scheduleStore.selectedClassId = null
-}
-function syncClassroom() {
-  scheduleStore.selectedClassroomId = filterClassroomId.value
-  scheduleStore.selectedTeacherId = null
   scheduleStore.selectedClassId = null
 }
 function syncClass() {
@@ -101,17 +93,11 @@ const classOptions = computed(() => {
   return list.map(c => ({ label: c.name, value: c.ID }))
 })
 
-// Classroom options
-const classroomOptions = computed(() => {
-  return resourceStore.classrooms.map(c => ({ label: `${c.name} (${c.building?.name || ''})`, value: c.ID }))
-})
-
 import { fuzzyFilterFn } from '../utils/fuzzyFilter'
 
 // Whether to show the schedule
 const showSchedule = computed(() => {
   if (scheduleStore.perspective === 'teacher' && scheduleStore.selectedTeacherId) return true
-  if (scheduleStore.perspective === 'classroom' && scheduleStore.selectedClassroomId) return true
   if (scheduleStore.perspective === 'class' && scheduleStore.selectedClassId) return true
   return false
 })
@@ -119,9 +105,6 @@ const showSchedule = computed(() => {
 const hintText = computed(() => {
   if (scheduleStore.perspective === 'teacher' && !scheduleStore.selectedTeacherId) {
     return '请选择学院和教师查看课表'
-  }
-  if (scheduleStore.perspective === 'classroom' && !scheduleStore.selectedClassroomId) {
-    return '请选择教室查看课表'
   }
   if (scheduleStore.perspective === 'class' && !scheduleStore.selectedClassId) {
     return '请选择学院和班级查看课表'
@@ -137,7 +120,7 @@ function entryClassNames(e: any): string[] {
   return []
 }
 
-async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
+async function exportSchedule(mode: 'teacher' | 'class') {
   exporting.value = true
   try {
     // Export the FULL timetable (all currently loaded entries), grouped by the
@@ -154,14 +137,13 @@ async function exportSchedule(mode: 'teacher' | 'classroom' | 'class') {
       window.alert('暂无排课数据，请先运行自动排课')
       return
     }
-    const labelMap = { teacher: '按教师', classroom: '按教室', class: '按班级' } as const
+    const labelMap = { teacher: '按教师', class: '按班级' } as const
     const rows: any[] = []
     for (const e of all) {
       const classNames = entryClassNames(e)
       const classLabel = classNames.join('、')
       let groups: string[]
       if (mode === 'teacher') groups = [e.teacher?.name || '未知教师']
-      else if (mode === 'classroom') groups = [e.classroom?.name || '未知教室']
       else groups = classNames.length ? classNames : ['未知班级']
       for (const g of groups) {
         rows.push({
@@ -243,9 +225,6 @@ async function exportSchedulePDF() {
     if (scheduleStore.perspective === 'teacher' && scheduleStore.selectedTeacherId) {
       const t = scheduleStore.displayEntries[0]?.teacher
       title = `${t?.name || '教师'} 课表`
-    } else if (scheduleStore.perspective === 'classroom' && scheduleStore.selectedClassroomId) {
-      const c = scheduleStore.displayEntries[0]?.classroom
-      title = `${c?.name || '教室'} 课表`
     } else if (scheduleStore.perspective === 'class' && scheduleStore.selectedClassId) {
       title = '班级课表'
     }
@@ -328,7 +307,6 @@ async function exportSchedulePDF() {
 
 const exportOptions = [
   { label: '按教师导出', key: 'teacher' as const },
-  { label: '按教室导出', key: 'classroom' as const },
   { label: '按班级导出', key: 'class' as const },
 ]
 
@@ -344,7 +322,7 @@ function handleExportSelect(key: string) {
   if (key === 'pdf') {
     exportSchedulePDF()
   } else if (key.startsWith('excel:')) {
-    exportSchedule(key.slice(6) as 'teacher' | 'classroom' | 'class')
+    exportSchedule(key.slice(6) as 'teacher' | 'class')
   }
 }
 </script>
@@ -403,7 +381,7 @@ function handleExportSelect(key: string) {
           clearable
           size="small"
           style="width: 150px"
-          @update:value="syncTeacher(); syncClassroom(); syncClass()"
+          @update:value="syncTeacher(); syncClass()"
         />
         <n-select
           v-if="scheduleStore.perspective === 'teacher'"
@@ -416,18 +394,6 @@ function handleExportSelect(key: string) {
           size="small"
           style="width: 120px"
           @update:value="syncTeacher()"
-        />
-        <n-select
-          v-if="scheduleStore.perspective === 'classroom'"
-          v-model:value="filterClassroomId"
-          :options="classroomOptions"
-          placeholder="选择教室"
-          filterable
-          :filter="fuzzyFilterFn"
-          clearable
-          size="small"
-          style="width: 160px"
-          @update:value="syncClassroom()"
         />
         <n-select
           v-if="scheduleStore.perspective === 'class'"
