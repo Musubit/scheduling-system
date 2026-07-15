@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"scheduling-system/backend/models"
 	"testing"
 
@@ -96,4 +97,49 @@ func TestScoreScheduleDeterministicAcrossCallers(t *testing.T) {
 	if a != c {
 		t.Errorf("Score not idempotent: first=%.4f second=%.4f", a, c)
 	}
+}
+
+// TestCategoryMaxesWithWeightedScoring verifies that CategoryMaxes are correctly
+// computed with weighted scoring — each category's actual max = weight × perCategoryMax.
+// This prevents the frontend from showing inflated percentages when weights > 1.
+func TestCategoryMaxesWithWeightedScoring(t *testing.T) {
+	teachers := []models.Teacher{{Model: gorm.Model{ID: 1}, Name: "T1"}}
+	classrooms := []models.Classroom{{Model: gorm.Model{ID: 1}, Name: "R1", Capacity: 100, Floor: 1}}
+	entries := []models.ScheduleEntry{
+		{Model: gorm.Model{ID: 1}, CourseID: 1, TeacherID: 1, ClassroomID: 1, DayOfWeek: 0, StartPeriod: 0, Span: 2},
+	}
+
+	// Weighted: teacher_preference=50, others default=1
+	weights := map[string]int{"teacher_preference": 50}
+	ctx := NewScoringContextWithExpected(FullDefaultConstraints(), nil, nil, 1).
+		WithConstraintWeights(weights)
+	bd := NewScoringService().ScoreSchedule(entries, teachers, classrooms, ctx)
+
+	if bd.CategoryMaxes == nil {
+		t.Fatal("CategoryMaxes must not be nil")
+	}
+
+	// perCategoryMax = 100 / totalWeight. With teacher=50 and 7 other categories at weight=1,
+	// totalWeight = 50 + 6 = 56 (low_floor disabled in FULL mode but still counted... actually
+	// it depends on enabled constraints). Let's just verify the relationship:
+	// teacherMax = 50 * perCategoryMax
+	expectedTeacherMax := 50.0 * bd.PerCategoryMax
+	actualTeacherMax := bd.CategoryMaxes["teacherPref"]
+	if math.Abs(actualTeacherMax-expectedTeacherMax) > 0.1 {
+		t.Errorf("teacherPref max: got %.2f, want %.2f (50 × %.2f)",
+			actualTeacherMax, expectedTeacherMax, bd.PerCategoryMax)
+	}
+
+	// Verify no category score exceeds its max
+	if bd.TeacherPref > actualTeacherMax+0.01 {
+		t.Errorf("teacherPref score %.2f exceeds max %.2f", bd.TeacherPref, actualTeacherMax)
+	}
+
+	// Verify the total is still ≤ 100
+	if bd.Total > 100.01 {
+		t.Errorf("Total %.2f exceeds 100", bd.Total)
+	}
+
+	t.Logf("perCategoryMax=%.2f teacherMax=%.2f teacherPref=%.2f Total=%.2f",
+		bd.PerCategoryMax, actualTeacherMax, bd.TeacherPref, bd.Total)
 }

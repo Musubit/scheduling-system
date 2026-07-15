@@ -23,9 +23,10 @@ type ScoreBreakdown struct {
 	LowFloorPref  float64 `json:"lowFloorPref"`  // 优先低楼层
 	WeekendAvoid  float64 `json:"weekendAvoid"`  // 周末避让
 	PePeriodPref  float64 `json:"pePeriodPref"`  // 体育课时段偏好
-	StudentFatigue       float64 `json:"studentFatigue"`
-	PerCategoryMax       float64 `json:"perCategoryMax"`
-	EnabledCategoryCount int     `json:"enabledCategoryCount"`
+	StudentFatigue       float64            `json:"studentFatigue"`
+	PerCategoryMax       float64            `json:"perCategoryMax"`
+	EnabledCategoryCount int                `json:"enabledCategoryCount"`
+	CategoryMaxes        map[string]float64 `json:"categoryMaxes,omitempty"` // v0.5.6: per-category actual max (weight × perCategoryMax)
 
 	// v0.5.2: placement completeness fields.
 	// Total keeps its v0.4 semantics (sum of 7 soft-constraint categories).
@@ -199,6 +200,17 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	weekendMax := float64(categories[4].weight) * perCategoryMax
 	peMax := float64(categories[5].weight) * perCategoryMax
 	fatigueMax := float64(categories[6].weight) * perCategoryMax
+
+	// Store actual per-category maxes for frontend percentage display
+	breakdown.CategoryMaxes = map[string]float64{
+		"teacherPref":   math.Round(teacherMax*100) / 100,
+		"courseSpacing": math.Round(courseMax*100) / 100,
+		"teacherDays":   math.Round(daysMax*100) / 100,
+		"lowFloorPref":  math.Round(floorMax*100) / 100,
+		"weekendAvoid":  math.Round(weekendMax*100) / 100,
+		"pePeriodPref":  math.Round(peMax*100) / 100,
+		"studentFatigue": math.Round(fatigueMax*100) / 100,
+	}
 
 	// 1. Teacher preference scoring
 	if enabled["teacher_preference"] {

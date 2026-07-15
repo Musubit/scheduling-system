@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -56,6 +57,7 @@ func (s *SnapshotService) CreateSnapshot(
 		Solver:               solver,
 		PerCategoryMax:       breakdown.PerCategoryMax,
 		EnabledCategoryCount: breakdown.EnabledCategoryCount,
+		CategoryMaxes:        marshalCategoryMaxes(breakdown.CategoryMaxes),
 
 		// v0.5.2 completeness (append-only)
 		FinalScore:       breakdown.FinalTotal,
@@ -288,6 +290,7 @@ func (s *SnapshotService) CreateManualSnapshot(semesterID uint) (*models.Schedul
 		Solver:               "manual",
 		PerCategoryMax:       breakdown.PerCategoryMax,
 		EnabledCategoryCount: breakdown.EnabledCategoryCount,
+		CategoryMaxes:        marshalCategoryMaxes(breakdown.CategoryMaxes),
 
 		// v0.5.2 completeness
 		FinalScore:       breakdown.FinalTotal,
@@ -380,6 +383,15 @@ func teacherDetailPenalty(d models.SnapshotDetail) float64 {
 	}
 	penalty += d.AvgFloor * 0.1
 	return penalty
+}
+
+// marshalCategoryMaxes serializes per-category maxes to JSON string for snapshot storage.
+func marshalCategoryMaxes(m map[string]float64) string {
+	if len(m) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }
 
 // CompareSnapshots returns a structured diff between two snapshots

@@ -44,11 +44,12 @@ type ScheduleSnapshot struct {
 	ScoreVersion       int    `json:"scoreVersion"`
 
 	// Statistics
-	TotalEntries         int     `json:"totalEntries"`
-	SolveTimeMs          int64   `json:"solveTimeMs"`
-	Solver               string  `gorm:"size:30" json:"solver"`
-	PerCategoryMax       float64 `json:"perCategoryMax"`
-	EnabledCategoryCount int     `json:"enabledCategoryCount"`
+	TotalEntries         int                `json:"totalEntries"`
+	SolveTimeMs          int64              `json:"solveTimeMs"`
+	Solver               string             `gorm:"size:30" json:"solver"`
+	PerCategoryMax       float64            `json:"perCategoryMax"`
+	EnabledCategoryCount int                `json:"enabledCategoryCount"`
+	CategoryMaxes        string             `gorm:"type:text" json:"categoryMaxes,omitempty"` // JSON: per-category actual maxes (weight × perCategoryMax)
 
 	// v0.5.2: placement completeness (append-only, Stable Core preserving).
 	// FinalScore is the completeness-scaled published score (Total × completeness curve).

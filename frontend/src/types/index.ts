@@ -285,4 +285,6 @@ export interface ScoreBreakdown {
   // v0.5.5: structured buckets
   buckets?: ScoreBuckets
   enabledDimensions?: string[]
+  // v0.5.6: per-category actual maxes (weight × perCategoryMax)
+  categoryMaxes?: Record<string, number>
 }

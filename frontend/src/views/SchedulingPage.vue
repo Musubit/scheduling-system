@@ -31,6 +31,13 @@ const scoreColor = computed(() => {
 // PerCategoryMax — single source: computed by Go ScoreSchedule, returned in scoreDetail
 const categoryMax = computed(() => store.result?.scoreDetail?.perCategoryMax || 25)
 
+// Get the actual max for a specific category (weighted max if available, else perCategoryMax)
+function getCategoryMax(field: string): number {
+  const maxes = store.result?.scoreDetail?.categoryMaxes
+  if (maxes && maxes[field] != null && maxes[field] > 0) return maxes[field]
+  return categoryMax.value
+}
+
 // Config panel collapse state
 const configCollapsed = ref(false)
 
@@ -347,38 +354,38 @@ async function saveManualSnapshot() {
           <div class="breakdown-items">
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_preference')">
               <span class="breakdown-label">教师偏好满足度</span>
-              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref.toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherPref / getCategoryMax('teacherPref') * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherPref.toFixed(2) }}/{{ getCategoryMax('teacherPref') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('course_dispersed')">
               <span class="breakdown-label">课程间隔均匀度</span>
-              <n-progress :percentage="Math.round(store.result.scoreDetail.courseSpacing / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing.toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.courseSpacing / getCategoryMax('courseSpacing') * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.courseSpacing.toFixed(2) }}/{{ getCategoryMax('courseSpacing') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('teacher_days_limit')">
               <span class="breakdown-label">教师到校天数</span>
-              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherDays / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays.toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.teacherDays / getCategoryMax('teacherDays') * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.teacherDays.toFixed(2) }}/{{ getCategoryMax('teacherDays') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('low_floor_preference')">
               <span class="breakdown-label">优先低楼层</span>
-              <n-progress :percentage="Math.round(store.result.scoreDetail.lowFloorPref / categoryMax * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref.toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(store.result.scoreDetail.lowFloorPref / getCategoryMax('lowFloorPref') * 1000) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ store.result.scoreDetail.lowFloorPref.toFixed(2) }}/{{ getCategoryMax('lowFloorPref') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('avoid_saturday') || isConstraintEnabled('avoid_sunday')">
               <span class="breakdown-label">周末避让</span>
-              <n-progress :percentage="Math.round(((store.result.scoreDetail.weekendAvoid || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.weekendAvoid || 0) / getCategoryMax('weekendAvoid') * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.weekendAvoid || 0).toFixed(2) }}/{{ getCategoryMax('weekendAvoid') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('pe_preferred_periods')">
               <span class="breakdown-label">体育课时段</span>
-              <n-progress :percentage="Math.round(((store.result.scoreDetail.pePeriodPref || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.pePeriodPref || 0) / getCategoryMax('pePeriodPref') * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.pePeriodPref || 0).toFixed(2) }}/{{ getCategoryMax('pePeriodPref') }}</span>
             </div>
             <div class="breakdown-item" v-if="isConstraintEnabled('student_fatigue')">
               <span class="breakdown-label">学生疲劳度</span>
-              <n-progress :percentage="Math.round(((store.result.scoreDetail.studentFatigue || 0) / categoryMax * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
-              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(2) }}/{{ categoryMax }}</span>
+              <n-progress :percentage="Math.round(((store.result.scoreDetail.studentFatigue || 0) / getCategoryMax('studentFatigue') * 1000)) / 10" :height="8" :border-radius="4" :show-indicator="false" />
+              <span class="breakdown-value">{{ (store.result.scoreDetail.studentFatigue || 0).toFixed(2) }}/{{ getCategoryMax('studentFatigue') }}</span>
             </div>
           </div>
         </div>

@@ -339,6 +339,21 @@ async function exportPDF() {
 // PerCategoryMax — single source: computed by Go ScoreSchedule, stored in snapshot
 const perCategoryMax = computed(() => selectedSnapshot.value?.perCategoryMax || 25)
 
+// Get actual max for a specific category (weighted max if available, else perCategoryMax)
+function getCategoryMax(field: string): number {
+  const snap = selectedSnapshot.value
+  if (!snap) return perCategoryMax.value
+  // categoryMaxes may be a JSON string (from DB) or already parsed object
+  let maxes: Record<string, number> | undefined
+  if (typeof snap.categoryMaxes === 'string' && snap.categoryMaxes) {
+    try { maxes = JSON.parse(snap.categoryMaxes) } catch { /* ignore */ }
+  } else if (typeof snap.categoryMaxes === 'object' && snap.categoryMaxes) {
+    maxes = snap.categoryMaxes
+  }
+  if (maxes && maxes[field] != null && maxes[field] > 0) return maxes[field]
+  return perCategoryMax.value
+}
+
 // Sort details by "拖后腿" (most penalties first)
 const rankedDetails = computed(() => {
   if (!selectedSnapshot.value?.details) return []
@@ -501,12 +516,12 @@ onMounted(() => {
                   <span>{{ cat.label }}</span>
                   <n-progress
                     type="line"
-                    :percentage="Math.round(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 1000) / 10"
-                    :color="scoreColor(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 100)"
+                    :percentage="Math.round(((selectedSnapshot[cat.field] || 0) / getCategoryMax(cat.field)) * 1000) / 10"
+                    :color="scoreColor(((selectedSnapshot[cat.field] || 0) / getCategoryMax(cat.field)) * 100)"
                     :height="16"
                   />
-                  <span class="star-rating" :style="{ color: scoreColor(((selectedSnapshot[cat.field] || 0) / perCategoryMax) * 100) }">
-                    {{ starRating((selectedSnapshot[cat.field] || 0), perCategoryMax) }}
+                  <span class="star-rating" :style="{ color: scoreColor(((selectedSnapshot[cat.field] || 0) / getCategoryMax(cat.field)) * 100) }">
+                    {{ starRating((selectedSnapshot[cat.field] || 0), getCategoryMax(cat.field)) }}
                   </span>
                   <span class="bar-value">{{ (selectedSnapshot[cat.field] || 0).toFixed(2) }}</span>
                 </div>
