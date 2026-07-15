@@ -55,6 +55,7 @@ function confirmRestore(id: number, name: string) {
         await RestoreVersion(id)
         message.success('版本已恢复为当前课表')
         await loadVersions()
+        await scheduleStore.loadSchedule(appStore.currentSemesterId)
       } catch (e: any) {
         console.warn('Restore version failed:', e)
         message.error('恢复失败: ' + (e?.message || e))

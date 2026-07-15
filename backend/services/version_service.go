@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -214,6 +215,13 @@ func (s *VersionService) RestoreVersion(versionID uint) error {
 	}
 	if len(version.Entries) == 0 {
 		return fmt.Errorf("version: 版本 %q 无课表数据", version.Name)
+	}
+
+	// Backup the current schedule before restoring, so the user can undo.
+	// If there are no current entries (e.g. first restore on empty semester),
+	// log the error but continue with the restore.
+	if _, err := s.CreateManualVersion(version.SemesterID, ""); err != nil {
+		log.Printf("[RestoreVersion] 自动备份当前课表失败（将忽略并继续恢复）: %v", err)
 	}
 
 	// Build ScheduleEntry rows from version entries
