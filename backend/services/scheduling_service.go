@@ -95,7 +95,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	// Phase 1: Init
-	addProgress(5, "初始化资源")
+	addProgress(5, "初始化")
 
 	// Load teaching tasks for the active semester (with Preload to avoid N+1 queries)
 	var teachingTasks []models.TeachingTask
@@ -167,8 +167,6 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		addLog(fmt.Sprintf("TIME_ONLY 使用 %d 个虚拟教室执行时间排课", len(solverClassrooms)))
 	}
 
-	addProgress(15, "加载教学任务")
-
 	// Load locked time slots — merge from both frontend JSON and SQLite
 	var lockedSlots []LockedTimeSlot
 	seen := make(map[string]bool)
@@ -222,8 +220,6 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
 		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
-
-	addProgress(25, "初始化求解器")
 
 	// Try OR-Tools first if available
 	var saResult *SAResult
