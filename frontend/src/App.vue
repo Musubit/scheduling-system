@@ -13,11 +13,9 @@ import ResourcePage from './views/ResourcePage.vue'
 import SchedulingPage from './views/SchedulingPage.vue'
 
 // Lazy-load non-primary pages for smaller initial bundle
-const ReportPage = defineAsyncComponent(() => import('./views/ReportPage.vue'))
 const SettingsPage = defineAsyncComponent(() => import('./views/SettingsPage.vue'))
-const HistoryComparePage = defineAsyncComponent(() => import('./views/HistoryComparePage.vue'))
 const SystemManagementPage = defineAsyncComponent(() => import('./views/SystemManagementPage.vue'))
-const ScheduleCenterPage = defineAsyncComponent(() => import('./views/ScheduleCenterPage.vue'))
+const VersionPanelPage = defineAsyncComponent(() => import('./views/VersionPanelPage.vue'))
 
 import type { PageId } from './types'
 
@@ -79,11 +77,11 @@ const themeOverrides = {
 	  schedule: SchedulePage,
 	  resource: ResourcePage,
 	  scheduling: SchedulingPage,
-	  report: ReportPage,
+	  report: VersionPanelPage,
 	  settings: SettingsPage,
-	  history: HistoryComparePage,
+	  history: VersionPanelPage,
 	  system: SystemManagementPage,
-	  'schedule-center': ScheduleCenterPage,
+	  'schedule-center': VersionPanelPage,
 	}
 
 const currentPageComponent = computed(() => pageComponents[appStore.currentPage])

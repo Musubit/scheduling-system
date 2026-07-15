@@ -13,12 +13,11 @@ export type {
     Department,
     Period,
     ScheduleEntry,
-    ScheduleSnapshot,
     ScheduleVersion,
     ScheduleVersionEntry,
     Semester,
-    SnapshotDetail,
     Teacher,
     TeachingTask,
-    TeachingTaskClass
+    TeachingTaskClass,
+    VersionDetail
 } from "./models.js";

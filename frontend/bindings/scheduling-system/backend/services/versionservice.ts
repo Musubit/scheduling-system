@@ -14,6 +14,18 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
+ * Pure post-hoc analysis — does not affect scoring or solver behaviour.
+ */
+export function AnalyzeTeacherWorkload(semesterID: number): $CancellablePromise<$models.TeacherWorkloadInfo[] | null> {
+    return $Call.ByID(1142847927, semesterID);
+}
+
 /**
  * ClearSemesterVersions removes every ScheduleVersion (and its entries)
  * belonging to the given semester in a single transaction. Only affects
@@ -28,6 +40,22 @@ export function ClearSemesterVersions(semesterID: number): $CancellablePromise<n
 }
 
 /**
+ * CompareVersions returns a structured diff between two versions (A=baseline, B=target).
+ * Includes teacher-level diffs and entry-level diffs (moved/added/removed).
+ */
+export function CompareVersions(aID: number, bID: number): $CancellablePromise<$models.VersionCompareResult | null> {
+    return $Call.ByID(2173696750, aID, bID);
+}
+
+/**
+ * CreateManualReport generates a version from the current schedule in the database,
+ * computing full scoring details. This replaces the old SnapshotService.CreateManualSnapshot.
+ */
+export function CreateManualReport(semesterID: number): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(2740214144, semesterID);
+}
+
+/**
  * CreateManualVersion saves the current schedule as a new version with
  * source = ManualAdjust. It loads the live schedule entries from the
  * database, computes the current ScoreSchedule score, and persists a
@@ -38,22 +66,19 @@ export function CreateManualVersion(semesterID: number, name: string): $Cancella
 }
 
 /**
- * CreateVersion stores a new historical version from the given schedule entries.
- * It automatically enforces the per-semester retention limit (DefaultMaxVersions).
+ * CreateVersionFromSchedule creates a version with full scoring details and
+ * teacher breakdowns from a scheduling result. This is the unified replacement
+ * for both the old SnapshotService.CreateSnapshot and VersionService.CreateVersion.
  * 
- * semesterID — Semester.ID (v0.5.5 起改为直接传 FK，取代旧的 name 查找).
- * name       — user-visible version label (e.g. "自动方案 #3").
- * source     — one of the VersionSource* constants.
- * score      — final ScoreSchedule total at the time of capture.
- * solver     — solver identifier ("simulated_annealing", "ortools", etc.).
- * entries    — current schedule entries to copy into the version.
+ * It computes ScoreSchedule internally, stores entries, scoring fields, and
+ * per-teacher VersionDetail records in a single transaction.
  */
-export function CreateVersion(semesterID: number, name: string, source: string, score: number, solver: string, entries: models$0.ScheduleEntry[] | null): $CancellablePromise<models$0.ScheduleVersion | null> {
-    return $Call.ByID(523734880, semesterID, name, source, score, solver, entries);
+export function CreateVersionFromSchedule(semesterID: number, dept: string, trigger: string, solver: string, entries: models$0.ScheduleEntry[] | null, teachers: models$0.Teacher[] | null, classrooms: models$0.Classroom[] | null, scoringCtx: $models.ScoringContext, solveTimeMs: number, conflictCount: number): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(3458152285, semesterID, dept, trigger, solver, entries, teachers, classrooms, scoringCtx, solveTimeMs, conflictCount);
 }
 
 /**
- * DeleteVersion removes a version and its entries by ID.
+ * DeleteVersion removes a version and its entries/details by ID.
  */
 export function DeleteVersion(id: number): $CancellablePromise<void> {
     return $Call.ByID(2322552237, id);
@@ -67,11 +92,26 @@ export function GetVersion(id: number): $CancellablePromise<models$0.ScheduleVer
 }
 
 /**
+ * GetVersionWithDetails returns a single version with its Details preloaded.
+ * Used by the report page to display per-teacher scoring breakdown.
+ */
+export function GetVersionWithDetails(id: number): $CancellablePromise<models$0.ScheduleVersion | null> {
+    return $Call.ByID(3281964470, id);
+}
+
+/**
  * ListVersions returns all versions for the given semester, ordered by
  * created_at descending (newest first).
  */
 export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[] | null> {
     return $Call.ByID(1900345469, semesterID);
+}
+
+/**
+ * RenameVersion updates the Name field of an existing version.
+ */
+export function RenameVersion(id: number, newName: string): $CancellablePromise<void> {
+    return $Call.ByID(3863980246, id, newName);
 }
 
 /**

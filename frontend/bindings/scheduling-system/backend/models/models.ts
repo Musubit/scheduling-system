@@ -206,6 +206,11 @@ export interface ScheduleEntry {
     "weeks": string;
 
     /**
+     * TIME_ONLY: virtual classroom, skip room scoring
+     */
+    "isVirtual": boolean;
+
+    /**
      * Associations
      */
     "course"?: Course;
@@ -217,117 +222,10 @@ export interface ScheduleEntry {
 }
 
 /**
- * ScheduleSnapshot captures a point-in-time evaluation of a schedule.
- * Generated automatically after scheduling or manually by user request.
- */
-export interface ScheduleSnapshot {
-    "ID": number;
-    "CreatedAt": string;
-    "UpdatedAt": string;
-    "DeletedAt": gorm$0.DeletedAt;
-
-    /**
-     * 快照名称，创建时自动生成
-     */
-    "name": string;
-    "semesterId": number;
-
-    /**
-     * 院系范围，空=全校
-     */
-    "dept": string;
-
-    /**
-     * "auto" | "manual"
-     */
-    "trigger": string;
-
-    /**
-     * v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
-     * 历史行(default:'FULL_SCHEDULING')在自动迁移时得到默认值，
-     * 后续读取路径可用它判断"资源分是禁用还是真 0"。空串等同 FULL。
-     */
-    "mode"?: string;
-
-    /**
-     * Hard constraint pass/fail
-     */
-    "hardPassed": boolean;
-    "teacherConflicts": number;
-    "roomConflicts": number;
-    "classConflicts": number;
-    "lockedViolations": number;
-
-    /**
-     * Soft constraint scores (0-100 scale, weighted)
-     */
-    "totalScore": number;
-    "teacherPref": number;
-    "courseSpacing": number;
-    "teacherDays": number;
-    "lowFloorPref": number;
-    "weekendAvoid": number;
-
-    /**
-     * 体育课时段偏好
-     */
-    "pePeriodPref": number;
-
-    /**
-     * 学生连续疲劳度
-     */
-    "studentFatigue": number;
-
-    /**
-     * 容量不足警告数
-     */
-    "capacityWarn": number;
-
-    /**
-     * Scoring configuration stored at snapshot time for reproducible re-scoring
-     * JSON array
-     */
-    "enabledConstraints": string;
-    "scoreVersion": number;
-
-    /**
-     * Statistics
-     */
-    "totalEntries": number;
-    "solveTimeMs": number;
-    "solver": string;
-    "perCategoryMax": number;
-    "enabledCategoryCount": number;
-
-    /**
-     * JSON: per-category actual maxes (weight × perCategoryMax)
-     */
-    "categoryMaxes"?: string;
-
-    /**
-     * v0.5.2: placement completeness (append-only, Stable Core preserving).
-     * FinalScore is the completeness-scaled published score (Total × completeness curve).
-     * PlacedSessions / ExpectedSessions / Completeness expose the underlying ratio
-     * used by the ScoreBreakdown at snapshot time.
-     * Legacy snapshots (v0.4) leave these at zero — TotalScore keeps its meaning.
-     */
-    "finalScore": number;
-    "placedSessions": number;
-    "expectedSessions": number;
-    "completeness": number;
-
-    /**
-     * Linked details
-     */
-    "details"?: SnapshotDetail[] | null;
-}
-
-/**
- * ScheduleVersion represents a user-facing historical schedule snapshot
- * containing the actual schedule entries at a point in time.
- * Unlike ScheduleSnapshot (which stores only aggregated statistics),
- * ScheduleVersion stores the full entry set so versions can be viewed,
- * restored, and compared independently of current schedule data.
+ * ScheduleVersion is the single unified entity representing a saved schedule state.
+ * It combines the former ScheduleSnapshot (scoring details) and ScheduleVersion
+ * (actual entries) into one record. Every version has both the full entry set and
+ * the complete scoring breakdown, eliminating the previous split-brain design.
  */
 export interface ScheduleVersion {
     "ID": number;
@@ -341,21 +239,64 @@ export interface ScheduleVersion {
      * AutoGenerate | ManualAdjust | Import | Restore | Copy
      */
     "source": string;
-    "score": number;
-    "entryCount": number;
-
-    /**
-     * optional: which solver produced it
-     */
     "solver": string;
+    "mode"?: string;
 
     /**
-     * v0.5.5: 排课模式(FULL_SCHEDULING / TIME_ONLY_SCHEDULING)。
-     * 前端根据这个字段决定是否展示"教室"列 / 资源评分,避免 TIME_ONLY
-     * 历史版本被误解为"排课失败 - 教室分配 0"。
+     * Hard constraint status (merged from ScheduleSnapshot)
      */
-    "mode"?: string;
+    "hardPassed": boolean;
+    "teacherConflicts": number;
+    "roomConflicts": number;
+    "classConflicts": number;
+
+    /**
+     * Soft constraint scores (merged from ScheduleSnapshot)
+     */
+    "totalScore": number;
+    "finalScore": number;
+    "teacherPref": number;
+    "courseSpacing": number;
+    "teacherDays": number;
+    "lowFloorPref": number;
+    "weekendAvoid": number;
+    "pePeriodPref": number;
+    "studentFatigue": number;
+    "capacityWarn": number;
+
+    /**
+     * Scoring configuration (merged from ScheduleSnapshot)
+     */
+    "enabledConstraints": string;
+    "scoreVersion": number;
+    "perCategoryMax": number;
+    "enabledCategoryCount": number;
+    "categoryMaxes"?: string;
+
+    /**
+     * Placement completeness (merged from ScheduleSnapshot)
+     */
+    "placedSessions": number;
+    "expectedSessions": number;
+    "completeness": number;
+
+    /**
+     * Statistics
+     */
+    "entryCount": number;
+    "solveTimeMs": number;
+
+    /**
+     * Linked data
+     */
     "entries"?: ScheduleVersionEntry[] | null;
+    "details"?: VersionDetail[] | null;
+
+    /**
+     * Deprecated: Score is kept for backward compatibility; use FinalScore instead.
+     * New code should always read/write FinalScore.
+     */
+    "score": number;
 }
 
 /**
@@ -419,45 +360,6 @@ export interface Semester {
      * active, archived, planned
      */
     "status": string;
-}
-
-/**
- * SnapshotDetail stores per-teacher/course score contributions for the report.
- */
-export interface SnapshotDetail {
-    "ID": number;
-    "CreatedAt": string;
-    "UpdatedAt": string;
-    "DeletedAt": gorm$0.DeletedAt;
-    "snapshotId": number;
-
-    /**
-     * "teacher" | "course"
-     */
-    "entityType": string;
-    "entityCode": string;
-    "entityName": string;
-
-    /**
-     * Per-constraint breakdown
-     */
-    "earlyPenalty": number;
-    "latePenalty": number;
-    "daysActual": number;
-    "daysTarget": number;
-    "avgFloor": number;
-    "capacityWarning": boolean;
-
-    /**
-     * Schedule summary
-     */
-    "entryCount": number;
-    "daysCount": number;
-
-    /**
-     * e.g. "周一1-2节,周三3-4节"
-     */
-    "summary": string;
 }
 
 /**
@@ -583,4 +485,45 @@ export interface TeachingTaskClass {
     "teachingTaskId": number;
     "classGroupId": number;
     "classGroup"?: ClassGroup;
+}
+
+/**
+ * VersionDetail stores per-teacher score contributions for a schedule version.
+ * This is the unified replacement for SnapshotDetail, linked to ScheduleVersion
+ * instead of ScheduleSnapshot.
+ */
+export interface VersionDetail {
+    "ID": number;
+    "CreatedAt": string;
+    "UpdatedAt": string;
+    "DeletedAt": gorm$0.DeletedAt;
+    "versionId": number;
+
+    /**
+     * "teacher" | "course"
+     */
+    "entityType": string;
+    "entityCode": string;
+    "entityName": string;
+
+    /**
+     * Per-constraint breakdown
+     */
+    "earlyPenalty": number;
+    "latePenalty": number;
+    "daysActual": number;
+    "daysTarget": number;
+    "avgFloor": number;
+    "capacityWarning": boolean;
+
+    /**
+     * Schedule summary
+     */
+    "entryCount": number;
+    "daysCount": number;
+
+    /**
+     * e.g. "周一1-2节,周三3-4节"
+     */
+    "summary": string;
 }

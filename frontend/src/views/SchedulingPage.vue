@@ -190,18 +190,18 @@ async function saveManualSnapshot() {
   }
   isSavingSnapshot.value = true
   try {
-    const { CreateManualSnapshot, RenameSnapshot } =
-      await import('../../bindings/scheduling-system/backend/services/snapshotservice')
-    const snap = await CreateManualSnapshot(appStore.currentSemesterId)
-    // 用户填的名称通过 RenameSnapshot 落地(后端 CreateManualSnapshot 只写 DefaultSnapshotName)
-    if (snap?.ID && snapshotName.value.trim() && snapshotName.value.trim() !== snap.name) {
-      try { await RenameSnapshot(snap.ID, snapshotName.value.trim()) } catch { /* 命名失败不阻塞 */ }
+    const { CreateManualReport, RenameVersion } =
+      await import('../../bindings/scheduling-system/backend/services/versionservice')
+    const ver = await CreateManualReport(appStore.currentSemesterId)
+    // 用户填的名称通过 RenameVersion 落地
+    if (ver?.ID && snapshotName.value.trim() && snapshotName.value.trim() !== ver.name) {
+      try { await RenameVersion(ver.ID, snapshotName.value.trim()) } catch { /* 命名失败不阻塞 */ }
     }
     scheduleStore.clearDirty()
     showSnapshotModal.value = false
-    message.success(`快照已保存：${snapshotName.value.trim() || snap?.name || '(默认名)'}`)
+    message.success(`版本已保存：${snapshotName.value.trim() || ver?.name || '(默认名)'}`)
   } catch (e: any) {
-    message.error('保存快照失败：' + (e?.message || e))
+    message.error('保存版本失败：' + (e?.message || e))
   } finally {
     isSavingSnapshot.value = false
   }
@@ -458,30 +458,25 @@ async function saveManualSnapshot() {
           <h4 class="breakdown-title">硬约束验证</h4>
           <div class="verify-items">
             <div class="verify-item">
-              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
-                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              <span class="verify-icon" :style="{ color: (store.result.teacherConflicts ?? store.result.conflicts) === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ (store.result.teacherConflicts ?? store.result.conflicts) === 0 ? '✅' : '❌' }}
               </span>
               <span class="verify-label">教师时间冲突</span>
-              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
+              <span class="verify-result">{{ (store.result.teacherConflicts ?? store.result.conflicts) === 0 ? '通过' : '发现冲突' }}</span>
             </div>
             <div class="verify-item" v-if="!isTimeOnlyMode">
-              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
-                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              <span class="verify-icon" :style="{ color: (store.result.roomConflicts ?? store.result.conflicts) === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ (store.result.roomConflicts ?? store.result.conflicts) === 0 ? '✅' : '❌' }}
               </span>
               <span class="verify-label">教室占用冲突</span>
-              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
+              <span class="verify-result">{{ (store.result.roomConflicts ?? store.result.conflicts) === 0 ? '通过' : '发现冲突' }}</span>
             </div>
             <div class="verify-item">
-              <span class="verify-icon" :style="{ color: store.result.conflicts === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
-                {{ store.result.conflicts === 0 ? '✅' : '❌' }}
+              <span class="verify-icon" :style="{ color: (store.result.classConflicts ?? store.result.conflicts) === 0 ? 'var(--b3-theme-success)' : 'var(--b3-theme-error)' }">
+                {{ (store.result.classConflicts ?? store.result.conflicts) === 0 ? '✅' : '❌' }}
               </span>
               <span class="verify-label">班级时间冲突</span>
-              <span class="verify-result">{{ store.result.conflicts === 0 ? '通过' : '发现冲突' }}</span>
-            </div>
-            <div class="verify-item">
-              <span class="verify-icon" style="color: var(--b3-theme-success)">✅</span>
-              <span class="verify-label">锁定时间段规避</span>
-              <span class="verify-result">已规避</span>
+              <span class="verify-result">{{ (store.result.classConflicts ?? store.result.conflicts) === 0 ? '通过' : '发现冲突' }}</span>
             </div>
           </div>
         </div>

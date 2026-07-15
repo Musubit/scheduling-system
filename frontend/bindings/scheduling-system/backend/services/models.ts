@@ -47,6 +47,23 @@ export interface CheckMoveResult {
 }
 
 /**
+ * EntryDiff describes a single entry-level change between two versions.
+ */
+export interface EntryDiff {
+    /**
+     * "moved" | "added" | "removed"
+     */
+    "type": string;
+    "course": string;
+    "teacher": string;
+    "taskId"?: number;
+    "oldDay"?: number;
+    "oldStart"?: number;
+    "newDay"?: number;
+    "newStart"?: number;
+}
+
+/**
  * MoveAndScoreResult is the output of MoveEntryAndScore.
  */
 export interface MoveAndScoreResult {
@@ -279,25 +296,9 @@ export interface ScoringContext {
 }
 
 /**
- * SnapshotCompareResult holds the diff between two schedule snapshots.
+ * TeacherVersionDiff summarizes per-teacher changes between two versions.
  */
-export interface SnapshotCompareResult {
-    "a": models$0.ScheduleSnapshot | null;
-    "b": models$0.ScheduleSnapshot | null;
-    "scoreDelta": number;
-
-    /**
-     * +1: fail->pass, -1: pass->fail, 0: unchanged
-     */
-    "conflictDelta": number;
-    "entryDelta": number;
-    "teacherDiffs": TeacherSnapshotDiff[] | null;
-}
-
-/**
- * TeacherSnapshotDiff summarizes per-teacher changes between two snapshots.
- */
-export interface TeacherSnapshotDiff {
+export interface TeacherVersionDiff {
     "code": string;
     "name": string;
     "entryDelta": number;
@@ -361,4 +362,17 @@ export interface UnplacedTask {
      * 确诊 or 疑似
      */
     "rootCause"?: string;
+}
+
+/**
+ * VersionCompareResult holds the diff between two schedule versions.
+ */
+export interface VersionCompareResult {
+    "a": models$0.ScheduleVersion | null;
+    "b": models$0.ScheduleVersion | null;
+    "scoreDelta": number;
+    "conflictDelta": number;
+    "entryDelta": number;
+    "teacherDiffs": TeacherVersionDiff[] | null;
+    "entryDiffs": EntryDiff[] | null;
 }

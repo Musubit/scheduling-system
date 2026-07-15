@@ -75,8 +75,6 @@ export const useAppStore = defineStore('app', () => {
 	      children: [
 	        { label: '自动排课', page: 'scheduling' },
 	        { label: '课表方案', page: 'schedule-center' },
-	        { label: '验证报告', page: 'report' },
-	        { label: '历史课表对比', page: 'history' },
 	      ],
     },
     {

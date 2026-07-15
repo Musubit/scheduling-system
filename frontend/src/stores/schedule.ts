@@ -166,10 +166,11 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   /** Return to the live schedule view. */
-  function clearVersionView() {
+  async function clearVersionView() {
     viewMode.value = 'current'
     versionName.value = ''
-    loadSchedule(0)
+    const { useAppStore } = await import('./app')
+    loadSchedule(useAppStore().currentSemesterId)
   }
 
   // ---- Manual adjustment tracking (H3 — post-adjustment snapshot save) ----

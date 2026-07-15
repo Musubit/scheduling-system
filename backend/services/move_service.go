@@ -133,7 +133,13 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 		// 1c. Check room capacity + resource matching (v0.5.3: unified ResourceMatcher)
 		if req.NewClassroom > 0 {
 			var newRoom models.Classroom
-			s.db.First(&newRoom, req.NewClassroom)
+			if err := s.db.First(&newRoom, req.NewClassroom).Error(); err != nil {
+				result.Valid = false
+				result.Conflicts = append(result.Conflicts, MoveConflict{
+					Type: "error", Description: fmt.Sprintf("教室 ID=%d 不存在: %v", req.NewClassroom, err),
+				})
+				return result
+			}
 			totalStudents := s.getClassGroupTotalStudents(entry)
 			if totalStudents > 0 && newRoom.Capacity < totalStudents {
 				result.Valid = false
@@ -197,7 +203,9 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 		}
 		if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
 			var room models.Classroom
-			s.db.First(&room, newRoomID)
+			if err := s.db.First(&room, newRoomID).Error(); err != nil {
+				room.Name = fmt.Sprintf("教室#%d", newRoomID)
+			}
 			result.Valid = false
 			result.Conflicts = append(result.Conflicts, MoveConflict{
 				Type:        "room",
@@ -246,7 +254,9 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 				}
 				if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
 					var cg models.ClassGroup
-					s.db.First(&cg, cid)
+					if err := s.db.First(&cg, cid).Error(); err != nil {
+						cg.Name = fmt.Sprintf("班级#%d", cid)
+					}
 					result.Valid = false
 					result.Conflicts = append(result.Conflicts, MoveConflict{
 						Type:        "class",
@@ -549,11 +559,11 @@ func (s *MoveService) loadLatestConstraints(semesterID uint) []string {
 
 // loadLatestConstraintsDB is the transaction-aware variant of loadLatestConstraints.
 func (s *MoveService) loadLatestConstraintsDB(db database.DB, semesterID uint) []string {
-	var snap models.ScheduleSnapshot
+	var ver models.ScheduleVersion
 	if err := db.Where("semester_id = ?", semesterID).
-		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
+		Order("created_at DESC").First(&ver).Error(); err == nil && ver.EnabledConstraints != "" {
 		var constraints []string
-		if err := json.Unmarshal([]byte(snap.EnabledConstraints), &constraints); err == nil && len(constraints) > 0 {
+		if err := json.Unmarshal([]byte(ver.EnabledConstraints), &constraints); err == nil && len(constraints) > 0 {
 			return constraints
 		}
 	}

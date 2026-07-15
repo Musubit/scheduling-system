@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,32 +26,40 @@ func NewVersionService(db database.DB) *VersionService {
 	return &VersionService{db: db}
 }
 
-// defaultModeForSemester 从最近一次自动 snapshot 继承 Mode，用作新 version 的默认值。
+// defaultModeForSemester 从最近一次版本继承 Mode，用作新 version 的默认值。
 // 场景：ManualAdjust 版本没有独立的模式选择器，与所在学期最近一次排课模式对齐；
-// 若没有 snapshot（新学期首次调整），回退到 FULL_SCHEDULING（Stable Core 行为）。
+// 若没有版本（新学期首次调整），回退到 FULL_SCHEDULING（Stable Core 行为）。
 func (s *VersionService) defaultModeForSemester(semesterID uint) string {
-	var snap models.ScheduleSnapshot
+	var ver models.ScheduleVersion
 	err := s.db.
 		Where("semester_id = ? AND mode <> ''", semesterID).
 		Order("created_at DESC").
-		First(&snap).Error()
-	if err != nil || snap.Mode == "" {
+		First(&ver).Error()
+	if err != nil || ver.Mode == "" {
 		return "FULL_SCHEDULING"
 	}
-	return snap.Mode
+	return ver.Mode
 }
 
-// CreateVersion stores a new historical version from the given schedule entries.
-// It automatically enforces the per-semester retention limit (DefaultMaxVersions).
+// CreateVersionFromSchedule creates a version with full scoring details and
+// teacher breakdowns from a scheduling result. This is the unified replacement
+// for both the old SnapshotService.CreateSnapshot and VersionService.CreateVersion.
 //
-// semesterID — Semester.ID (v0.5.5 起改为直接传 FK，取代旧的 name 查找).
-// name       — user-visible version label (e.g. "自动方案 #3").
-// source     — one of the VersionSource* constants.
-// score      — final ScoreSchedule total at the time of capture.
-// solver     — solver identifier ("simulated_annealing", "ortools", etc.).
-// entries    — current schedule entries to copy into the version.
-func (s *VersionService) CreateVersion(semesterID uint, name, source string, score float64, solver string, entries []models.ScheduleEntry) (*models.ScheduleVersion, error) {
-	// Build version entry rows from current schedule entries
+// It computes ScoreSchedule internally, stores entries, scoring fields, and
+// per-teacher VersionDetail records in a single transaction.
+func (s *VersionService) CreateVersionFromSchedule(
+	semesterID uint, dept, trigger, solver string,
+	entries []models.ScheduleEntry,
+	teachers []models.Teacher,
+	classrooms []models.Classroom,
+	scoringCtx ScoringContext,
+	solveTimeMs int64,
+	conflictCount int,
+) (*models.ScheduleVersion, error) {
+	scorer := NewScoringService()
+	breakdown := scorer.ScoreSchedule(entries, teachers, classrooms, scoringCtx)
+
+	// Build version entry rows
 	versionEntries := make([]models.ScheduleVersionEntry, 0, len(entries))
 	for _, e := range entries {
 		originalID := e.ID
@@ -68,25 +77,165 @@ func (s *VersionService) CreateVersion(semesterID uint, name, source string, sco
 		versionEntries = append(versionEntries, ve)
 	}
 
+	// Build teacher-level details (same logic as old SnapshotService.CreateSnapshot)
+	teacherMap := make(map[uint]models.Teacher)
+	for _, t := range teachers {
+		teacherMap[t.ID] = t
+	}
+	classroomMap := make(map[uint]models.Classroom)
+	for _, c := range classrooms {
+		classroomMap[c.ID] = c
+	}
+
+	type teacherAgg struct {
+		entries    []models.ScheduleEntry
+		earlyCount int
+		lateCount  int
+		days       map[models.DayOfWeek]bool
+		totalFloor float64
+		floorCount int
+	}
+	agg := make(map[uint]*teacherAgg)
+
+	for _, e := range entries {
+		t, ok := teacherMap[e.TeacherID]
+		if !ok {
+			continue
+		}
+		a, exists := agg[e.TeacherID]
+		if !exists {
+			a = &teacherAgg{days: make(map[models.DayOfWeek]bool)}
+			agg[e.TeacherID] = a
+		}
+		a.entries = append(a.entries, e)
+		a.days[e.DayOfWeek] = true
+
+		if t.PreferNoEarly && e.StartPeriod <= 1 {
+			a.earlyCount++
+		}
+		if t.PreferNoLate && e.StartPeriod >= 6 {
+			a.lateCount++
+		}
+
+		if c, ok := classroomMap[e.ClassroomID]; ok {
+			a.totalFloor += float64(c.Floor)
+			a.floorCount++
+		}
+	}
+
+	var details []models.VersionDetail
+	for tid, a := range agg {
+		t := teacherMap[tid]
+		maxDays := t.MaxDaysPerWeek
+		if maxDays <= 0 {
+			maxDays = 3
+		}
+		avgFloor := 0.0
+		if a.floorCount > 0 {
+			avgFloor = a.totalFloor / float64(a.floorCount)
+		}
+
+		// Build summary string
+		daySlots := make(map[models.DayOfWeek][]string)
+		for _, e := range a.entries {
+			label := fmt.Sprintf("%s %d-%d节", e.DayOfWeek.String(), e.StartPeriod.DisplayNum(),
+				int(e.StartPeriod)+e.Span)
+			daySlots[e.DayOfWeek] = append(daySlots[e.DayOfWeek], label)
+		}
+		summary := ""
+		for d := models.Mon; d <= models.Sun; d++ {
+			if slots, ok := daySlots[d]; ok {
+				if summary != "" {
+					summary += ","
+				}
+				summary += slots[0]
+			}
+		}
+
+		detail := models.VersionDetail{
+			EntityType: "teacher",
+			EntityCode: t.Code,
+			EntityName: t.Name,
+
+			EarlyPenalty: float64(a.earlyCount),
+			LatePenalty:  float64(a.lateCount),
+			DaysActual:   len(a.days),
+			DaysTarget:   maxDays,
+			AvgFloor:     avgFloor,
+
+			EntryCount: len(a.entries),
+			DaysCount:  len(a.days),
+			Summary:    summary,
+		}
+		details = append(details, detail)
+	}
+
 	version := &models.ScheduleVersion{
 		SemesterID: semesterID,
-		Name:       name,
-		Source:     source,
-		Score:      score,
-		EntryCount: len(versionEntries),
+		Name:       models.DefaultVersionName(trigger, time.Now()),
+		Source:     triggerToSource(trigger),
 		Solver:     solver,
-		Mode:       s.defaultModeForSemester(semesterID), // v0.5.5: 继承最近一次自动版本的模式
-		Entries:    versionEntries,
+		Mode:       string(scoringCtx.EffectiveMode()),
+
+		HardPassed:       conflictCount == 0,
+		TeacherConflicts: 0, // TODO: pass per-type conflicts if available
+		RoomConflicts:    0,
+		ClassConflicts:   0,
+
+		TotalScore:     breakdown.Total,
+		FinalScore:     breakdown.FinalTotal,
+		TeacherPref:    breakdown.TeacherPref,
+		CourseSpacing:  breakdown.CourseSpacing,
+		TeacherDays:    breakdown.TeacherDays,
+		LowFloorPref:   breakdown.LowFloorPref,
+		WeekendAvoid:   breakdown.WeekendAvoid,
+		PePeriodPref:   breakdown.PePeriodPref,
+		StudentFatigue: breakdown.StudentFatigue,
+
+		EnabledConstraints:   scoringCtx.MarshalStored(),
+		ScoreVersion:         scoringCtx.Version,
+		PerCategoryMax:       breakdown.PerCategoryMax,
+		EnabledCategoryCount: breakdown.EnabledCategoryCount,
+		CategoryMaxes:        marshalCategoryMaxes(breakdown.CategoryMaxes),
+
+		PlacedSessions:   breakdown.PlacedSessions,
+		ExpectedSessions: breakdown.ExpectedSessions,
+		Completeness:     breakdown.Completeness,
+
+		EntryCount:  len(versionEntries),
+		SolveTimeMs: solveTimeMs,
+		Score:       breakdown.Total, // backward compat
+
+		Entries: versionEntries,
+		Details: details,
 	}
 
 	if err := s.db.Create(version).Error(); err != nil {
 		return nil, fmt.Errorf("version: 创建版本失败: %w", err)
 	}
 
-	// Enforce retention limit
-	s.enforceRetention(s.db, semesterID)
-
+	if err := s.enforceRetention(s.db, semesterID); err != nil {
+		return nil, err
+	}
 	return version, nil
+}
+
+// triggerToSource maps a trigger string to a VersionSource constant.
+func triggerToSource(trigger string) string {
+	switch trigger {
+	case models.TriggerAuto:
+		return models.VersionSourceAutoGenerate
+	case models.TriggerManual:
+		return models.VersionSourceManualAdjust
+	case models.TriggerImport:
+		return models.VersionSourceImport
+	case models.TriggerRestore:
+		return models.VersionSourceRestore
+	case models.TriggerCopy:
+		return models.VersionSourceCopy
+	default:
+		return models.VersionSourceAutoGenerate
+	}
 }
 
 // CreateManualVersion saves the current schedule as a new version with
@@ -155,7 +304,30 @@ func (s *VersionService) CreateManualVersion(semesterID uint, name string) (*mod
 			SemesterID: semesterID,
 			Name:       name,
 			Source:     models.VersionSourceManualAdjust,
-			Score:      breakdown.Total,
+			Solver:     "manual",
+			Mode:       string(scoringCtx.EffectiveMode()),
+
+			TotalScore:     breakdown.Total,
+			FinalScore:     breakdown.FinalTotal,
+			TeacherPref:    breakdown.TeacherPref,
+			CourseSpacing:  breakdown.CourseSpacing,
+			TeacherDays:    breakdown.TeacherDays,
+			LowFloorPref:   breakdown.LowFloorPref,
+			WeekendAvoid:   breakdown.WeekendAvoid,
+			PePeriodPref:   breakdown.PePeriodPref,
+			StudentFatigue: breakdown.StudentFatigue,
+
+			EnabledConstraints:   scoringCtx.MarshalStored(),
+			ScoreVersion:         scoringCtx.Version,
+			PerCategoryMax:       breakdown.PerCategoryMax,
+			EnabledCategoryCount: breakdown.EnabledCategoryCount,
+			CategoryMaxes:        marshalCategoryMaxes(breakdown.CategoryMaxes),
+
+			PlacedSessions:   breakdown.PlacedSessions,
+			ExpectedSessions: breakdown.ExpectedSessions,
+			Completeness:     breakdown.Completeness,
+
+			Score:      breakdown.Total, // backward compat
 			EntryCount: len(versionEntries),
 			Entries:    versionEntries,
 		}
@@ -165,8 +337,7 @@ func (s *VersionService) CreateManualVersion(semesterID uint, name string) (*mod
 		version = v
 
 		// Enforce retention within the same transaction
-		s.enforceRetention(tx, semesterID)
-		return nil
+		return s.enforceRetention(tx, semesterID)
 	})
 
 	return version, err
@@ -192,16 +363,363 @@ func (s *VersionService) GetVersion(id uint) (*models.ScheduleVersion, error) {
 	return &version, nil
 }
 
-// DeleteVersion removes a version and its entries by ID.
+// GetVersionWithDetails returns a single version with its Details preloaded.
+// Used by the report page to display per-teacher scoring breakdown.
+func (s *VersionService) GetVersionWithDetails(id uint) (*models.ScheduleVersion, error) {
+	var version models.ScheduleVersion
+	if err := s.db.Preload("Details").First(&version, id).Error(); err != nil {
+		return nil, fmt.Errorf("version: 未找到 ID=%d: %w", id, err)
+	}
+	if version.Name == "" {
+		version.Name = version.DisplayName()
+	}
+	return &version, nil
+}
+
+// DeleteVersion removes a version and its entries/details by ID in a single transaction.
 func (s *VersionService) DeleteVersion(id uint) error {
-	// Delete entries first (FK constraint)
-	if err := s.db.Where("version_id = ?", id).Delete(&models.ScheduleVersionEntry{}).Error(); err != nil {
-		return fmt.Errorf("version: 删除版本条目失败: %w", err)
+	return s.db.Transaction(func(tx database.DB) error {
+		if err := tx.Where("version_id = ?", id).Delete(&models.ScheduleVersionEntry{}).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本条目失败: %w", err)
+		}
+		if err := tx.Where("version_id = ?", id).Delete(&models.VersionDetail{}).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本明细失败: %w", err)
+		}
+		if err := tx.Delete(&models.ScheduleVersion{}, id).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本失败: %w", err)
+		}
+		return nil
+	})
+}
+
+// RenameVersion updates the Name field of an existing version.
+func (s *VersionService) RenameVersion(id uint, newName string) error {
+	if newName == "" {
+		return fmt.Errorf("版本名称不能为空")
 	}
-	if err := s.db.Delete(&models.ScheduleVersion{}, id).Error(); err != nil {
-		return fmt.Errorf("version: 删除版本失败: %w", err)
+	if len(newName) > 100 {
+		return fmt.Errorf("版本名称不能超过100个字符")
 	}
-	return nil
+	var ver models.ScheduleVersion
+	if err := s.db.First(&ver, id).Error(); err != nil {
+		return err
+	}
+	ver.Name = newName
+	return s.db.Save(&ver).Error()
+}
+
+// CreateManualReport generates a version from the current schedule in the database,
+// computing full scoring details. This replaces the old SnapshotService.CreateManualSnapshot.
+func (s *VersionService) CreateManualReport(semesterID uint) (*models.ScheduleVersion, error) {
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester_id = ?", semesterID).
+		Preload("Course").Preload("Teacher").Preload("Classroom").
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("load entries: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no schedule entries for semester %d", semesterID)
+	}
+
+	var teachers []models.Teacher
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return nil, fmt.Errorf("加载教师失败: %w", err)
+	}
+	var classrooms []models.Classroom
+	if err := s.db.Find(&classrooms).Error(); err != nil {
+		return nil, fmt.Errorf("加载教室失败: %w", err)
+	}
+
+	// Build scoring context
+	scoringCtx, _, _, err := s.buildScoringContext(semesterID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Count conflicts
+	conflicts := 0
+	roomSlots := make(map[uint64]bool)
+	for _, e := range entries {
+		day := int(e.DayOfWeek)
+		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
+			key := occKey(day, int(p), e.ClassroomID)
+			if roomSlots[key] {
+				conflicts++
+			}
+			roomSlots[key] = true
+		}
+	}
+
+	return s.CreateVersionFromSchedule(
+		semesterID, "全校", models.TriggerManual, "manual",
+		entries, teachers, classrooms, scoringCtx, 0, conflicts,
+	)
+}
+
+// AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
+// Pure post-hoc analysis — does not affect scoring or solver behaviour.
+func (s *VersionService) AnalyzeTeacherWorkload(semesterID uint) ([]TeacherWorkloadInfo, error) {
+	var entries []models.ScheduleEntry
+	if err := s.db.Where("semester_id = ?", semesterID).
+		Find(&entries).Error(); err != nil {
+		return nil, fmt.Errorf("load entries: %w", err)
+	}
+
+	var teachers []models.Teacher
+	if err := s.db.Find(&teachers).Error(); err != nil {
+		return nil, fmt.Errorf("加载教师失败: %w", err)
+	}
+
+	scorer := NewScoringService()
+	return scorer.AnalyzeTeacherWorkload(entries, teachers), nil
+}
+
+// VersionCompareResult holds the diff between two schedule versions.
+type VersionCompareResult struct {
+	A             *models.ScheduleVersion `json:"a"`
+	B             *models.ScheduleVersion `json:"b"`
+	ScoreDelta    float64                 `json:"scoreDelta"`
+	ConflictDelta int                     `json:"conflictDelta"`
+	EntryDelta    int                     `json:"entryDelta"`
+	TeacherDiffs  []TeacherVersionDiff    `json:"teacherDiffs"`
+	EntryDiffs    []EntryDiff             `json:"entryDiffs"`
+}
+
+// TeacherVersionDiff summarizes per-teacher changes between two versions.
+type TeacherVersionDiff struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	EntryDelta    int     `json:"entryDelta"`
+	EarlyDelta    float64 `json:"earlyDelta"`
+	LateDelta     float64 `json:"lateDelta"`
+	DaysActualA   int     `json:"daysActualA"`
+	DaysActualB   int     `json:"daysActualB"`
+	DaysTarget    int     `json:"daysTarget"`
+	AvgFloorDelta float64 `json:"avgFloorDelta"`
+	Status        string  `json:"status"` // improved / regressed / unchanged / added / removed
+}
+
+// EntryDiff describes a single entry-level change between two versions.
+type EntryDiff struct {
+	Type     string `json:"type"` // "moved" | "added" | "removed"
+	Course   string `json:"course"`
+	Teacher  string `json:"teacher"`
+	TaskID   uint   `json:"taskId,omitempty"`
+	OldDay   int    `json:"oldDay,omitempty"`
+	OldStart int    `json:"oldStart,omitempty"`
+	NewDay   int    `json:"newDay,omitempty"`
+	NewStart int    `json:"newStart,omitempty"`
+}
+
+// teacherDetailPenalty derives a single "badness" score from a teacher detail.
+func teacherDetailPenalty(d models.VersionDetail) float64 {
+	penalty := d.EarlyPenalty + d.LatePenalty
+	if d.DaysActual > d.DaysTarget {
+		penalty += float64(d.DaysActual - d.DaysTarget)
+	}
+	penalty += d.AvgFloor * 0.1
+	return penalty
+}
+
+// CompareVersions returns a structured diff between two versions (A=baseline, B=target).
+// Includes teacher-level diffs and entry-level diffs (moved/added/removed).
+func (s *VersionService) CompareVersions(aID, bID uint) (*VersionCompareResult, error) {
+	a, err := s.GetVersionWithDetails(aID)
+	if err != nil {
+		return nil, fmt.Errorf("加载版本A失败: %w", err)
+	}
+	b, err := s.GetVersionWithDetails(bID)
+	if err != nil {
+		return nil, fmt.Errorf("加载版本B失败: %w", err)
+	}
+
+	res := &VersionCompareResult{
+		A:             a,
+		B:             b,
+		ScoreDelta:    b.FinalScore - a.FinalScore,
+		EntryDelta:    b.EntryCount - a.EntryCount,
+		ConflictDelta: 0,
+	}
+	switch {
+	case a.HardPassed && !b.HardPassed:
+		res.ConflictDelta = -1
+	case !a.HardPassed && b.HardPassed:
+		res.ConflictDelta = 1
+	}
+
+	// Teacher-level diffs
+	aMap := map[string]models.VersionDetail{}
+	for _, d := range a.Details {
+		if d.EntityType == "teacher" {
+			aMap[d.EntityCode] = d
+		}
+	}
+	bMap := map[string]models.VersionDetail{}
+	for _, d := range b.Details {
+		if d.EntityType == "teacher" {
+			bMap[d.EntityCode] = d
+		}
+	}
+
+	seen := map[string]bool{}
+	var codes []string
+	for c := range aMap {
+		if !seen[c] {
+			seen[c] = true
+			codes = append(codes, c)
+		}
+	}
+	for c := range bMap {
+		if !seen[c] {
+			seen[c] = true
+			codes = append(codes, c)
+		}
+	}
+	sort.Strings(codes)
+
+	for _, code := range codes {
+		ad, aok := aMap[code]
+		bd, bok := bMap[code]
+		diff := TeacherVersionDiff{Code: code}
+		if aok {
+			diff.Name = ad.EntityName
+			diff.DaysActualA = ad.DaysActual
+			diff.DaysTarget = ad.DaysTarget
+			diff.EarlyDelta -= ad.EarlyPenalty
+			diff.LateDelta -= ad.LatePenalty
+			diff.AvgFloorDelta -= ad.AvgFloor
+			diff.EntryDelta -= ad.EntryCount
+		}
+		if bok {
+			diff.Name = bd.EntityName
+			diff.DaysActualB = bd.DaysActual
+			diff.DaysTarget = bd.DaysTarget
+			diff.EarlyDelta += bd.EarlyPenalty
+			diff.LateDelta += bd.LatePenalty
+			diff.AvgFloorDelta += bd.AvgFloor
+			diff.EntryDelta += bd.EntryCount
+		}
+		switch {
+		case !aok:
+			diff.Status = "added"
+		case !bok:
+			diff.Status = "removed"
+		case teacherDetailPenalty(bd) < teacherDetailPenalty(ad):
+			diff.Status = "improved"
+		case teacherDetailPenalty(bd) > teacherDetailPenalty(ad):
+			diff.Status = "regressed"
+		default:
+			diff.Status = "unchanged"
+		}
+		res.TeacherDiffs = append(res.TeacherDiffs, diff)
+	}
+
+	// Entry-level diffs: compare by TeachingTaskID
+	aEntries, errA := s.GetVersion(aID)
+	bEntries, errB := s.GetVersion(bID)
+	if errA != nil || errB != nil {
+		// Entry diffs are optional — log but don't fail the whole comparison
+		if errA != nil {
+			log.Printf("[CompareVersions] 加载版本A条目失败: %v", errA)
+		}
+		if errB != nil {
+			log.Printf("[CompareVersions] 加载版本B条目失败: %v", errB)
+		}
+	}
+	if aEntries != nil && bEntries != nil {
+		// Load course and teacher name maps for readable diffs
+		courseMap := make(map[uint]string)
+		teacherMap := make(map[uint]string)
+		var courses []models.Course
+		if s.db.Find(&courses).Error() == nil {
+			for _, c := range courses {
+				courseMap[c.ID] = c.Name
+			}
+		}
+		var teachers []models.Teacher
+		if s.db.Find(&teachers).Error() == nil {
+			for _, t := range teachers {
+				teacherMap[t.ID] = t.Name
+			}
+		}
+		res.EntryDiffs = computeEntryDiffs(aEntries.Entries, bEntries.Entries, courseMap, teacherMap)
+	}
+
+	return res, nil
+}
+
+// computeEntryDiffs compares two sets of version entries by TeachingTaskID
+// and returns moved/added/removed diffs with human-readable names.
+func computeEntryDiffs(aEntries, bEntries []models.ScheduleVersionEntry, courseMap, teacherMap map[uint]string) []EntryDiff {
+	aByTask := make(map[uint]models.ScheduleVersionEntry)
+	for _, e := range aEntries {
+		if e.TeachingTaskID != nil {
+			aByTask[*e.TeachingTaskID] = e
+		}
+	}
+	bByTask := make(map[uint]models.ScheduleVersionEntry)
+	for _, e := range bEntries {
+		if e.TeachingTaskID != nil {
+			bByTask[*e.TeachingTaskID] = e
+		}
+	}
+
+	courseName := func(id uint) string {
+		if n, ok := courseMap[id]; ok && n != "" {
+			return n
+		}
+		return fmt.Sprintf("课程#%d", id)
+	}
+	teacherName := func(id uint) string {
+		if n, ok := teacherMap[id]; ok && n != "" {
+			return n
+		}
+		return fmt.Sprintf("教师#%d", id)
+	}
+
+	var diffs []EntryDiff
+
+	// Find moved and removed
+	for taskID, ae := range aByTask {
+		be, exists := bByTask[taskID]
+		if !exists {
+			diffs = append(diffs, EntryDiff{
+				Type:     "removed",
+				TaskID:   taskID,
+				Course:   courseName(ae.CourseID),
+				Teacher:  teacherName(ae.TeacherID),
+				OldDay:   ae.DayOfWeek,
+				OldStart: ae.StartPeriod,
+			})
+		} else if ae.DayOfWeek != be.DayOfWeek || ae.StartPeriod != be.StartPeriod {
+			diffs = append(diffs, EntryDiff{
+				Type:     "moved",
+				TaskID:   taskID,
+				Course:   courseName(ae.CourseID),
+				Teacher:  teacherName(ae.TeacherID),
+				OldDay:   ae.DayOfWeek,
+				OldStart: ae.StartPeriod,
+				NewDay:   be.DayOfWeek,
+				NewStart: be.StartPeriod,
+			})
+		}
+	}
+
+	// Find added
+	for taskID, be := range bByTask {
+		if _, exists := aByTask[taskID]; !exists {
+			diffs = append(diffs, EntryDiff{
+				Type:     "added",
+				TaskID:   taskID,
+				Course:   courseName(be.CourseID),
+				Teacher:  teacherName(be.TeacherID),
+				NewDay:   be.DayOfWeek,
+				NewStart: be.StartPeriod,
+			})
+		}
+	}
+
+	return diffs
 }
 
 // RestoreVersion restores a historical version as the current schedule.
@@ -258,10 +776,36 @@ func (s *VersionService) RestoreVersion(versionID uint) error {
 			SemesterID: version.SemesterID,
 			Name:       restoreName,
 			Source:     models.VersionSourceRestore,
-			Score:      version.Score,
-			EntryCount: len(entries),
 			Solver:     version.Solver,
 			Mode:       version.Mode,
+
+			HardPassed:       version.HardPassed,
+			TeacherConflicts: version.TeacherConflicts,
+			RoomConflicts:    version.RoomConflicts,
+			ClassConflicts:   version.ClassConflicts,
+
+			TotalScore:     version.TotalScore,
+			FinalScore:     version.FinalScore,
+			TeacherPref:    version.TeacherPref,
+			CourseSpacing:  version.CourseSpacing,
+			TeacherDays:    version.TeacherDays,
+			LowFloorPref:   version.LowFloorPref,
+			WeekendAvoid:   version.WeekendAvoid,
+			PePeriodPref:   version.PePeriodPref,
+			StudentFatigue: version.StudentFatigue,
+
+			EnabledConstraints:   version.EnabledConstraints,
+			ScoreVersion:         version.ScoreVersion,
+			PerCategoryMax:       version.PerCategoryMax,
+			EnabledCategoryCount: version.EnabledCategoryCount,
+			CategoryMaxes:        version.CategoryMaxes,
+
+			PlacedSessions:   version.PlacedSessions,
+			ExpectedSessions: version.ExpectedSessions,
+			Completeness:     version.Completeness,
+
+			Score:      version.Score, // backward compat
+			EntryCount: len(entries),
 		}
 		if err := tx.Create(v).Error(); err != nil {
 			return fmt.Errorf("version: 创建恢复版本记录失败: %w", err)
@@ -297,10 +841,14 @@ func (s *VersionService) ClearSemesterVersions(semesterID uint) (int64, error) {
 			ids = append(ids, v.ID)
 		}
 
-		// Delete entries first (FK safety, matches DeleteVersion order).
+		// Delete entries and details first (FK safety, matches DeleteVersion order).
 		if err := tx.Where("version_id IN ?", ids).
 			Delete(&models.ScheduleVersionEntry{}).Error(); err != nil {
 			return fmt.Errorf("version: 删除版本条目失败: %w", err)
+		}
+		if err := tx.Where("version_id IN ?", ids).
+			Delete(&models.VersionDetail{}).Error(); err != nil {
+			return fmt.Errorf("version: 删除版本明细失败: %w", err)
 		}
 		if err := tx.Where("semester_id = ?", semesterID).
 			Delete(&models.ScheduleVersion{}).Error(); err != nil {
@@ -351,13 +899,13 @@ func (s *VersionService) buildScoringContext(semesterID uint) (ScoringContext, [
 		}
 	}
 
-	// Read constraints from latest snapshot; fall back to all constraints
+	// Read constraints from latest version; fall back to all constraints
 	constraints := FullDefaultConstraints()
-	var snap models.ScheduleSnapshot
+	var ver models.ScheduleVersion
 	if err := s.db.Where("semester_id = ?", semesterID).
-		Order("created_at DESC").First(&snap).Error(); err == nil && snap.EnabledConstraints != "" {
+		Order("created_at DESC").First(&ver).Error(); err == nil && ver.EnabledConstraints != "" {
 		var parsed []string
-		if json.Unmarshal([]byte(snap.EnabledConstraints), &parsed) == nil && len(parsed) > 0 {
+		if json.Unmarshal([]byte(ver.EnabledConstraints), &parsed) == nil && len(parsed) > 0 {
 			constraints = parsed
 		}
 	}
@@ -369,16 +917,16 @@ func (s *VersionService) buildScoringContext(semesterID uint) (ScoringContext, [
 // enforceRetention ensures the per-semester version count does not exceed
 // DefaultMaxVersions by deleting the oldest version(s) if necessary.
 // Accepts a DB argument so it can be called inside a transaction.
-func (s *VersionService) enforceRetention(tx database.DB, semesterID uint) {
+func (s *VersionService) enforceRetention(tx database.DB, semesterID uint) error {
 	var count int64
 	if err := tx.Model(&models.ScheduleVersion{}).
 		Where("semester_id = ?", semesterID).
 		Count(&count).Error(); err != nil {
-		return
+		return fmt.Errorf("version: 统计版本数量失败: %w", err)
 	}
 
 	if count <= DefaultMaxVersions {
-		return
+		return nil
 	}
 
 	excess := int(count) - DefaultMaxVersions
@@ -387,13 +935,34 @@ func (s *VersionService) enforceRetention(tx database.DB, semesterID uint) {
 	var allVersions []models.ScheduleVersion
 	if err := tx.Where("semester_id = ?", semesterID).
 		Order("created_at ASC").Find(&allVersions).Error(); err != nil {
-		return
+		return fmt.Errorf("version: 查询待清理版本失败: %w", err)
 	}
 
-	// Delete the N oldest
+	// Take only the first `excess` IDs
+	oldestIDs := make([]uint, 0, excess)
 	for i := 0; i < excess && i < len(allVersions); i++ {
-		v := allVersions[i]
-		tx.Where("version_id = ?", v.ID).Delete(&models.ScheduleVersionEntry{})
-		tx.Delete(&v)
+		oldestIDs = append(oldestIDs, allVersions[i].ID)
 	}
+
+	for _, vid := range oldestIDs {
+		if err := tx.Where("version_id = ?", vid).Delete(&models.ScheduleVersionEntry{}).Error(); err != nil {
+			return fmt.Errorf("version: 清理版本条目失败: %w", err)
+		}
+		if err := tx.Where("version_id = ?", vid).Delete(&models.VersionDetail{}).Error(); err != nil {
+			return fmt.Errorf("version: 清理版本明细失败: %w", err)
+		}
+		if err := tx.Delete(&models.ScheduleVersion{}, vid).Error(); err != nil {
+			return fmt.Errorf("version: 清理旧版本失败: %w", err)
+		}
+	}
+	return nil
+}
+
+// marshalCategoryMaxes serializes per-category maxes to JSON string for version storage.
+func marshalCategoryMaxes(m map[string]float64) string {
+	if len(m) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }

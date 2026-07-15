@@ -15,7 +15,6 @@ import (
 
 type SchedulingService struct {
 	db                database.DB
-	snapshots         *SnapshotService
 	versions          *VersionService
 	orchestrator      *SolverOrchestrator
 	runMu             sync.Mutex
@@ -27,8 +26,8 @@ type SchedulingService struct {
 	bestCachedResult  *SchedulingResult
 }
 
-func NewSchedulingService(db database.DB, snapshots *SnapshotService, versions *VersionService, orchestrator *SolverOrchestrator) *SchedulingService {
-	return &SchedulingService{db: db, snapshots: snapshots, versions: versions, orchestrator: orchestrator}
+func NewSchedulingService(db database.DB, versions *VersionService, orchestrator *SolverOrchestrator) *SchedulingService {
+	return &SchedulingService{db: db, versions: versions, orchestrator: orchestrator}
 }
 
 type SchedulingConfig struct {
@@ -552,27 +551,13 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 		addLog(fmt.Sprintf("WARN 剩余 %d 个教学任务未能排入", result.TotalCourses-result.TasksScheduled))
 	}
 
-	// Auto-snapshot after scheduling
-	if s.snapshots != nil && len(saResult.Entries) > 0 {
-		_, snapErr := s.snapshots.CreateSnapshot(
+	// Auto-version after scheduling — unified version with full scoring + entries
+	if s.versions != nil && len(saResult.Entries) > 0 {
+		_, verErr := s.versions.CreateVersionFromSchedule(
 			config.SemesterID, config.Scope, models.TriggerAuto, "simulated_annealing",
 			saResult.Entries, teachers, classrooms,
 			scoringCtx,
 			saResult.ElapsedMs, result.Conflicts,
-		)
-		if snapErr != nil {
-			addLog("WARN 快照保存失败: " + snapErr.Error())
-		} else {
-			addLog("快照已自动保存")
-		}
-	}
-
-	// Auto-version after scheduling — persist a user-facing version entry
-	if s.versions != nil && len(saResult.Entries) > 0 {
-		versionName := fmt.Sprintf("自动方案 #%d", time.Now().Unix())
-		_, verErr := s.versions.CreateVersion(
-			config.SemesterID, versionName, models.VersionSourceAutoGenerate,
-			result.Score, "simulated_annealing", saResult.Entries,
 		)
 		if verErr != nil {
 			addLog("WARN 版本保存失败: " + verErr.Error())
