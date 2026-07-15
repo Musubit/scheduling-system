@@ -258,10 +258,16 @@ async function exportPDF() {
   container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
   for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
 
-  // DOM 渲染的标题头（避免 jsPDF 中文乱码）
+  // DOM API 构建标题头（防止 XSS）
   const dateStr = formatDate(snap.CreatedAt || snap.createdAt)
-	const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">${snap.name || '排课验证报告'}</div><div style="font-size:12px;color:#888;margin-bottom:12px;">学期：${snap.semester || ''} · 院系：${snap.dept || '全校'}　|　${dateStr}</div>`
-  container.innerHTML = headerHtml
+  const titleEl = document.createElement('div')
+  titleEl.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;'
+  titleEl.textContent = snap.name || '排课验证报告'
+  container.appendChild(titleEl)
+  const subEl = document.createElement('div')
+  subEl.style.cssText = 'font-size:12px;color:#888;margin-bottom:12px;'
+  subEl.textContent = `学期：${snap.semester || ''} · 院系：${snap.dept || '全校'}　|　${dateStr}`
+  container.appendChild(subEl)
 
   // (4) 克隆报告主体
   const clone = reportEl.cloneNode(true) as HTMLElement

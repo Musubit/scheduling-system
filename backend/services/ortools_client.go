@@ -121,6 +121,15 @@ func (c *ORToolsClient) HealthCheck() bool {
 
 // Solve sends a scheduling problem to the OR-Tools service and returns the result.
 func (c *ORToolsClient) Solve(input ORToolsInput) (*ORToolsOutput, error) {
+	// Adjust timeout to match solver time limit + buffer
+	if input.TimeLimitSeconds > 0 {
+		timeout := time.Duration(input.TimeLimitSeconds+30) * time.Second
+		if timeout < 150*time.Second {
+			timeout = 150 * time.Second
+		}
+		c.client.Timeout = timeout
+	}
+
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("marshal input: %w", err)

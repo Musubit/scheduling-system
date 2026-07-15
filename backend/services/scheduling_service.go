@@ -4,17 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
 	schedtypes "scheduling-system/backend/scheduling/types"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type SchedulingService struct {
-	db           database.DB
-	snapshots    *SnapshotService
-	versions     *VersionService
-	orchestrator *SolverOrchestrator
+	db                database.DB
+	snapshots         *SnapshotService
+	versions          *VersionService
+	orchestrator      *SolverOrchestrator
+	runMu             sync.Mutex
+	schedulingRunning atomic.Bool
 }
 
 func NewSchedulingService(db database.DB, snapshots *SnapshotService, versions *VersionService, orchestrator *SolverOrchestrator) *SchedulingService {
@@ -65,6 +70,21 @@ type LockedTimeSlot struct {
 }
 
 func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingResult {
+	if !s.schedulingRunning.CompareAndSwap(false, true) {
+		return &SchedulingResult{Error: "排课任务已在运行", Logs: []string{}}
+	}
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	defer s.schedulingRunning.Store(false)
+
+	result := &SchedulingResult{Logs: []string{}}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[SCHED] PANIC recovered: %v\n%s", r, debug.Stack())
+			result.Error = fmt.Sprintf("排课引擎异常: %v", r)
+		}
+	}()
+
 	mode := config.Mode
 	if !mode.IsValid() {
 		mode = schedtypes.ModeFullScheduling
@@ -73,10 +93,18 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	isTimeOnly := mode.IsTimeOnly()
 	effectiveConstraints := constraintsForMode(config.Constraints, mode)
 
+	// Clamp constraint weights to valid range [0, 100]
+	for k, v := range config.ConstraintWeights {
+		if v < 0 {
+			config.ConstraintWeights[k] = 0
+		} else if v > 100 {
+			config.ConstraintWeights[k] = 100
+		}
+	}
+
 	log.Printf("[SCHED] RunScheduling CALLED: scope=%q semesterId=%d lockedSlotsJsonLen=%d constraints=%v",
 		config.Scope, config.SemesterID, len(config.LockedSlotsJSON), effectiveConstraints)
 
-	result := &SchedulingResult{Logs: []string{}}
 	result.Mode = string(mode)
 	addLog := func(msg string) {
 		result.Logs = append(result.Logs, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), msg))
@@ -665,7 +693,7 @@ func (s *SchedulingService) tryORTools(
 			input.ConstraintWeights[c] = w
 		}
 	}
-	// Override with frontend-provided weights (if any)
+	// Override with frontend-provided weights (if any), already clamped
 	if config.ConstraintWeights != nil {
 		for k, v := range config.ConstraintWeights {
 			input.ConstraintWeights[k] = v
@@ -704,6 +732,16 @@ func (s *SchedulingService) tryORTools(
 	for _, e := range output.Entries {
 		tt, ok := taskMap[e.TaskID]
 		if !ok {
+			continue
+		}
+
+		// Validate entry fields from OR-Tools — skip invalid entries
+		if e.DayOfWeek < 0 || e.DayOfWeek > 6 ||
+			e.StartPeriod < 0 || e.StartPeriod > 10 ||
+			e.Span < 1 || e.Span > 3 ||
+			e.StartPeriod+e.Span > 11 {
+			log(fmt.Sprintf("OR-Tools 返回非法 entry，已跳过: task=%d day=%d start=%d span=%d",
+				e.TaskID, e.DayOfWeek, e.StartPeriod, e.Span))
 			continue
 		}
 		weeks := fmt.Sprintf("%d-%d", tt.StartWeek, tt.EndWeek)

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -108,6 +109,9 @@ func (s *ResourceService) GetTeachers() ([]models.Teacher, error) {
 }
 
 func (s *ResourceService) CreateTeacher(t models.Teacher) error {
+	if err := validateTeacherSlots(t.UnavailableSlots); err != nil {
+		return err
+	}
 	if strings.TrimSpace(t.Code) == "" {
 		code, err := s.generateTeacherCode()
 		if err != nil {
@@ -119,7 +123,40 @@ func (s *ResourceService) CreateTeacher(t models.Teacher) error {
 }
 
 func (s *ResourceService) UpdateTeacher(t models.Teacher) error {
+	if err := validateTeacherSlots(t.UnavailableSlots); err != nil {
+		return err
+	}
 	return s.db.Save(&t).Error()
+}
+
+// validateTeacherSlots checks UnavailableSlots JSON value range.
+func validateTeacherSlots(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	var slots []struct {
+		DayOfWeek   int `json:"dayOfWeek"`
+		StartPeriod int `json:"startPeriod"`
+		Span        int `json:"span"`
+	}
+	if err := json.Unmarshal([]byte(raw), &slots); err != nil {
+		return fmt.Errorf("UnavailableSlots 格式错误: %w", err)
+	}
+	for _, s := range slots {
+		if s.DayOfWeek < 0 || s.DayOfWeek > 6 {
+			return fmt.Errorf("非法时段: dayOfWeek=%d (应为 0-6)", s.DayOfWeek)
+		}
+		if s.StartPeriod < 0 || s.StartPeriod > 10 {
+			return fmt.Errorf("非法时段: startPeriod=%d (应为 0-10)", s.StartPeriod)
+		}
+		if s.Span < 1 || s.Span > 3 {
+			return fmt.Errorf("非法时段: span=%d (应为 1-3)", s.Span)
+		}
+		if s.StartPeriod+s.Span > 11 {
+			return fmt.Errorf("非法时段: startPeriod(%d)+span(%d) > 11", s.StartPeriod, s.Span)
+		}
+	}
+	return nil
 }
 
 func (s *ResourceService) DeleteTeacher(id uint) error {

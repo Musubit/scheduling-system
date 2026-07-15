@@ -254,10 +254,16 @@ async function exportSchedulePDF() {
     container.style.cssText = `position:fixed;left:-30000px;top:0;width:${EXPORT_W}px;background:#fff;padding:14px 18px 10px;font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#222;`
     for (const [k, v] of Object.entries(b3Vars)) container.style.setProperty(k, v)
 
-    // 标题（DOM渲染，中文由浏览器字体处理）
+    // 标题（DOM API 构建，防止 XSS）
     const dateStr = new Date().toLocaleString()
-    const headerHtml = `<div style="font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;">${title}</div><div style="font-size:12px;color:#888;margin-bottom:12px;">第${scheduleStore.currentWeek}周　生成时间：${dateStr}</div>`
-    container.innerHTML = headerHtml
+    const titleEl = document.createElement('div')
+    titleEl.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:4px;line-height:1.4;'
+    titleEl.textContent = title
+    container.appendChild(titleEl)
+    const subEl = document.createElement('div')
+    subEl.style.cssText = 'font-size:12px;color:#888;margin-bottom:12px;'
+    subEl.textContent = `第${scheduleStore.currentWeek}周　生成时间：${dateStr}`
+    container.appendChild(subEl)
 
     // 克隆课表网格
     const gridClone = grid.cloneNode(true) as HTMLElement
@@ -390,7 +396,7 @@ function handleExportSelect(key: string) {
           :filter="fuzzyFilterFn"
           clearable
           size="small"
-          style="width: 120px"
+          style="width: 140px"
           @update:value="syncTeacher()"
         />
         <n-select

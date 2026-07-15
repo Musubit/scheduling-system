@@ -263,6 +263,13 @@ export interface ScoringContext {
     "version": number;
     "enabledConstraints": string[] | null;
     "mode"?: types$0.SchedulingMode;
+
+    /**
+     * v0.5.6: per-constraint weights (0-100). When nil or empty, ScoreSchedule
+     * falls back to equal weighting (100 / enabledCount per category).
+     * Weights are persisted so snapshots/versions remember the configuration.
+     */
+    "constraintWeights"?: { [_ in string]?: number } | null;
 }
 
 /**

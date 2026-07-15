@@ -133,6 +133,10 @@ type ImportTeachingTask struct {
 // ImportTeachingTasks imports teaching tasks from a 2D string array.
 // Columns: [课程代码, 教师编号, 班级编号, 总学时?, 起始周?, 结束周?, 周最大学时?]
 func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]string) (int, []string, error) {
+	if len(rows) > 5000 {
+		return 0, nil, fmt.Errorf("导入行数超过上限 5000（当前 %d 行）", len(rows))
+	}
+
 	var errors []string
 	imported := 0
 
@@ -144,6 +148,12 @@ func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]stri
 		courseCode := strings.TrimSpace(row[0])
 		teacherCode := strings.TrimSpace(row[1])
 		classCodesStr := strings.TrimSpace(row[2])
+
+		// Cell length validation
+		if len(courseCode) > 128 || len(teacherCode) > 128 || len(classCodesStr) > 512 {
+			errors = append(errors, fmt.Sprintf("第%d行: 字段长度超限", i+2))
+			continue
+		}
 
 		// Find course by code
 		var course models.Course
@@ -211,6 +221,9 @@ func (s *TeachingTaskService) ImportTeachingTasks(semesterID uint, rows [][]stri
 		}
 		if startWeek < 1 { startWeek = 1 }
 		if endWeek < startWeek { endWeek = startWeek }
+		if endWeek > 30 { endWeek = 30 }
+		if totalHours < 0 { totalHours = 0 }
+		if maxHoursPerWeek < 0 { maxHoursPerWeek = 0 }
 
 		task := models.TeachingTask{
 			CourseID:        course.ID,

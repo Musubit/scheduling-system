@@ -192,10 +192,12 @@ func (s *SASolver) PostOptimize(
 			for p := start; p < start+span; p++ {
 				teacherOcc[occKey(day, p, e.TeacherID)] = true
 			}
-			if td, ok := taskMap[*e.TeachingTaskID]; ok {
-				for _, cid := range td.ClassIDs {
-					for p := start; p < start+span; p++ {
-						classOcc[occKey(day, p, cid)] = true
+			if e.TeachingTaskID != nil {
+				if td, ok := taskMap[*e.TeachingTaskID]; ok {
+					for _, cid := range td.ClassIDs {
+						for p := start; p < start+span; p++ {
+							classOcc[occKey(day, p, cid)] = true
+						}
 					}
 				}
 			}
@@ -287,16 +289,18 @@ func (s *SASolver) PostOptimize(
 
 				// Check class groups busy
 				classBusy := false
-				if td, ok := taskMap[*e.TeachingTaskID]; ok {
-					for _, cid := range td.ClassIDs {
-						for p := start; p < start+span; p++ {
-							if classOcc[occKey(day, p, cid)] {
-								classBusy = true
+				if e.TeachingTaskID != nil {
+					if td, ok := taskMap[*e.TeachingTaskID]; ok {
+						for _, cid := range td.ClassIDs {
+							for p := start; p < start+span; p++ {
+								if classOcc[occKey(day, p, cid)] {
+									classBusy = true
+									break
+								}
+							}
+							if classBusy {
 								break
 							}
-						}
-						if classBusy {
-							break
 						}
 					}
 				}
@@ -305,7 +309,11 @@ func (s *SASolver) PostOptimize(
 				}
 
 				// Try rooms
-				td, tdOk := taskMap[*e.TeachingTaskID]
+				var td teachingTaskData
+				tdOk := false
+				if e.TeachingTaskID != nil {
+					td, tdOk = taskMap[*e.TeachingTaskID]
+				}
 				for _, room := range classrooms {
 					// v0.5.3: use ResourceMatcher for room type + equipment check
 					// TIME_ONLY mode: skip room type matching

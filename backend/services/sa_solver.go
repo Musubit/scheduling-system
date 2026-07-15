@@ -226,9 +226,6 @@ func (s *SASolver) Solve(
 	// v0.5.2 Goal 3: seed the delta cache from the initial solution.
 	// From this point on the cache is authoritative — tryMove/trySwap/undo
 	// keep it in sync via applyDelta.
-	ctx.sCache.rebuildFromEntries(ctx.entries)
-	// Also patch isSports flag on cache (rebuildFromEntries didn't have context).
-	// applyEntry needs sportsCourseIDs lookup — do a symmetric replay:
 	ctx.sCache.rebuildFromEntries(nil)
 	for _, e := range ctx.entries {
 		ctx.sCache.applyEntry(+1, e, ctx.sportsCourseIDs[e.CourseID])
@@ -415,7 +412,11 @@ func (s *SASolver) SolveMultiRun(
 		// Check cancel
 		select {
 		case <-cancelCh:
-			break
+			if bestResult == nil {
+				return &SAResult{Entries: []models.ScheduleEntry{}}
+			}
+			bestResult.Iterations = totalIterations
+			return bestResult
 		default:
 		}
 
@@ -432,6 +433,9 @@ func (s *SASolver) SolveMultiRun(
 		}
 	}
 
+	if bestResult == nil {
+		return &SAResult{Entries: []models.ScheduleEntry{}}
+	}
 	bestResult.Iterations = totalIterations
 	return bestResult
 }

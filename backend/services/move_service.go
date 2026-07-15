@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
 	"strconv"
@@ -267,7 +268,28 @@ func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
 }
 
 // MoveEntry executes a validated move by updating the schedule entry.
-func (s *MoveService) MoveEntry(req CheckMoveRequest) error {
+func (s *MoveService) MoveEntry(req CheckMoveRequest) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[MOVE] PANIC recovered in MoveEntry: %v\n%s", r, debug.Stack())
+			retErr = fmt.Errorf("移动异常: %v", r)
+		}
+	}()
+
+	// Parameter validation — reject obviously invalid values
+	if req.NewDay < 0 || req.NewDay > 6 {
+		return fmt.Errorf("无效星期: %d", req.NewDay)
+	}
+	if req.NewPeriod < 0 || req.NewPeriod > 10 {
+		return fmt.Errorf("无效节次: %d", req.NewPeriod)
+	}
+	if req.NewSpan < 1 || req.NewSpan > 3 {
+		return fmt.Errorf("无效跨度: %d", req.NewSpan)
+	}
+	if req.NewPeriod+req.NewSpan > 11 {
+		return fmt.Errorf("节次+跨度超出范围: %d+%d", req.NewPeriod, req.NewSpan)
+	}
+
 	var entry models.ScheduleEntry
 	if err := s.db.First(&entry, req.EntryID).Error(); err != nil {
 		return fmt.Errorf("课表条目不存在: %w", err)
@@ -293,7 +315,29 @@ func (s *MoveService) MoveEntry(req CheckMoveRequest) error {
 // This is the recommended single-call replacement for CheckMove + MoveEntry
 // when the caller also wants score feedback. Existing CheckMove + MoveEntry
 // callers are unaffected (backward compatible).
-func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResult, error) {
+func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (retRes *MoveAndScoreResult, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[MOVE] PANIC recovered in MoveEntryAndScore: %v\n%s", r, debug.Stack())
+			retRes = &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("移动异常: %v", r)}
+			retErr = nil
+		}
+	}()
+
+	// Parameter validation — reject obviously invalid values
+	if req.NewDay < 0 || req.NewDay > 6 {
+		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效星期: %d", req.NewDay)}, nil
+	}
+	if req.NewPeriod < 0 || req.NewPeriod > 10 {
+		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效节次: %d", req.NewPeriod)}, nil
+	}
+	if req.NewSpan < 1 || req.NewSpan > 3 {
+		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效跨度: %d", req.NewSpan)}, nil
+	}
+	if req.NewPeriod+req.NewSpan > 11 {
+		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("节次+跨度超出范围: %d+%d", req.NewPeriod, req.NewSpan)}, nil
+	}
+
 	// Load the entry being moved
 	var entry models.ScheduleEntry
 	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
