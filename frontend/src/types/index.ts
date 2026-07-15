@@ -229,6 +229,19 @@ export interface SchedulingResult {
   scoreDetail?: ScoreBreakdown
   logs: string[]
   progressHistory?: ScheduleProgress[]
+  unplacedTasks?: UnplacedTask[]
+}
+
+/** 未排入任务 */
+export interface UnplacedTask {
+  taskId: number
+  courseName: string
+  teacherName: string
+  className: string
+  requiredRoom?: string
+  placed: number
+  expected: number
+  rootCause?: string
 }
 
 /** 排课阶段进度 */

@@ -66,39 +66,38 @@ const totalConflicts = computed(() => {
   return store.result.teacherConflicts + roomC + store.result.classConflicts
 })
 
-// 排课状态提示 — 回答"结果能用吗？我该怎么办？"
+// 排课结果决策辅助 — 帮用户决定：接受 / 修补 / 重跑 / 放弃
 const scheduleStatus = computed(() => {
   if (store.isRunning) {
-    return { type: 'info' as const, icon: '⏳', text: `正在排课...（${store.currentStage || '初始化'}）` }
+    return { type: 'info' as const, text: `正在排课...（${store.currentStage || '初始化'}）` }
   }
   const r = store.result
   if (!r) return null
 
-  // 错误
   if (r.error) {
-    return { type: 'error' as const, icon: '❌', text: `排课失败：${r.error}` }
+    return { type: 'error' as const, text: r.error }
   }
 
-  const score = r.score ?? 0
   const tasks = r.tasksScheduled ?? 0
   const total = r.totalCourses ?? 0
+  const unplaced = r.unplacedTasks ?? []
   const conflicts = totalConflicts.value
+  const hardPassed = conflicts === 0
 
-  // 部分未排
+  // 一行结论：事实陈述，不下判断
+  let conclusion = ''
   if (total > 0 && tasks < total) {
-    return { type: 'warning' as const, icon: '⚠️', text: `排课完成，${tasks}/${total} 个任务已排入。剩余任务可能因约束过严或资源不足未能排入。` }
+    conclusion = `${total} 门课中 ${tasks} 门已排入，${total - tasks} 门未能排入。`
+  } else {
+    conclusion = `${tasks} 门课全部排入。`
+  }
+  if (hardPassed) {
+    conclusion += '硬约束全部通过。'
+  } else {
+    conclusion += `存在 ${conflicts} 处硬约束冲突。`
   }
 
-  // 有冲突
-  if (conflicts > 0) {
-    return { type: 'warning' as const, icon: '⚠️', text: `排课完成，${tasks} 个任务已排入，但有 ${conflicts} 处冲突。建议到周视图手动调整。` }
-  }
-
-  // 全部排入 + 无冲突 — 按评分分档
-  if (score >= 80) {
-    return { type: 'success' as const, icon: '✅', text: `排课完成，${tasks} 个任务全部排入，无冲突。可直接使用。` }
-  }
-  return { type: 'warning' as const, icon: '⚠️', text: `排课完成，综合评分 ${score.toFixed(1)} 分偏低。建议调整约束权重或增加教室资源后重试。` }
+  return { type: hardPassed && tasks === total ? 'success' as const : 'warning' as const, conclusion, unplaced, conflicts }
 })
 
 // Watch for pending navigation after scheduling completes
@@ -383,17 +382,18 @@ async function saveManualSnapshot() {
           </div>
         </div>
 
-        <!-- 排课状态提示 -->
-        <n-alert
-          v-if="scheduleStatus"
-          :type="scheduleStatus.type"
-          :show-icon="false"
-          size="small"
-          style="margin-bottom: 16px;"
-        >
-          <span style="margin-right: 6px;">{{ scheduleStatus.icon }}</span>
-          {{ scheduleStatus.text }}
-        </n-alert>
+        <!-- 排课决策辅助 -->
+        <div v-if="scheduleStatus" class="decision-support" :class="'ds-' + scheduleStatus.type">
+          <div class="ds-conclusion">{{ scheduleStatus.conclusion }}</div>
+          <div v-if="scheduleStatus.unplaced && scheduleStatus.unplaced.length > 0" class="ds-problems">
+            <div v-for="u in scheduleStatus.unplaced" :key="u.taskId" class="ds-problem">
+              <span class="ds-course">{{ u.courseName }}</span>
+              <span class="ds-teacher">{{ u.teacherName }}</span>
+              <span v-if="u.className" class="ds-class">{{ u.className }}</span>
+              <span class="ds-cause">{{ u.rootCause }}</span>
+            </div>
+          </div>
+        </div>
 
         <!-- 评分明细 -->
         <div class="score-breakdown" v-if="store.result?.scoreDetail">
@@ -754,6 +754,63 @@ async function saveManualSnapshot() {
 
 .stat-detail span {
   white-space: nowrap;
+}
+
+.decision-support {
+  padding: 12px 16px;
+  border-radius: var(--b3-border-radius);
+  margin-bottom: 16px;
+  border: 1px solid;
+}
+.ds-success { background: var(--b3-theme-success-lightest, #e8f5e9); border-color: var(--b3-theme-success-light, #a5d6a7); }
+.ds-warning { background: var(--b3-theme-warning-lightest, #fff8e1); border-color: var(--b3-theme-warning-light, #ffe082); }
+.ds-error   { background: var(--b3-theme-error-lightest, #fce4ec);   border-color: var(--b3-theme-error-light, #ef9a9a); }
+.ds-info    { background: var(--b3-theme-primary-lightest, #e3f2fd); border-color: var(--b3-theme-primary-light, #90caf9); }
+
+.ds-conclusion {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--b3-theme-on-background);
+  margin-bottom: 8px;
+}
+
+.ds-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-problem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  padding: 6px 10px;
+  background: var(--b3-theme-surface);
+  border-radius: 4px;
+}
+
+.ds-course {
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+  min-width: 80px;
+}
+
+.ds-teacher {
+  color: var(--b3-theme-on-surface);
+  min-width: 50px;
+}
+
+.ds-class {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.ds-cause {
+  color: var(--b3-theme-error);
+  font-size: 12px;
+  margin-left: auto;
 }
 
 .log-section {

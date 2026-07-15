@@ -54,6 +54,19 @@ type SchedulingResult struct {
 	Logs             []string           `json:"logs"`
 	Error            string             `json:"error,omitempty"`
 	ProgressHistory  []ScheduleProgress `json:"progressHistory,omitempty"`
+	UnplacedTasks    []UnplacedTask     `json:"unplacedTasks,omitempty"`
+}
+
+// UnplacedTask describes a teaching task that could not be scheduled.
+type UnplacedTask struct {
+	TaskID       uint   `json:"taskId"`
+	CourseName   string `json:"courseName"`
+	TeacherName  string `json:"teacherName"`
+	ClassName    string `json:"className"`
+	RequiredRoom string `json:"requiredRoom,omitempty"` // COMPUTER / LAB / GYM / ""
+	Placed       int    `json:"placed"`
+	Expected     int    `json:"expected"`
+	RootCause    string `json:"rootCause,omitempty"` // 确诊 or 疑似
 }
 
 // ScheduleProgress records a scheduling phase milestone.
@@ -361,15 +374,106 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	result.Conflicts = teacherC + roomC + classC
 
 	// Count unique teaching tasks that got at least one entry
-	taskSet := make(map[uint]bool)
+	placedCount := make(map[uint]int)
 	for _, e := range saResult.Entries {
 		if e.TeachingTaskID != nil {
-			taskSet[*e.TeachingTaskID] = true
+			placedCount[*e.TeachingTaskID]++
 		}
+	}
+	taskSet := make(map[uint]bool)
+	for tid := range placedCount {
+		taskSet[tid] = true
 	}
 	result.TasksScheduled = len(taskSet)
 	if result.TotalCourses > 0 {
 		result.Utilization = float64(result.TasksScheduled) / float64(result.TotalCourses)
+	}
+
+	// Build unplaced task list with root cause analysis
+	if result.TasksScheduled < result.TotalCourses {
+		// Build classroom lookup for root cause
+		roomTypeCount := make(map[string]int)
+		roomTypeCapacity := make(map[string]int) // max capacity per room type
+		for _, c := range classrooms {
+			roomTypeCount[c.RoomType]++
+			if c.Capacity > roomTypeCapacity[c.RoomType] {
+				roomTypeCapacity[c.RoomType] = c.Capacity
+			}
+		}
+
+		for _, tt := range teachingTasks {
+			if taskSet[tt.ID] {
+				continue // placed, skip
+			}
+			// Compute expected sessions
+			totalHours := tt.TotalHours
+			if totalHours <= 0 {
+				totalHours = tt.Course.Hours
+			}
+			plan := resolveSessionPlan(totalHours, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+			expected := plan.SessionsPerWeek()
+
+			// Determine required room type
+			requiredRoom := ""
+			if tt.RequiredRoomType != "" {
+				requiredRoom = tt.RequiredRoomType
+			} else if tt.Course.Category != "" {
+				if rt, ok := models.CategoryRoomTypeMap[tt.Course.Category]; ok {
+					requiredRoom = rt
+				}
+			}
+
+			// Class name
+			className := ""
+			for i, cls := range tt.Classes {
+				if i > 0 {
+					className += ", "
+				}
+				if cls.ClassGroup.Name != "" {
+					className += cls.ClassGroup.Name
+				}
+			}
+
+			// Root cause analysis — evidence strength descending
+			cause := ""
+			if requiredRoom != "" {
+				if roomTypeCount[requiredRoom] == 0 {
+					cause = fmt.Sprintf("缺少%s类型教室", requiredRoom)
+				} else {
+					// Check capacity
+					totalStudents := 0
+					for _, cls := range tt.Classes {
+						totalStudents += cls.ClassGroup.Students
+					}
+					if totalStudents > roomTypeCapacity[requiredRoom] {
+						cause = fmt.Sprintf("%s类型教室容量不足（需%d人，最大%d人）", requiredRoom, totalStudents, roomTypeCapacity[requiredRoom])
+					}
+				}
+			}
+			if cause == "" {
+				cause = "求解器未能找到可行时段（可能是教师时间冲突或锁定时段过多）"
+			}
+
+			courseName := tt.Course.Name
+			if courseName == "" {
+				courseName = fmt.Sprintf("课程#%d", tt.CourseID)
+			}
+			teacherName := tt.Teacher.Name
+			if teacherName == "" {
+				teacherName = fmt.Sprintf("教师#%d", tt.TeacherID)
+			}
+
+			result.UnplacedTasks = append(result.UnplacedTasks, UnplacedTask{
+				TaskID:       tt.ID,
+				CourseName:   courseName,
+				TeacherName:  teacherName,
+				ClassName:    className,
+				RequiredRoom: requiredRoom,
+				Placed:       placedCount[tt.ID],
+				Expected:     expected,
+				RootCause:    cause,
+			})
+		}
 	}
 
 	addLog(fmt.Sprintf("排课完成！任务 %d/%d（%d条），评分 %.1f/100，冲突 教师%d 教室%d 班级%d",
