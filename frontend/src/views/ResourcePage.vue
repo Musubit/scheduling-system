@@ -698,16 +698,18 @@ async function confirmImport() {
       }
     }
     if (count > 0) message.success(`成功导入 ${count} 条记录`)
-    if (errors.length > 0) {
-      importErrors.value = errors
-      showErrors.value = true
-      message.warning(`导入完成，${errors.length} 行失败，请查看下方错误列表`)
-    }
     resourceStore.loadAll()
     if (tab === 'teachingTask' && appStore.currentSemesterId) {
       resourceStore.loadTeachingTasks(appStore.currentSemesterId)
     }
-    cancelPreview()
+    if (errors.length > 0) {
+      importErrors.value = errors
+      showErrors.value = true
+      message.warning(`导入完成，${errors.length} 行失败，请查看错误详情`)
+      // 有错误时不关闭预览，让用户看到错误弹窗
+    } else {
+      cancelPreview()
+    }
   } catch (err) {
     message.error('导入失败：' + (err as any).message)
   } finally {
@@ -774,7 +776,7 @@ function downloadTemplate() {
     </NModal>
 
     <!-- 导入错误弹窗 -->
-    <NModal v-model:show="showErrors" preset="card" title="导入错误" style="width: 70vw; max-width: 800px; max-height: 70vh;" :bordered="false" :segmented="{ content: true }">
+    <NModal v-model:show="showErrors" preset="card" title="导入错误" style="width: 70vw; max-width: 800px; max-height: 70vh;" :bordered="false" :segmented="{ content: true }" @after-leave="cancelPreview">
       <div class="preview-meta">
         <span style="color: var(--b3-theme-error)">{{ importErrors.length }} 行导入失败</span>
       </div>
@@ -789,6 +791,9 @@ function downloadTemplate() {
           </tbody>
         </table>
       </div>
+      <template #action>
+        <n-button type="primary" @click="showErrors = false">关闭</n-button>
+      </template>
     </NModal>
 
 	    <div class="resource-table">
