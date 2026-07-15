@@ -101,11 +101,25 @@ const scheduleStatus = computed(() => {
   return { type: 'warning' as const, icon: '⚠️', text: `排课完成，综合评分 ${score.toFixed(1)} 分偏低。建议调整约束权重或增加教室资源后重试。` }
 })
 
-// Watch for pending navigation after scheduling completes — auto-navigate to week view
+// Watch for pending navigation after scheduling completes
 const stopWatchNav = watch(() => uiStore.pendingScheduleNav, (val) => {
   if (val) {
-    uiStore.clearScheduleNav()
-    appStore.navigateTo('schedule', '周视图课表')
+    dialog.info({
+      title: '排课完成',
+      content: '排课已完成，是否跳转到课表查看结果？',
+      positiveText: '查看课表',
+      negativeText: '留在本页',
+      onPositiveClick: () => {
+        uiStore.clearScheduleNav()
+        appStore.navigateTo('schedule', '周视图')
+      },
+      onNegativeClick: () => {
+        uiStore.clearScheduleNav()
+      },
+      onClose: () => {
+        uiStore.clearScheduleNav()
+      },
+    })
   }
 })
 

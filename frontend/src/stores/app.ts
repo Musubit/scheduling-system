@@ -19,7 +19,7 @@ export const useAppStore = defineStore('app', () => {
 
   // ===== 导航 =====
   const currentPage = ref<PageId>('schedule')
-  const breadcrumbPath = ref<string[]>(['课表中心', '周视图课表'])
+  const breadcrumbPath = ref<string[]>(['课表中心', '周视图'])
 
   const pageTitle = computed(() => {
 	    const titles: Record<PageId, string> = {
@@ -53,7 +53,7 @@ export const useAppStore = defineStore('app', () => {
       label: '课表中心',
       icon: 'M3 6h18M3 12h18M3 18h12',
       children: [
-        { label: '周视图课表', page: 'schedule', scheduleView: 'week' },
+        { label: '周视图', page: 'schedule', scheduleView: 'week' },
         { label: '时间线视图', page: 'schedule', scheduleView: 'timeline' },
         { label: '月视图', page: 'schedule', scheduleView: 'month' },
       ],
