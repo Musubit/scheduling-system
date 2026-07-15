@@ -30,10 +30,10 @@ func TestIsSpanLegalMorningAfternoon(t *testing.T) {
 		{8, 1, true, "evening start=8 span=1 (第9节)"},
 		{8, 2, true, "evening start=8 span=2 (第9-10节)"},
 		{8, 3, true, "evening start=8 span=3 (第9-10-11节, Case 2)"},
-		{9, 1, true, "evening start=9 span=1"},
-		{9, 2, true, "evening start=9 span=2"},
+		{9, 1, false, "evening start=9 span=1 (第10节单独不存在)"},
+		{9, 2, false, "evening start=9 span=2 (第10-11节不存在)"},
 		{9, 3, false, "evening start=9 span=3 (overruns 11-12)"},
-		{10, 1, true, "evening start=10 span=1"},
+		{10, 1, false, "evening start=10 span=1 (第11节单独不存在)"},
 		{10, 2, false, "evening start=10 span=2 (overruns 12)"},
 
 		// Boundary crossings.
@@ -56,13 +56,11 @@ func TestIsSpanLegalMorningAfternoon(t *testing.T) {
 	}
 }
 
-// TestValidStartsForSpanForSpan2 documents the v0.5.1 span=2 start set.
-// Legacy set was {0,2,4,6,8}; v0.5.1 adds evening start=9 (第10-11节 pair) as
-// an additional legal 2-period slot. All legacy positions remain legal, so
-// existing v0.4 data still round-trips (Case 4 保护).
+// TestValidStartsForSpanForSpan2 documents the span=2 start set.
+// HBUT规则: 上午1-2/3-4, 下午5-6/7-8, 晚上9-10. 第10-11节不存在.
 func TestValidStartsForSpanForSpan2(t *testing.T) {
 	got := ValidStartsForSpan(2)
-	want := []Period{0, 2, 4, 6, 8, 9}
+	want := []Period{0, 2, 4, 6, 8}
 	if len(got) != len(want) {
 		t.Fatalf("ValidStartsForSpan(2) length = %d, want %d (got=%v)", len(got), len(want), got)
 	}
@@ -71,18 +69,12 @@ func TestValidStartsForSpanForSpan2(t *testing.T) {
 			t.Errorf("ValidStartsForSpan(2)[%d] = %d, want %d", i, got[i], p)
 		}
 	}
-	// Legacy positions must still be legal.
-	for _, p := range []Period{0, 2, 4, 6, 8} {
-		if !IsSpanLegal(p, 2) {
-			t.Errorf("legacy start=%d span=2 no longer legal — Case 4 regression!", p)
-		}
-	}
 }
 
 func TestValidStartsForSpanEvening(t *testing.T) {
-	// span=1 only in evening block: 8, 9, 10.
+	// span=1 only at evening start=8 (第9节, 极少数选修).
 	got := ValidStartsForSpan(1)
-	want := []Period{8, 9, 10}
+	want := []Period{8}
 	if len(got) != len(want) {
 		t.Fatalf("ValidStartsForSpan(1) = %v, want %v", got, want)
 	}

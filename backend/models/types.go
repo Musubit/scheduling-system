@@ -124,7 +124,9 @@ func IsSpanLegal(start Period, span int) bool {
 	case Afternoon:
 		return span == 2 && (start == 4 || start == 6)
 	case Evening:
-		return true
+		// HBUT 晚间: 第9-10节(span=2), 第9-10-11节(span=3), 第9节(span=1,极少数选修).
+		// 不存在第10-11节(start=9,span=2)或单独第10/11节.
+		return start == 8
 	}
 	return false
 }
