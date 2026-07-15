@@ -26,7 +26,7 @@ function rootCauseAction(cause: string): { tab: 'classroom' | 'teacher'; label: 
 }
 
 function goToResource(tab: 'classroom' | 'teacher') {
-  resourceStore.setActiveTab(tab)
+  resourceStore.switchTab(tab)
   appStore.navigateTo('resource', tab === 'classroom' ? '教室管理' : '教师管理')
 }
 
