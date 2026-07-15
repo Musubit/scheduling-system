@@ -121,13 +121,16 @@ func (c *ORToolsClient) HealthCheck() bool {
 
 // Solve sends a scheduling problem to the OR-Tools service and returns the result.
 func (c *ORToolsClient) Solve(input ORToolsInput) (*ORToolsOutput, error) {
-	// Adjust timeout to match solver time limit + buffer
+	// Use a per-request client copy to avoid mutating the shared http.Client.Timeout.
+	client := c.client
 	if input.TimeLimitSeconds > 0 {
 		timeout := time.Duration(input.TimeLimitSeconds+30) * time.Second
 		if timeout < 150*time.Second {
 			timeout = 150 * time.Second
 		}
-		c.client.Timeout = timeout
+		clientCopy := *c.client
+		clientCopy.Timeout = timeout
+		client = &clientCopy
 	}
 
 	body, err := json.Marshal(input)
@@ -135,7 +138,7 @@ func (c *ORToolsClient) Solve(input ORToolsInput) (*ORToolsOutput, error) {
 		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
-	resp, err := c.client.Post(c.baseURL+"/solve", "application/json", bytes.NewReader(body))
+	resp, err := client.Post(c.baseURL+"/solve", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
