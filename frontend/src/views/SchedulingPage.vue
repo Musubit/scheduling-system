@@ -66,25 +66,11 @@ const totalConflicts = computed(() => {
   return store.result.teacherConflicts + roomC + store.result.classConflicts
 })
 
-// Watch for pending navigation after scheduling completes
+// Watch for pending navigation after scheduling completes — auto-navigate to week view
 const stopWatchNav = watch(() => uiStore.pendingScheduleNav, (val) => {
   if (val) {
-    dialog.info({
-      title: '排课完成',
-      content: '排课已完成，是否跳转到课表查看结果？',
-      positiveText: '查看课表',
-      negativeText: '留在本页',
-      onPositiveClick: () => {
-        uiStore.clearScheduleNav()
-        appStore.navigateTo('schedule', '周视图课表')
-      },
-      onNegativeClick: () => {
-        uiStore.clearScheduleNav()
-      },
-      onClose: () => {
-        uiStore.clearScheduleNav()
-      },
-    })
+    uiStore.clearScheduleNav()
+    appStore.navigateTo('schedule', '周视图课表')
   }
 })
 
