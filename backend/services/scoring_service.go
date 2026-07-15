@@ -105,11 +105,12 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 	weights := ctx.ConstraintWeights
 	getWeight := func(key string) int {
 		if weights != nil {
-			if w, ok := weights[key]; ok && w > 0 {
+			if w, ok := weights[key]; ok {
 				return w
 			}
+			return 0 // explicit weights map, key not present = disabled
 		}
-		return 1 // equal weight when no weights configured
+		return 1 // no weights configured = equal weight
 	}
 
 	// Compute per-category weight and total
@@ -167,6 +168,10 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		if c.weight > 0 {
 			enabledCount++
 		}
+	}
+
+	if totalWeight == 0 {
+		totalWeight = enabledCount
 	}
 
 	// Per-category max: proportional to weight, or equal if no weights configured
