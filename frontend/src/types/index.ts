@@ -250,6 +250,21 @@ export interface TeacherWorkloadInfo {
   suggestion: string
 }
 
+/** 评分桶（单个维度） */
+export interface ScoreBucket {
+  value: number
+  max: number
+  details?: Record<string, number>
+}
+
+/** 四桶评分结构（time/teacher/student/resource） */
+export interface ScoreBuckets {
+  time?: ScoreBucket | null
+  teacher?: ScoreBucket | null
+  student?: ScoreBucket | null
+  resource?: ScoreBucket | null  // TIME_ONLY 下为 null
+}
+
 /** 评分明细 */
 export interface ScoreBreakdown {
   total: number
@@ -262,4 +277,12 @@ export interface ScoreBreakdown {
   studentFatigue?: number
   perCategoryMax: number
   enabledCategoryCount: number
+  // v0.5.2: completeness scaling
+  placedSessions?: number
+  expectedSessions?: number
+  completeness?: number
+  finalTotal?: number
+  // v0.5.5: structured buckets
+  buckets?: ScoreBuckets
+  enabledDimensions?: string[]
 }
