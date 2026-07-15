@@ -305,14 +305,36 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 		wg.Wait()
 
-		// Pick the better result (score after unified scoring below)
+		// Pick the better result using ScoreSchedule as the single judge.
+		// Do NOT compare internal scores (OR-Tools objective vs SA score)
+		// because they use different scales.
 		if ortoolsResult != nil && saResult != nil {
-			addLog(fmt.Sprintf("并行求解完成: OR-Tools %.1f分 vs SA %.1f分",
-				ortoolsResult.Score, saResult.Score))
-			if ortoolsResult.Score > saResult.Score {
+			scorer := NewScoringService()
+			scoreClassrooms := classrooms
+			if isTimeOnly {
+				scoreClassrooms = nil
+			}
+			// Build a temporary scoring context for the comparison
+			tmpExpectedSessions := 0
+			for _, tt := range teachingTasks {
+				th := tt.TotalHours
+				if th <= 0 {
+					th = tt.Course.Hours
+				}
+				plan := resolveSessionPlan(th, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
+				tmpExpectedSessions += plan.SessionsPerWeek()
+			}
+			tmpCtx := NewScoringContextWithExpected(effectiveConstraints, sportsCourseIDs, teachingTasks, tmpExpectedSessions).WithMode(mode).WithConstraintWeights(config.ConstraintWeights)
+			ortoolsBreakdown := scorer.ScoreSchedule(ortoolsResult.Entries, teachers, scoreClassrooms, tmpCtx)
+			saBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, scoreClassrooms, tmpCtx)
+			addLog(fmt.Sprintf("并行求解完成: OR-Tools %.1f分 vs SA %.1f分 (ScoreSchedule)",
+				ortoolsBreakdown.FinalTotal, saBreakdown.FinalTotal))
+			if ortoolsBreakdown.FinalTotal > saBreakdown.FinalTotal {
 				saResult = ortoolsResult
+				saResult.Score = ortoolsBreakdown.FinalTotal
 				addLog("选择 OR-Tools 结果")
 			} else {
+				saResult.Score = saBreakdown.FinalTotal
 				addLog("选择 SA 结果")
 			}
 		} else if ortoolsResult != nil {
