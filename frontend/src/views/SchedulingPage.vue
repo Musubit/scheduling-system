@@ -84,7 +84,7 @@ const totalConflicts = computed(() => {
 // 排课结果决策辅助 — 帮用户决定：接受 / 修补 / 重跑 / 放弃
 const scheduleStatus = computed(() => {
   if (store.isRunning) {
-    return { type: 'info' as const, text: `正在排课...（${store.currentStage || '初始化'}）` }
+    return { type: 'info' as const, conclusion: `正在排课...（${store.currentStage || '初始化'}）` }
   }
   const r = store.result
   if (!r) return null

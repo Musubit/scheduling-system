@@ -170,16 +170,12 @@ func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers 
 		}
 	}
 
-	if totalWeight == 0 {
-		totalWeight = enabledCount
-	}
-
 	// Per-category max: proportional to weight, or equal if no weights configured
 	var perCategoryMax float64
 	if enabledCount == 0 {
 		perCategoryMax = 25.0
-	} else if weights == nil {
-		// Legacy equal weighting
+	} else if weights == nil || totalWeight == 0 {
+		// Legacy equal weighting (or all weights explicitly zero)
 		perCategoryMax = 100.0 / float64(enabledCount)
 	} else {
 		perCategoryMax = 100.0 / float64(totalWeight)
