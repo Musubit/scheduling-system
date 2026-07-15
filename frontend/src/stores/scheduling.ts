@@ -113,12 +113,6 @@ const constraintLabels: Record<string, string> = {
   avoid_sunday: '避开周日',
 }
 
-const engineOptions = [
-  { value: 'auto', label: '智能（推荐）——自动选择最佳引擎' },
-  { value: 'sa', label: 'SA优化——模拟退火多轮求解' },
-  { value: 'ortools', label: 'OR-Tools精确——最优解引擎' },
-]
-
 export const useSchedulingStore = defineStore('scheduling', () => {
   const config = ref<SchedulingConfig>({
     scope: '全校所有院系',
@@ -133,7 +127,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   // Constraint weights (0-100 per constraint)
   const constraintWeights = ref<Record<string, number>>({ ...CONSTRAINT_PRESETS[0].weights })
   const activePreset = ref<string>('balanced')
-  const engine = ref<string>('auto')
 
   // Semester state proxied to appStore (Single Source of Truth)
   const appStore = useAppStore()
@@ -311,7 +304,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
 
   return {
     config, constraintOptions, constraintLabels,
-    constraintWeights, activePreset, engine, engineOptions,
+    constraintWeights, activePreset,
     activeSemesterId, activeSemesterName, semesters, selectedSemesterId,
     CONSTRAINT_PRESETS,
     isRunning, progress, result, logs, progressHistory, progressText, currentStage,

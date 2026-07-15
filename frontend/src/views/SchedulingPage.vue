@@ -299,16 +299,6 @@ async function saveManualSnapshot() {
               />
             </div>
 
-            <!-- 求解引擎 -->
-            <div class="form-group">
-              <label class="form-label">求解引擎</label>
-              <n-select
-                v-model:value="store.engine"
-                :options="store.engineOptions"
-                size="small"
-              />
-              <span class="form-hint">智能模式自动选择最优引擎，OR-Tools不可用时自动降级</span>
-            </div>
           </n-collapse-item>
         </n-collapse>
 
