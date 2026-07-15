@@ -216,6 +216,16 @@ function getRealData(tab: string): any[] {
   }
 }
 const clearing = ref(false)
+
+// ===== Import Preview =====
+const showPreview = ref(false)
+const previewHeaders = ref<string[]>([])
+const previewRows = ref<any[][]>([])
+const previewFile = ref<File | null>(null)
+const previewImporting = ref(false)
+const importErrors = ref<string[]>([])
+const showErrors = ref(false)
+
 async function clearAll() {
   const tab = resourceStore.activeTab
   const data = getRealData(tab)
@@ -598,55 +608,111 @@ async function handleFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = async (ev) => {
+  reader.onload = (ev) => {
     try {
-      const tab = resourceStore.activeTab
-      const schema = buildSchema(tab)
       const data = new Uint8Array(ev.target?.result as ArrayBuffer)
       const wb = XLSX.read(data, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
       if (rows.length < 2) { message.warning('文件为空或格式不正确'); return }
       const headers = rows[0] as string[]
-      // 过滤掉标识行和示例行
       const dataRows = rows.slice(1).filter((r: any) => !isMetaRow(r) && r.length > 0 && String(r[0]).trim())
-      let count = 0
-      const errors: string[] = []
-      for (let i = 0; i < dataRows.length; i++) {
-        const item = mapRow(schema.fieldMap, headers, dataRows[i])
-        try {
-          if (tab === 'teachingTask') {
-            const courseCode = String(item.courseCode || '').trim()
-            const teacherCode = String(item.teacherCode || '').trim()
-            const classCodes = String(item.classGroupIds || '').split(',').map((s: string) => s.trim()).filter(Boolean)
-            const totalHours = String(item.totalHours || '').trim()
-            const startWeek = String(item.startWeek || '').trim()
-            const endWeek = String(item.endWeek || '').trim()
-            const maxHoursPerWeek = String(item.maxHoursPerWeek || '').trim()
-            if (!courseCode || !teacherCode) { errors.push(`第${i + 1}行: 课程代码或工号为空`); continue }
-            try {
-              const row = [courseCode, teacherCode, classCodes.join(','), totalHours, startWeek, endWeek, maxHoursPerWeek]
-              const imported = await TS.ImportTeachingTasks(appStore.currentSemesterId || 0, [row])
-              if (imported[0] > 0) count += imported[0]
-              if (imported[1] && imported[1].length > 0) errors.push(...imported[1])
-            } catch { errors.push(`第${i + 1}行: 后端导入接口调用失败`) }
-          } else {
-            await callCreate(tab, item)
-            count++
-          }
-        } catch (e) {
-          errors.push(`第${i + 1}行: ${(e as any)?.message || '未知错误'}`)
-        }
-      }
-      if (count > 0) message.success(`成功导入 ${count} 条记录`)
-      if (errors.length > 0) message.warning(`导入完成，${errors.length} 行失败：\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n...还有 ${errors.length - 5} 行错误` : ''}`)
-      resourceStore.loadAll()
+      if (dataRows.length === 0) { message.warning('没有可导入的数据行'); return }
+      previewHeaders.value = headers
+      previewRows.value = dataRows
+      previewFile.value = file
+      showPreview.value = true
     } catch (err) {
-      message.error('导入失败：' + (err as any).message)
+      message.error('解析文件失败：' + (err as any).message)
     }
   }
   reader.readAsArrayBuffer(file)
   if (e.target) (e.target as HTMLInputElement).value = ''
+}
+
+function cancelPreview() {
+  showPreview.value = false
+  previewHeaders.value = []
+  previewRows.value = []
+  previewFile.value = null
+  importErrors.value = []
+  showErrors.value = false
+}
+
+async function confirmImport() {
+  previewImporting.value = true
+  try {
+    const tab = resourceStore.activeTab
+    const schema = buildSchema(tab)
+    const headers = previewHeaders.value
+    const dataRows = previewRows.value
+    let count = 0
+    const errors: string[] = []
+    // 教学任务批量导入：先收集有效行，最后一次性调用后端
+    const teachingTaskRows: string[][] = []
+    const teachingTaskRowIndexMap: number[] = []
+    // 非教学任务并行导入：收集 promise，循环结束后统一等待
+    const createPromises: Promise<void>[] = []
+    const createRowIndexMap: number[] = []
+    for (let i = 0; i < dataRows.length; i++) {
+      const item = mapRow(schema.fieldMap, headers, dataRows[i])
+      try {
+        if (tab === 'teachingTask') {
+          const courseCode = String(item.courseCode || '').trim()
+          const teacherCode = String(item.teacherCode || '').trim()
+          const classCodes = String(item.classGroupIds || '').split(',').map((s: string) => s.trim()).filter(Boolean)
+          const totalHours = String(item.totalHours || '').trim()
+          const startWeek = String(item.startWeek || '').trim()
+          const endWeek = String(item.endWeek || '').trim()
+          const maxHoursPerWeek = String(item.maxHoursPerWeek || '').trim()
+          if (!courseCode || !teacherCode) { errors.push(`第${i + 1}行: 课程代码或工号为空`); continue }
+          teachingTaskRows.push([courseCode, teacherCode, classCodes.join(','), totalHours, startWeek, endWeek, maxHoursPerWeek])
+          teachingTaskRowIndexMap.push(i + 1)
+        } else {
+          createPromises.push(callCreate(tab, item))
+          createRowIndexMap.push(i + 1)
+        }
+      } catch (e) {
+        errors.push(`第${i + 1}行: ${(e as any)?.message || '未知错误'}`)
+      }
+    }
+    // 非教学任务：等待所有并行创建完成，统计成功/失败
+    if (createPromises.length > 0) {
+      const results = await Promise.allSettled(createPromises)
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') {
+          count++
+        } else {
+          errors.push(`第${createRowIndexMap[idx]}行: ${(r.reason as any)?.message || '未知错误'}`)
+        }
+      })
+    }
+    // 教学任务：一次性批量调用后端导入
+    if (tab === 'teachingTask' && teachingTaskRows.length > 0) {
+      try {
+        const imported = await TS.ImportTeachingTasks(appStore.currentSemesterId || 0, teachingTaskRows)
+        if (imported[0] > 0) count += imported[0]
+        if (imported[1] && imported[1].length > 0) errors.push(...imported[1])
+      } catch {
+        errors.push(`批量导入接口调用失败（共 ${teachingTaskRows.length} 行）`)
+      }
+    }
+    if (count > 0) message.success(`成功导入 ${count} 条记录`)
+    if (errors.length > 0) {
+      importErrors.value = errors
+      showErrors.value = true
+      message.warning(`导入完成，${errors.length} 行失败，请查看下方错误列表`)
+    }
+    resourceStore.loadAll()
+    if (tab === 'teachingTask' && appStore.currentSemesterId) {
+      resourceStore.loadTeachingTasks(appStore.currentSemesterId)
+    }
+    cancelPreview()
+  } catch (err) {
+    message.error('导入失败：' + (err as any).message)
+  } finally {
+    previewImporting.value = false
+  }
 }
 
 function downloadTemplate() {
@@ -686,6 +752,41 @@ function downloadTemplate() {
       <n-button size="small" @click="downloadTemplate()">下载模板</n-button>
       <n-button size="small" type="error" :loading="clearing" @click="clearAll()">一键清空</n-button>
       <input ref="importFileRef" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileChange" />
+    </div>
+
+    <div v-if="showPreview" class="import-preview">
+      <div class="preview-header">
+        <span>预览导入数据（{{ previewRows.length }} 条）</span>
+        <n-space>
+          <n-button size="small" type="primary" @click="confirmImport" :loading="previewImporting">确认导入</n-button>
+          <n-button size="small" @click="cancelPreview">取消</n-button>
+        </n-space>
+      </div>
+      <div class="preview-table" style="max-height: 400px; overflow: auto;">
+        <table>
+          <thead><tr><th v-for="h in previewHeaders" :key="h">{{ h }}</th></tr></thead>
+          <tbody><tr v-for="(row, idx) in previewRows" :key="idx"><td v-for="(cell, ci) in row" :key="ci">{{ cell }}</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 导入错误列表 -->
+    <div v-if="showErrors && importErrors.length > 0" class="import-errors">
+      <div class="preview-header">
+        <span style="color: var(--b3-theme-error)">导入错误（{{ importErrors.length }} 行）</span>
+        <n-button size="small" @click="showErrors.value = false; importErrors.value = []">关闭</n-button>
+      </div>
+      <div class="preview-table" style="max-height: 300px; overflow: auto;">
+        <table>
+          <thead><tr><th>行号</th><th>错误信息</th></tr></thead>
+          <tbody>
+            <tr v-for="(err, idx) in importErrors" :key="idx">
+              <td style="width: 60px; text-align: center">{{ idx + 1 }}</td>
+              <td>{{ err }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
 	    <div class="resource-table">
@@ -840,5 +941,43 @@ function downloadTemplate() {
 }
 .tg-cell.active:hover {
   background: #d06060;
+}
+
+/* ===== Import Preview ===== */
+.import-preview {
+  background: var(--card-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+}
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.preview-table th, .preview-table td {
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  text-align: left;
+}
+.preview-table th {
+  background: var(--table-header-color);
+  position: sticky;
+  top: 0;
+}
+.import-errors {
+  background: var(--card-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--b3-theme-error);
 }
 </style>
