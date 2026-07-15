@@ -30,5 +30,6 @@ export type {
     ScoringContext,
     SnapshotCompareResult,
     TeacherSnapshotDiff,
-    TeacherWorkloadInfo
+    TeacherWorkloadInfo,
+    UnplacedTask
 } from "./models.js";

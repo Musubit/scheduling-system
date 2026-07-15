@@ -300,6 +300,11 @@ export interface ScheduleSnapshot {
     "enabledCategoryCount": number;
 
     /**
+     * JSON: per-category actual maxes (weight × perCategoryMax)
+     */
+    "categoryMaxes"?: string;
+
+    /**
      * v0.5.2: placement completeness (append-only, Stable Core preserving).
      * FinalScore is the completeness-scaled published score (Total × completeness curve).
      * PlacedSessions / ExpectedSessions / Completeness expose the underlying ratio

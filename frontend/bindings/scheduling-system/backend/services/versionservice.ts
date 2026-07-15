@@ -60,15 +60,6 @@ export function DeleteVersion(id: number): $CancellablePromise<void> {
 }
 
 /**
- * RestoreVersion restores a historical version as the current schedule.
- * It replaces the current schedule entries with the version's entries and
- * creates a new version with source=Restore to record the action.
- */
-export function RestoreVersion(versionID: number): $CancellablePromise<void> {
-    return $Call.ByID(3228046487, versionID);
-}
-
-/**
  * GetVersion retrieves a single version with its entries preloaded.
  */
 export function GetVersion(id: number): $CancellablePromise<models$0.ScheduleVersion | null> {
@@ -81,4 +72,13 @@ export function GetVersion(id: number): $CancellablePromise<models$0.ScheduleVer
  */
 export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[] | null> {
     return $Call.ByID(1900345469, semesterID);
+}
+
+/**
+ * RestoreVersion restores a historical version as the current schedule.
+ * It loads the version entries, replaces the current schedule for the semester,
+ * and creates a new version with source=Restore to record the action.
+ */
+export function RestoreVersion(versionID: number): $CancellablePromise<void> {
+    return $Call.ByID(914410806, versionID);
 }

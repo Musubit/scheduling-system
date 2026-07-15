@@ -146,6 +146,7 @@ export interface SchedulingResult {
     "logs": string[] | null;
     "error"?: string;
     "progressHistory"?: ScheduleProgress[] | null;
+    "unplacedTasks"?: UnplacedTask[] | null;
 }
 
 /**
@@ -186,6 +187,11 @@ export interface ScoreBreakdown {
     "studentFatigue": number;
     "perCategoryMax": number;
     "enabledCategoryCount": number;
+
+    /**
+     * v0.5.6: per-category actual max (weight × perCategoryMax)
+     */
+    "categoryMaxes"?: { [_ in string]?: number } | null;
 
     /**
      * v0.5.2: placement completeness fields.
@@ -333,4 +339,26 @@ export interface TeacherWorkloadInfo {
      */
     "balanceScore": number;
     "suggestion": string;
+}
+
+/**
+ * UnplacedTask describes a teaching task that could not be scheduled.
+ */
+export interface UnplacedTask {
+    "taskId": number;
+    "courseName": string;
+    "teacherName": string;
+    "className": string;
+
+    /**
+     * COMPUTER / LAB / GYM / ""
+     */
+    "requiredRoom"?: string;
+    "placed": number;
+    "expected": number;
+
+    /**
+     * 确诊 or 疑似
+     */
+    "rootCause"?: string;
 }
