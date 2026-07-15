@@ -104,6 +104,95 @@ func TestLockedSlotsJSONParsing(t *testing.T) {
 	t.Logf("OK: LockedTimeSlot JSON parsing and serialization all correct")
 }
 
+func TestTimeOnlyMode_SkipsRoomTypeMatching(t *testing.T) {
+	// Verifies the fix for TIME_ONLY mode: tasks needing COMPUTER/LAB/GYM
+	// should be placeable even when all classrooms are NORMAL type.
+	//
+	// Success criteria: ALL teaching tasks get at least one entry placed,
+	// regardless of course category vs classroom room type mismatch.
+
+	teachers := []models.Teacher{{Name: "张老师"}}
+	teachers[0].ID = 1
+
+	// All NORMAL classrooms — in TIME_ONLY mode these are virtual
+	classrooms := []models.Classroom{
+		{Name: "V101", Capacity: 100, RoomType: models.RoomTypeNormal},
+		{Name: "V102", Capacity: 100, RoomType: models.RoomTypeNormal},
+		{Name: "V103", Capacity: 100, RoomType: models.RoomTypeNormal},
+		{Name: "V104", Capacity: 100, RoomType: models.RoomTypeNormal},
+	}
+	for i := range classrooms {
+		classrooms[i].ID = uint(i + 1)
+	}
+
+	classGroups := []models.ClassGroup{{Name: "CS2301", Students: 50}}
+	classGroups[0].ID = 1
+
+	// Courses with specialty room requirements
+	courses := []models.Course{
+		{Name: "高等数学", Category: models.CategoryTheory},    // → NORMAL
+		{Name: "计算机上机", Category: models.CategoryComputer}, // → COMPUTER
+		{Name: "物理实验", Category: models.CategoryLab},        // → LAB
+		{Name: "大学体育", Category: models.CategoryPE},         // → GYM
+	}
+	for i := range courses {
+		courses[i].ID = uint(i + 1)
+	}
+
+	ttc := []models.TeachingTaskClass{{ClassGroupID: 1}}
+	tasks := make([]models.TeachingTask, 4)
+	for i := range tasks {
+		tasks[i] = models.TeachingTask{
+			CourseID:   courses[i].ID,
+			Course:     courses[i],
+			TeacherID:  1,
+			Teacher:    teachers[0],
+			SemesterID: 1,
+			Classes:    ttc,
+			TotalHours: 4, // → 2 sessions/week (2h each)
+		}
+		tasks[i].ID = uint(i + 1)
+	}
+
+	config := SAConfig{
+		InitialTemp:       10.0,
+		CoolingRate:       0.95,
+		IterationsPerTemp: 100,
+		MinTemp:           0.1,
+		MaxTimeSeconds:    5,
+		Seed:              42,
+		TimeOnly:          true, // ← the key flag
+	}
+
+	solver := NewSASolver()
+	result := solver.Solve(tasks, teachers, classrooms, classGroups,
+		nil, []string{}, uint(1), config, nil, nil)
+
+	// Every teaching task must have at least one entry
+	placedByTask := make(map[uint]int)
+	for _, e := range result.Entries {
+		placedByTask[e.CourseID]++
+	}
+
+	for i, task := range tasks {
+		count := placedByTask[task.CourseID]
+		if count == 0 {
+			t.Errorf("FAIL: task %d (course=%q, category=%q) got 0 entries — "+
+				"TIME_ONLY mode should skip room type matching",
+				task.ID, courses[i].Name, courses[i].Category)
+		}
+	}
+
+	if t.Failed() {
+		t.Logf("Placed %d/%d entries across %d tasks", len(result.Entries), 8, len(tasks))
+		for tid, cnt := range placedByTask {
+			t.Logf("  task %d: %d entries", tid, cnt)
+		}
+	} else {
+		t.Logf("OK: all %d tasks placed (%d entries total) in TIME_ONLY mode", len(tasks), len(result.Entries))
+	}
+}
+
 func TestLoadLockedSlotsFromDB(t *testing.T) {
 	// Test the DB loading fallback path
 	// If the JSON version of LockedSlots is properly deserialized...
