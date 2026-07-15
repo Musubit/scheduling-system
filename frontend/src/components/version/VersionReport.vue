@@ -4,7 +4,7 @@ import { NCard, NProgress, NEmpty, NSpin } from 'naive-ui'
 import { GetVersionWithDetails, AnalyzeTeacherWorkload } from '../../../bindings/scheduling-system/backend/services/versionservice'
 import type { ScheduleVersion, VersionDetail } from '../../../bindings/scheduling-system/backend/models/models'
 import type { TeacherWorkloadInfo } from '../../../bindings/scheduling-system/backend/services/models'
-import { scoreColor, starRating } from '../../utils/score'
+import { scoreColor } from '../../utils/score'
 
 const props = defineProps<{
   versionId: number | null
@@ -152,9 +152,6 @@ const suggestions = computed(() => {
                   :color="scoreColor((categoryScores[cat.field] / getCategoryMax(cat.field)) * 100)"
                   :height="16"
                 />
-                <span class="star-rating" :style="{ color: scoreColor((categoryScores[cat.field] / getCategoryMax(cat.field)) * 100) }">
-                  {{ starRating(categoryScores[cat.field], getCategoryMax(cat.field)) }}
-                </span>
                 <span class="bar-value">{{ categoryScores[cat.field].toFixed(2) }}</span>
               </div>
             </template>
@@ -300,12 +297,6 @@ const suggestions = computed(() => {
   flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.star-rating {
-  font-size: 15px;
-  letter-spacing: 1px;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 /* Suggestions */
