@@ -10,7 +10,7 @@
 param(
     [ValidateRange(1, 4)]
     [int]$OptLevel = 1,
-    [string]$Version = "0.5.6",
+    [string]$Version = "0.5.7",
     [int]$Jobs = 4
 )
 
