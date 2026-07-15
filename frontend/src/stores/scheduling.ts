@@ -281,6 +281,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             enabledCategoryCount: goResult.scoreDetail.enabledCategoryCount || 4,
           } : undefined,
           logs: goResult.logs || [],
+          unplacedTasks: goResult.unplacedTasks || [],
         }
       }
       progress.value = 100
