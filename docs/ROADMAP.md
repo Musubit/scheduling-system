@@ -1,150 +1,479 @@
 # ROADMAP.md — 高校智能排课系统
 
-> **最后更新**: 2026-07-14
-> **当前版本**: v0.5.5 Phase 1 completed (main `93e0d2f`) / 下一阶段 v0.5.5 P0（核心引擎通用能力）待启动
+> **最后更新**: 2026-07-20
+> **当前版本**: v0.5.7
+> **下一版本**: v0.6.0
+
+---
+
+## 设计原则
+
+1. **不做教务系统**
+   - 不接入教学管理、审批流、教师申请等完整教务业务。
+   - 保持定位：**智能排课工具 / 排课引擎产品**。
+
+2. **AI 不替代排课引擎**
+   - Solver 负责计算。
+   - AI 负责理解、分析、解释、提出建议。
+   - 最终执行由用户确认。
+
+3. **先架构稳定，再算法增强，再产品化，再生产化。**
 
 ---
 
 ## 版本总览
 
 ```
-v0.3.x  ████████████  已发布 — 基础功能
-v0.4.0  ████████████  已发布 — 体验与可扩展性 (Stable Core 冻结)
-v0.5.x  ████████░░░░  开发中 — 智能排课基础
-v0.6.x  ░░░░░░░░░░░░  规划中 — 教务流程
-v0.7.x  ░░░░░░░░░░░░  规划中 — 工程稳定性
-v1.0    ░░░░░░░░░░░░  规划中 — 生产发布
+v0.6.x  基础架构优化与稳定冻结
+        |
+        |
+v0.7.x  智能排课优化
+        |
+        |
+v0.8.x  智能排课辅助与产品体验
+        |
+        |
+v0.9.x  交付工程化与生产验证
+        |
+        |
+v1.0.0  正式生产版本
+```
+
+| 版本 | 主题 | 核心目标 |
+|------|------|----------|
+| v0.6.x | 基础架构优化与稳定冻结 | 新架构落地，核心模型冻结 |
+| v0.7.x | 智能排课优化 | 提升排课质量 |
+| v0.8.x | 智能排课辅助与产品体验 | AI 解释、建议、人机协作 |
+| v0.9.x | 交付工程化与生产验证 | 可安装、可维护、可交付 |
+| v1.0.0 | 正式生产版本 | 稳定生产使用 |
+
+---
+
+# v0.6.x —— 基础架构优化与稳定冻结
+
+## 目标
+
+> 完成新排课架构迁移，消除历史技术债，冻结核心模型，为后续优化建立稳定基础。
+
+当前 v0.5.x 已完成大量领域模型和排课基础能力建设，但仍存在：
+
+- 双模式架构未完全闭环
+- 新 scheduling pipeline 未完全接管
+- 新旧实现并存
+
+因此 v0.6 不新增大型业务功能。
+
+---
+
+## v0.6.0 — 双模式架构完成
+
+### 1. 完成 TIME_ONLY / FULL 模式隔离
+
+**当前问题**：TIME_ONLY 模式仍可能产生 `ScheduleEntry.classroom_id`，导致时间排课与资源绑定耦合。
+
+**目标模型**：
+
+```
+TeachingTask
+      |
+      v
+TimeAssignment
+      |
+      v
+ScheduleEntry
+      |
+      +---- Classroom (仅 FULL 模式)
+```
+
+**TIME_ONLY 模式**：
+
+```
+课程 → 时间 → 课表
+```
+
+**FULL 模式**：
+
+```
+课程 → 时间 → 教室 → 课表
+```
+
+### 2. SchedulingOrchestrator 正式接管
+
+从当前 `SchedulingService` 中散落的 `if mode == TIME_ONLY` / `if mode == FULL` 分支，迁移到：
+
+```
+SchedulingService
+        |
+SchedulingOrchestrator
+        |
++-------+-------+
+|               |
+TimeScheduler   RoomScheduler
+```
+
+### 3. 完成 TimeScheduler
+
+补齐 `scheduling/` 新包中最后缺失的 `time/` 模块：
+
+```
+已实现:  matcher / score / room / orchestrator
+待实现:  time
+```
+
+形成完整 Pipeline：
+
+```
+TeachingTask → TimeScheduler → RoomScheduler → ScheduleResult
 ```
 
 ---
 
-## v0.5.x — Intelligent Scheduling Foundation
+## v0.6.1 — 新 Pipeline 完全替换旧实现
 
-**主题**: 在 Stable Core 之上建立高性能、语义统一的智能排课能力。
+**删除旧实现**：
 
-### v0.5.2 — 评分统一 + SA 性能优化 ✅ (tag `v0.5.2`)
+- `services/sa_solver.go`
+- `services/ortools_client.go`
+- `services/resource_matcher.go`
 
-| Goal | 内容 | 状态 |
-|------|------|------|
-| Goal 1 | 灵活课时跨度 (1/2/3 节, HBUT 适配) | ✅ |
-| Goal 2 | ScoreSchedule 完成度评分 (FinalTotal + Completeness) | ✅ |
-| Goal 3 | SA delta-score cache + uint64 keys (8x 加速) | ✅ |
+**统一为新架构**：
 
-**Stable Core 兼容性**: 全部新增字段可选 (zero-value = legacy 行为)
-- `ScoreBreakdown`: +PlacedSessions/ExpectedSessions/Completeness/FinalTotal
-- `ScoringContext`: +ExpectedTotalSessions (0 = legacy)
-- `ScheduleSnapshot`: +FinalScore/PlacedSessions/ExpectedSessions/Completeness
-- `TeachingTask`: +PreferredSpan (0 = 不指定)
-- ScoringContext.Version: 1 → 2 (v1 调用路径保留)
-
-### v0.5.3 — Unified Resource Matching Framework (URMF) ✅ (已合并 main, 无独立 tag)
-
-**目标**: 统一 SA / OR-Tools / MoveService 三处教室类型判断为单一纯函数决策。
-
-| Goal | 内容 | 状态 |
-|------|------|------|
-| Goal 1 | ResourceMatcher V1 纯函数 + `MatchResult` + `Explain` (`ee93fb4` P2) | ✅ |
-| Goal 2 | SA 求解器接入 `AllowedRooms` (`01ef918` P3) | ✅ |
-| Goal 3 | OR-Tools + MoveService 接入，OR-Tools payload `AllowedRoomIDs` 由 Go 侧计算 (`86d6fbf` P4) | ✅ |
-| Goal 4 | `Classroom.RoomType` 冲突修复，复用现有 `Classroom.Type` (`b2d722b`) | ✅ |
-| Goal 5 | ADR-0006 URMF 采纳 | ✅ |
-
-### v0.5.4 — TeachingTask Domain Stabilization ✅ (tag `v0.5.4`)
-
-**目标**: 消除 TeachingTask 自动合班推断包袱，稳定教学任务领域模型。
-
-| Goal | 内容 | 状态 |
-|------|------|------|
-| Goal 1 | 删除 `teaching_task_service.go` 自动合并推断（-139 行）(`4958e20`) | ✅ |
-| Goal 2 | `ResourcePage.vue` 相关 UI 移除（-94 行） | ✅ |
-| Goal 3 | Seed 幂等性修复 Count+Create → FirstOrCreate (`a69cb1a`) | ✅ |
-
-### v0.5.5 — Academic Calendar Foundation（先 P0 后 Phase 推进）
-
-#### v0.5.5 Phase 1 — Semester Domain Stabilization ✅ (已合并 `93e0d2f`, 未独立打 tag)
-
-| Goal | 内容 | 状态 |
-|------|------|------|
-| Goal 1 | Semester 模型重构：AcademicYear/Term/StartDate:time.Time/EndDate/Status | ✅ |
-| Goal 2 | ScheduleEntry.Semester / ScheduleSnapshot.Semester → SemesterID FK | ✅ |
-| Goal 3 | Services + SASolver + Seed + Bindings 级联同步 | ✅ |
-| Goal 4 | Seed 复合唯一键 (academic_year, term) | ✅ |
-
-#### v0.5.5 P0 — Core Engine Generalization ⏳ (最高优先级,部分完成)
-
-| Goal | 内容 | 状态 |
-|------|------|------|
-| Goal 1 | 排课模式主链路打通：`FULL_SCHEDULING` / `TIME_ONLY_SCHEDULING` | ✅ M1 完成 |
-| Goal 2 | 支持关闭教室分配后仍可完成课程时间安排 | ⚠️ 功能可用,但 INV-E1(TIME_ONLY 零教室行)未合规 |
-| Goal 3 | TIME_ONLY 评分维度对齐（资源维度禁用而非伪 0） | ⚠️ 靠 classrooms=nil 短路,非结构化 dimension 门控 |
-| Goal 4 | 前端模式开关与后端透传闭环 | ✅ M3 完成(结果面板 mode-aware badge + 冲突行/验证行隐藏 + 约束禁用提示) |
-| Goal 5 | 双模式最小回归门禁（go test / 前端 build / 核心流程） | ⏳ M4 未做 |
-
-**决策阻塞**: INV-E1 修复方案(ClassroomID nullable vs 拆表 time_assignments)、Orchestrator 装配是否本 P0 内做,均需签字。见 `docs/ACTIVE_TASK.md § 决策阻塞项`。
-
-#### v0.5.5 Phase 2 — Academic Calendar Extension ⏳ (待启动)
-
-| Item | 说明 |
-|------|------|
-| AcademicTerm 表 | 每学期 3 段（秋季常规/秋季考试/冬季实践 等），Season + TermType |
-| `services/academic_calendar/` 领域包 | CurrentSemester / CurrentWeek / WeekView 派生（TeachingWeek 不建表） |
-| Seed | 每学期 3 条 AcademicTerm 记录 |
-
-#### v0.5.5 Phase 3 — 前端清理 + Solver 感知 ⚙️ (部分就地完成)
-
-| Item | 说明 | 状态 |
-|------|------|------|
-| 前端字段清理 | `stores/app.ts` 派生 `semesterSelectOptions`；`AppToolbar` / `SchedulingPage` / `SettingsPage` 已迁移；`HistoryComparePage` 用的是 snapshot.name(与 semester 无关,无需迁) | ✅ 消费端已切换 |
-| WeekView 日期派生 | 从 `appStore.currentSemester.startDate` 派生周日期 | ✅ 完成 |
-| Solver TermType 感知 | 需产品决策是否属于 v0.5.5 范围;当前 solver 完全 term-agnostic | ⏳ 决策待定 |
-
-### H3 — 调整后保存快照 (v0.4.0 遗留) ✅
-
-手动调课后用户主动生成快照:
-- Backend `CreateManualSnapshot` 已存在
-- ReportPage 生成报告按钮已接
-- **SchedulingPage 保存快照按钮 + dirtyMoveCount + 命名弹窗** 已就地完成
-- 后端 `snapshot_service_test.go` 契约 test 已补
+```
+scheduling/
+├── orchestrator/
+├── time/
+├── room/
+├── matcher/
+└── score/
+```
 
 ---
 
-## v0.6.x — Academic Workflow
+## v0.6.2 — 核心模型冻结
 
-**主题**: 将排课系统融入教务日常工作流。
+**冻结范围**：
 
-| Epic | 说明 |
-|------|------|
-| A — 学期日历 | 学期起止日期 + 教学周计算引擎 |
-| B — 教学任务导入增强 | Excel 模板标准化 + 校验规则 + 导入预览 |
-| C — 课表导出 | Excel/PDF 导出，按教师/班级/教室/课程多维视图 |
-| D — 调课工作流 | 调课申请 → 冲突检测 → 执行 → 快照 |
-| E — 教师工作量统计 | 周课时/学期课时/跨校区统计 |
+- `ScheduleEntry`
+- `Snapshot`
+- `Constraint`
+- `Score`
+- Solver 接口
 
----
+**产出**：
 
-## v0.7.x — Engineering Stability
-
-**主题**: 工程化加固，为生产发布做准备。
-
-| Epic | 说明 |
-|------|------|
-| A — 日志与可观测性 | 结构化日志 + 排课过程 tracing |
-| B — 错误处理统一 | 全局错误码 + 用户友好提示 |
-| C — 数据备份与恢复 | 一键导出/导入全量数据 |
-| D — CI/CD | GitHub Actions: lint + test + build + release |
-| E — 性能基准 | benchmark/ 数据集 + 回归测试门禁 |
-| F — 安全加固 | 数据库加密 + 敏感信息保护 |
+- ADR 文档更新
+- 架构说明文档
+- 开发规范
 
 ---
 
-## v1.0 — Production Release
+# v0.7.x —— 智能排课优化
 
-**主题**: 面向湖北工业大学教务处的生产级交付。
+## 目标
 
-| 门槛 | 标准 |
+> 从"能够排出来"提升到"排得更合理"。
+
+重点：提升排课质量，而不是扩展业务范围。
+
+---
+
+## v0.7.0 — 评分体系增强
+
+在现有 Hard Constraints + Soft Constraints 基础上扩展：
+
+### 教室利用率优化
+
+- 避免 500 座教室安排 50 人课程
+- 容量匹配度计入评分
+
+### 学生体验优化
+
+- 避免连续过多课程
+- 减少极端课表（如全早课或全晚课）
+- 优化课程周分布
+
+### 教师体验优化
+
+- 教师空闲时间连续性
+- 集中授课天数优化
+- 避免碎片化课表
+
+---
+
+## v0.7.1 — Solver 优化
+
+### 初始解生成
+
+- 改进贪心策略，减少随机搜索时间
+- 基于约束优先级的有序分配
+
+### SA 策略调优
+
+- 温度下降策略优化
+- Neighbor 选择策略改进
+- 接受概率曲线调整
+
+### Cache 优化
+
+- Score cache 继续增强
+- Constraint cache 引入
+
+---
+
+## v0.7.2 — 多方案排课
+
+一次生成多个候选方案，用户选择：
+
+- **方案 A**：教师满意最高
+- **方案 B**：教室利用最高
+- **方案 C**：学生体验最高
+
+每个方案附带评分对比，用户决策后执行。
+
+---
+
+# v0.8.x —— 智能排课辅助与产品体验
+
+## 目标
+
+> 从"自动生成课表"升级为"辅助用户完成排课决策"。
+
+核心模式：
+
+```
+AI 分析 → 人工决策 → 系统执行
+```
+
+---
+
+## v0.8.0 — 排课分析中心
+
+### 排课质量报告
+
+```
+综合评分: 91.5
+
+扣分原因:
+  教师偏好   -5
+  课程集中   -3
+  教室利用   -2
+```
+
+包含：
+
+- 综合评分
+- 完成度
+- 硬冲突列表
+- 软约束分析
+- 优化空间提示
+
+### 冲突诊断中心
+
+**硬冲突**：
+
+- 教师冲突
+- 教室冲突
+- 时间冲突
+
+**软冲突**：
+
+- 教师偏好未满足
+- 学生疲劳度
+- 资源浪费
+
+---
+
+## v0.8.1 — AI 排课助手
+
+定位：Copilot，不是自动排课。
+
+### 自然语言查询
+
+用户：
+> 为什么这个课表评分低？
+
+AI：
+> 主要原因：1. 周一课程过密 2. 部分教师偏好未满足 3. 教室利用率低
+
+### 排课解释
+
+用户：
+> 为什么课程 A 安排在这里？
+
+AI：
+> 因为：教师可用时间限制、教室容量要求、避免学生冲突
+
+---
+
+## v0.8.2 — AI 辅助调整
+
+用户：
+> 王老师周五下午不能上课，有什么方案？
+
+AI：
+> 方案1: 移动到周三 3-4 节，评分 +3
+> 方案2: 移动到周四 5-6 节，评分 +1
+
+用户：
+> 采用方案 1
+
+系统：
+```
+MoveService → ConflictChecker → Score 验证 → 执行
+```
+
+---
+
+# v0.9.x —— 交付工程化与生产验证
+
+## 目标
+
+> 从开发项目变成可以交付的软件。
+
+---
+
+## v0.9.0 — 数据可靠性
+
+### 自动备份
+
+- 数据库备份
+- 配置备份
+- 课表版本备份
+
+### 数据恢复
+
+- 恢复历史版本
+- 从备份还原
+
+### 数据迁移
+
+- 旧版本数据库 → 新版本升级
+- 迁移脚本与验证
+
+---
+
+## v0.9.1 — 测试体系完善
+
+### 黄金数据集
+
+```
+testdata/
+├── small.json    (20 课程)
+├── medium.json   (50 课程)
+└── large.json    (100+ 课程)
+```
+
+保证：结果质量 ≥ baseline
+
+### Benchmark 指标
+
+| 规模 | 目标 |
 |------|------|
-| 功能完整 | v0.5.x + v0.6.x 全部 Epic 完成 |
+| 20 课程 | < 3s |
+| 100 课程 | < 30s |
+
+### 自动化测试覆盖
+
+- Solver
+- Constraint
+- Snapshot
+- Import
+- Export
+
+---
+
+## v0.9.2 — 发布体系
+
+### Windows 安装
+
+从 portable ZIP → **Installer.exe**
+
+- NSIS 安装程序
+- 桌面快捷方式
+- 开始菜单集成
+
+### 自动更新
+
+- 检查新版本
+- 下载升级包
+- 数据迁移
+
+### 文档
+
+**用户文档**：
+
+- 使用手册
+- 排课流程指南
+
+**开发文档**：
+
+- 架构文档
+- API 文档
+- ADR 完整记录
+
+---
+
+# v1.0.0 —— 正式生产版本
+
+## 定义
+
+不是功能最多，而是：**稳定、可靠、可交付**。
+
+---
+
+## v1.0 必备能力
+
+### 完整数据流程
+
+```
+导入课程数据
+    ↓
+数据检查
+    ↓
+智能排课
+    ↓
+人工调整
+    ↓
+冲突检测
+    ↓
+质量分析
+    ↓
+导出课表
+    ↓
+保存版本
+```
+
+### 算法能力
+
+- 多约束优化
+- 稳定求解（同输入 → 同质量输出）
+- 可解释评分
+
+### 产品能力
+
+- Windows 部署（安装包）
+- 数据备份恢复
+- 稳定升级路径
+- 完整用户文档
+
+---
+
+## v1.0 发布门槛
+
+| 维度 | 标准 |
+|------|------|
+| 功能完整 | v0.6.x–v0.9.x 全部完成 |
 | 稳定性 | 连续 3 个版本无 P0 bug |
-| 性能 | 22 教学任务 SA < 3s, 50 任务 < 10s |
+| 性能 | 20 任务 SA < 3s, 50 任务 < 10s |
 | 文档 | ADR 完整、用户手册、管理员指南 |
-| 部署 | 一键安装包 (Wails + uv 自包含) |
+| 部署 | 一键安装包（Wails + uv 自包含） |
+
+---
+
+## 路线总结
+
+这条路线解决三个核心问题：
+
+- **v0.6–v0.7**：机器怎么排好
+- **v0.8**：人怎么更好地使用机器
+- **v0.9–v1.0**：软件怎么真正交付
