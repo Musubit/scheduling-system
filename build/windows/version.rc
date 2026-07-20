@@ -10,18 +10,18 @@
 // produced .syso is valid; FileVersionInfo API reads all fields correctly.
 
 1 VERSIONINFO
-FILEVERSION 0,5,7,0
-PRODUCTVERSION 0,5,7,0
+FILEVERSION 0,6,2,0
+PRODUCTVERSION 0,6,2,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "FileVersion", "0.5.7"
+      VALUE "FileVersion", "0.6.2"
       VALUE "ProductName", "高校智能排课系统"
       VALUE "FileDescription", "高校智能排课系统"
       VALUE "CompanyName", "musubi"
-      VALUE "ProductVersion", "0.5.7"
+      VALUE "ProductVersion", "0.6.2"
       VALUE "LegalCopyright", "(c) 2026, musubi"
       VALUE "Comments", "高校智能排课系统"
     END

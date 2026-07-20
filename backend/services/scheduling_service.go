@@ -283,7 +283,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	addProgress(35, "Orchestrator 求解")
-	reporter := &schedulingReporter{addProgress: addProgress, addLog: addLog}
+	reporter := &schedulingReporter{addProgress: addProgress, addLog: addLog, baseProgress: 35}
 	orResult, orchestratorErr := s.orch.Run(context.Background(), req, reporter)
 	if orchestratorErr != nil {
 		result.Error = fmt.Sprintf("排课引擎异常: %v", orchestratorErr)
@@ -883,13 +883,19 @@ func (s *SchedulingService) tryORTools(
 
 // schedulingReporter adapts the RunScheduling closure-based progress/logging
 // callbacks to the schedtypes.ProgressReporter interface.
+// Uses a baseProgress to prevent the Orchestrator's internal 0% from
+// overwriting the caller's progress (e.g. 35% → Orchestrator 0% → flash back).
 type schedulingReporter struct {
-	addProgress func(int, string)
-	addLog      func(string)
+	addProgress  func(int, string)
+	addLog       func(string)
+	baseProgress int
 }
 
 func (r *schedulingReporter) Stage(name string, percent int) {
-	r.addProgress(percent, name)
+	// Map orchestrator-internal 0-100% onto the range [baseProgress, 95]
+	mapped := r.baseProgress + percent*(95-r.baseProgress)/100
+	if mapped < r.baseProgress { mapped = r.baseProgress }
+	r.addProgress(mapped, name)
 }
 
 func (r *schedulingReporter) Iteration(cur, total int, cs, bs, temp float64) {}

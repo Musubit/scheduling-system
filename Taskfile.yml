@@ -6,7 +6,7 @@ vars:
   # Portable release version — single source of truth for the ZIP filename.
   # Keep in sync with wails.json / build/windows/version.rc when bumping;
   # see docs/RELEASE.md Release Checklist.
-  VERSION: '{{.VERSION | default "0.5.7"}}'
+  VERSION: '{{.VERSION | default "0.6.2"}}'
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
   GOOS: '{{.GOOS | default OS}}'
