@@ -1,15 +1,12 @@
 package services
 
-import (
-	"scheduling-system/backend/models"
-)
-
-// TODO(v0.6.1): Replace with scheduling/score/ 4-bucket scorer.
-// The current scoring service is deeply coupled to old ScheduleEntry fields
-// (DayOfWeek, StartPeriod, Span, TeacherID, CourseID, TeachingTaskID, etc.)
-// that were removed in the TA+SE model split. All scoring methods are stubbed
-// for v0.6.0 compilation; the proper 4-bucket scorer will replace this entire
-// file in v0.6.1 (Task 10).
+// scoring_service.go — 评分类型定义。
+//
+// ScoreBreakdown / ScoreBucket / ScoreBuckets 是 services 包内部的
+// 评分结果类型，用于持久化和展示。排课引擎的评分由调度层的 IScorer 接口
+// （scheduling/score/ 包实现 4-bucket 评分器）负责计算。
+//
+// ScoreGreater / ScoreEquals 是比较两个评分的辅助函数。
 
 const ScoreEpsilon = 0.01
 
@@ -25,13 +22,6 @@ func ScoreEquals(a, b float64) bool {
 // ScoreGreater determines whether a is significantly greater than b.
 func ScoreGreater(a, b float64) bool {
 	return a > b+ScoreEpsilon
-}
-
-// ScoringService evaluates a schedule's quality against soft constraints.
-type ScoringService struct{}
-
-func NewScoringService() *ScoringService {
-	return &ScoringService{}
 }
 
 // ScoreBreakdown holds the detailed scoring result.
@@ -84,24 +74,4 @@ type TeacherWorkloadInfo struct {
 	MinDaily          int     `json:"minDaily"`
 	BalanceScore      float64 `json:"balanceScore"`
 	Suggestion        string  `json:"suggestion"`
-}
-
-// ScoreSchedule evaluates a full schedule against soft constraints.
-// TODO(v0.6.1): Replace with scheduling/score/ 4-bucket scorer.
-// Stubbed for v0.6.0 — returns zero ScoreBreakdown.
-func (s *ScoringService) ScoreSchedule(entries []models.ScheduleEntry, teachers []models.Teacher, classrooms []models.Classroom, ctx ScoringContext) ScoreBreakdown {
-	_ = entries
-	_ = teachers
-	_ = classrooms
-	_ = ctx
-	return ScoreBreakdown{}
-}
-
-// AnalyzeTeacherWorkload computes per-teacher workload balance from schedule entries.
-// TODO(v0.6.1): Rebuild for TimeAssignment+ScheduleEntry split model.
-// Stubbed for v0.6.0 — returns empty slice.
-func (s *ScoringService) AnalyzeTeacherWorkload(entries []models.ScheduleEntry, teachers []models.Teacher) []TeacherWorkloadInfo {
-	_ = entries
-	_ = teachers
-	return nil
 }
