@@ -108,7 +108,7 @@ type ScheduleVersionEntry struct {
 	TeachingTaskID *uint  `gorm:"index" json:"teachingTaskId,omitempty"`
 	CourseID       uint   `gorm:"not null" json:"courseId"`
 	TeacherID      uint   `gorm:"not null" json:"teacherId"`
-	ClassroomID    uint   `gorm:"not null" json:"classroomId"`
+	ClassroomID    *uint  `json:"classroomId,omitempty"`
 	DayOfWeek      int    `gorm:"not null" json:"dayOfWeek"`
 	StartPeriod    int    `gorm:"not null" json:"startPeriod"`
 	Span           int    `gorm:"default:2" json:"span"`
