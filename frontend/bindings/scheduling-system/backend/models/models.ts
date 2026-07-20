@@ -167,58 +167,25 @@ export interface Department {
 export type Period = number;
 
 /**
- * ScheduleEntry represents a single scheduled course slot.
+ * ScheduleEntry 是 v0.6.0 模型拆分后的资源分配实体。
+ * 一条 ScheduleEntry = 一个 TimeAssignment 分配到一间 Classroom。
+ * TIME_ONLY 模式下本表为零行 (INV-E1)。
  */
 export interface ScheduleEntry {
     "ID": number;
     "CreatedAt": string;
     "UpdatedAt": string;
     "DeletedAt": gorm$0.DeletedAt;
-    "courseId": number;
-    "teacherId": number;
+    "semesterId": number;
+    "scheduleVersionId": number;
+    "timeAssignmentId": number;
     "classroomId": number;
 
     /**
-     * legacy FK, kept for backward compatibility
+     * Associations (read-only preloads)
      */
-    "classGroupId": number | null;
-
-    /**
-     * FK to TeachingTask, enables combined classes
-     */
-    "teachingTaskId": number | null;
-    "semesterId": number;
-
-    /**
-     * 0=周一..6=周日
-     */
-    "dayOfWeek": DayOfWeek;
-
-    /**
-     * 0=第1节..10=第11节
-     */
-    "startPeriod": Period;
-
-    /**
-     * consecutive periods
-     */
-    "span": number;
-    "weeks": string;
-
-    /**
-     * TIME_ONLY: virtual classroom, skip room scoring
-     */
-    "isVirtual": boolean;
-
-    /**
-     * Associations
-     */
-    "course"?: Course;
-    "teacher"?: Teacher;
+    "timeAssignment"?: TimeAssignment | null;
     "classroom"?: Classroom;
-    "classGroup"?: ClassGroup | null;
-    "teachingTask"?: TeachingTask | null;
-    "semester"?: Semester;
 }
 
 /**
@@ -319,7 +286,7 @@ export interface ScheduleVersionEntry {
     "teachingTaskId"?: number | null;
     "courseId": number;
     "teacherId": number;
-    "classroomId": number;
+    "classroomId"?: number | null;
     "dayOfWeek": number;
     "startPeriod": number;
     "span": number;
@@ -485,6 +452,31 @@ export interface TeachingTaskClass {
     "teachingTaskId": number;
     "classGroupId": number;
     "classGroup"?: ClassGroup;
+}
+
+/**
+ * TimeAssignment 是 v0.5.5 双模式排课的 **时间事实实体**。
+ * 一条 TA 行 = 一次周课(一个 TeachingTask 在某天某节起某跨度的排课),
+ * 与"教室"完全解耦(INV-T2 / spec §2.2)。
+ * 
+ * - FULL_SCHEDULING 模式:每条 TA 对应 exactly one ScheduleEntry(教室分配)。
+ * - TIME_ONLY_SCHEDULING 模式:只写 TA 不写 ScheduleEntry(INV-E1)。
+ * 
+ * 这个模型在 v0.5.5 PR-03 阶段被引入但**尚未被生产写路径使用** ——
+ * PR-09 才做数据模型切换。此时先注册 AutoMigrate 让 schema 落地,
+ * 为后续 refactor 铺路。
+ */
+export interface TimeAssignment {
+    "id": number;
+    "semesterId": number;
+    "scheduleVersionId": number;
+    "teachingTaskId": number;
+    "dayOfWeek": DayOfWeek;
+    "startPeriod": Period;
+    "span": number;
+    "createdAt": string;
+    "updatedAt": string;
+    "deletedAt"?: string | null;
 }
 
 /**

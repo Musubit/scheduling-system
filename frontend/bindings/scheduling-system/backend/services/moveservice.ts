@@ -15,28 +15,30 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
- * CheckMove validates whether a schedule entry can be moved to a new time/room.
+ * TODO(v0.6.0): Adapt CheckMove for TimeAssignment+ScheduleEntry split model.
+ * CheckMove currently accesses old ScheduleEntry fields (DayOfWeek, StartPeriod, Span,
+ * Teacher, TeachingTask, etc.) that no longer exist after the TA+SE model migration.
+ * Will be properly adapted when move operations are re-implemented against the new model.
  */
 export function CheckMove(req: $models.CheckMoveRequest): $CancellablePromise<$models.CheckMoveResult | null> {
     return $Call.ByID(3592166944, req);
 }
 
 /**
- * MoveEntry executes a validated move by updating the schedule entry.
+ * TODO(v0.6.0): Adapt MoveEntry for TimeAssignment+ScheduleEntry split model.
+ * MoveEntry updates old ScheduleEntry fields (DayOfWeek, StartPeriod, Span) that no
+ * longer exist after the TA+SE split. Will be properly adapted when move operations
+ * are re-implemented against the new model (TimeAssignment for time moves, ScheduleEntry
+ * for room changes).
  */
 export function MoveEntry(req: $models.CheckMoveRequest): $CancellablePromise<void> {
     return $Call.ByID(410174494, req);
 }
 
 /**
- * MoveEntryAndScore validates and applies a move, then recalculates the full
- * schedule score to provide immediate quality-change feedback. On success the
- * DB entry is updated and the response includes before/after scores with a
- * human-readable delta.
- * 
- * This is the recommended single-call replacement for CheckMove + MoveEntry
- * when the caller also wants score feedback. Existing CheckMove + MoveEntry
- * callers are unaffected (backward compatible).
+ * TODO(v0.6.0): Adapt MoveEntryAndScore for TimeAssignment+ScheduleEntry split model.
+ * Depends on CheckMove, MoveEntry, and computeScoreDB — all of which access old
+ * ScheduleEntry fields removed by the TA+SE split. Will be properly adapted in v0.6.1.
  */
 export function MoveEntryAndScore(req: $models.CheckMoveRequest): $CancellablePromise<$models.MoveAndScoreResult | null> {
     return $Call.ByID(3988363451, req);

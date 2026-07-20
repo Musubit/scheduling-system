@@ -46,13 +46,7 @@ export interface CheckMoveResult {
     "conflicts": MoveConflict[] | null;
 }
 
-/**
- * EntryDiff describes a single entry-level change between two versions.
- */
 export interface EntryDiff {
-    /**
-     * "moved" | "added" | "removed"
-     */
     "type": string;
     "course": string;
     "teacher": string;
@@ -171,78 +165,26 @@ export interface SchedulingResult {
  */
 export interface ScoreBreakdown {
     "total": number;
-
-    /**
-     * 教师偏好满足度
-     */
     "teacherPref": number;
-
-    /**
-     * 课程间隔均匀度
-     */
     "courseSpacing": number;
-
-    /**
-     * 教师到校天数
-     */
     "teacherDays": number;
-
-    /**
-     * 优先低楼层
-     */
     "lowFloorPref": number;
-
-    /**
-     * 周末避让
-     */
     "weekendAvoid": number;
-
-    /**
-     * 体育课时段偏好
-     */
     "pePeriodPref": number;
     "studentFatigue": number;
     "perCategoryMax": number;
     "enabledCategoryCount": number;
-
-    /**
-     * v0.5.6: per-category actual max (weight × perCategoryMax)
-     */
     "categoryMaxes"?: { [_ in string]?: number } | null;
-
-    /**
-     * v0.5.2: placement completeness fields.
-     * Total keeps its v0.4 semantics (sum of 7 soft-constraint categories).
-     * FinalTotal is Total scaled by a completeness factor so under-placed schedules
-     * receive a lower published score. When ExpectedSessions==0 or PlacedSessions
-     * equals it, FinalTotal == Total (v0.4-compatible round-trip).
-     */
     "placedSessions"?: number;
     "expectedSessions"?: number;
-
-    /**
-     * ratio in [0,1]
-     */
     "completeness"?: number;
     "finalTotal": number;
-
-    /**
-     * v0.5.5 P0 M2: nullable buckets — Disabled 语义靠 nil 表达 (INV-S1/S2/I8)。
-     * 与上面的 float64 字段并存作为过渡：读侧优先 buckets（nil = Disabled;
-     * non-nil = 已评估分值），旧调用可继续读 float64（Disabled 与 真 0 都是 0）。
-     * 一旦所有前端消费方切到 buckets，float64 可在下版本删除。
-     */
     "buckets"?: ScoreBuckets | null;
-
-    /**
-     * EnabledDimensions echoes the mode-derived dimension list (INV-S2)。
-     * TIME_ONLY → ["time","teacher","student"]；FULL → [...+"resource"]。
-     */
     "enabledDimensions"?: string[] | null;
 }
 
 /**
- * ScoreBucket 一个维度的评分聚合。Details 保留子约束分值以便前端做详情。
+ * ScoreBucket 一个维度的评分聚合。
  */
 export interface ScoreBucket {
     "value": number;
@@ -252,17 +194,11 @@ export interface ScoreBucket {
 
 /**
  * ScoreBuckets 按 spec 2.7 冻结的四桶结构表达当前排课结果分值。
- * 每个 bucket 用指针：nil 表示该维度被禁用（如 TIME_ONLY 的 Resource），
- * non-nil 但 Value=0 表示"评估了,得 0 分"。这是"Disabled = missing, not 0"的关键。
  */
 export interface ScoreBuckets {
     "time"?: ScoreBucket | null;
     "teacher"?: ScoreBucket | null;
     "student"?: ScoreBucket | null;
-
-    /**
-     * TIME_ONLY 下必为 nil
-     */
     "resource"?: ScoreBucket | null;
 }
 
@@ -295,9 +231,6 @@ export interface ScoringContext {
     "constraintWeights"?: { [_ in string]?: number } | null;
 }
 
-/**
- * TeacherVersionDiff summarizes per-teacher changes between two versions.
- */
 export interface TeacherVersionDiff {
     "code": string;
     "name": string;
@@ -308,36 +241,20 @@ export interface TeacherVersionDiff {
     "daysActualB": number;
     "daysTarget": number;
     "avgFloorDelta": number;
-
-    /**
-     * improved / regressed / unchanged / added / removed
-     */
     "status": string;
 }
 
 /**
- * TeacherWorkloadInfo holds per-teacher workload analysis (post-hoc, does not affect scoring).
+ * TeacherWorkloadInfo holds per-teacher workload analysis data.
  */
 export interface TeacherWorkloadInfo {
     "teacherId": number;
     "teacherName": string;
     "totalSessions": number;
-
-    /**
-     * 7 elements, sessions per day Mon-Sun
-     */
     "dailyDistribution": number[] | null;
     "busyDays": number;
     "maxDaily": number;
-
-    /**
-     * min across all 7 days (may be 0)
-     */
     "minDaily": number;
-
-    /**
-     * 0-100
-     */
     "balanceScore": number;
     "suggestion": string;
 }
@@ -364,9 +281,6 @@ export interface UnplacedTask {
     "rootCause"?: string;
 }
 
-/**
- * VersionCompareResult holds the diff between two schedule versions.
- */
 export interface VersionCompareResult {
     "a": models$0.ScheduleVersion | null;
     "b": models$0.ScheduleVersion | null;

@@ -21,6 +21,7 @@ import * as $models from "./models.js";
 /**
  * AnalyzeTeacherWorkload loads the current schedule entries and computes per-teacher workload analysis.
  * Pure post-hoc analysis — does not affect scoring or solver behaviour.
+ * TODO(v0.6.0): Adapt AnalyzeTeacherWorkload for TimeAssignment+ScheduleEntry split.
  */
 export function AnalyzeTeacherWorkload(semesterID: number): $CancellablePromise<$models.TeacherWorkloadInfo[] | null> {
     return $Call.ByID(1142847927, semesterID);
@@ -50,6 +51,7 @@ export function CompareVersions(aID: number, bID: number): $CancellablePromise<$
 /**
  * CreateManualReport generates a version from the current schedule in the database,
  * computing full scoring details. This replaces the old SnapshotService.CreateManualSnapshot.
+ * TODO(v0.6.0): Adapt CreateManualReport for TimeAssignment+ScheduleEntry split.
  */
 export function CreateManualReport(semesterID: number): $CancellablePromise<models$0.ScheduleVersion | null> {
     return $Call.ByID(2740214144, semesterID);
@@ -60,6 +62,7 @@ export function CreateManualReport(semesterID: number): $CancellablePromise<mode
  * source = ManualAdjust. It loads the live schedule entries from the
  * database, computes the current ScoreSchedule score, and persists a
  * new ScheduleVersion (with entries) in a single transaction.
+ * TODO(v0.6.0): Adapt CreateManualVersion for TimeAssignment+ScheduleEntry split.
  */
 export function CreateManualVersion(semesterID: number, name: string): $CancellablePromise<models$0.ScheduleVersion | null> {
     return $Call.ByID(443717862, semesterID, name);
@@ -72,6 +75,7 @@ export function CreateManualVersion(semesterID: number, name: string): $Cancella
  * 
  * It computes ScoreSchedule internally, stores entries, scoring fields, and
  * per-teacher VersionDetail records in a single transaction.
+ * TODO(v0.6.0): Adapt CreateVersionFromSchedule for TimeAssignment+ScheduleEntry split.
  */
 export function CreateVersionFromSchedule(semesterID: number, dept: string, trigger: string, solver: string, entries: models$0.ScheduleEntry[] | null, teachers: models$0.Teacher[] | null, classrooms: models$0.Classroom[] | null, scoringCtx: $models.ScoringContext, solveTimeMs: number, conflictCount: number): $CancellablePromise<models$0.ScheduleVersion | null> {
     return $Call.ByID(3458152285, semesterID, dept, trigger, solver, entries, teachers, classrooms, scoringCtx, solveTimeMs, conflictCount);
@@ -99,10 +103,6 @@ export function GetVersionWithDetails(id: number): $CancellablePromise<models$0.
     return $Call.ByID(3281964470, id);
 }
 
-/**
- * ListVersions returns all versions for the given semester, ordered by
- * created_at descending (newest first).
- */
 export function ListVersions(semesterID: number): $CancellablePromise<models$0.ScheduleVersion[] | null> {
     return $Call.ByID(1900345469, semesterID);
 }
@@ -118,6 +118,7 @@ export function RenameVersion(id: number, newName: string): $CancellablePromise<
  * RestoreVersion restores a historical version as the current schedule.
  * It loads the version entries, replaces the current schedule for the semester,
  * and creates a new version with source=Restore to record the action.
+ * TODO(v0.6.0): Adapt RestoreVersion for TimeAssignment+ScheduleEntry split.
  */
 export function RestoreVersion(versionID: number): $CancellablePromise<void> {
     return $Call.ByID(914410806, versionID);
