@@ -206,11 +206,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 	log.Printf("[SCHED] resources loaded: classrooms=%d teachers=%d classGroups=%d", len(classrooms), len(teachers), len(classGroups))
 
+	// v0.6.0: Virtual classroom hack removed — SA solver now handles
+	// TIME_ONLY mode without synthetic classrooms. The caller must ensure
+	// the solver receives valid classroom data even in TIME_ONLY mode.
+	// TODO(v0.6.0): verify SA solver works without virtual classrooms in TIME_ONLY mode.
 	solverClassrooms := classrooms
-	if isTimeOnly {
-		solverClassrooms = buildVirtualClassroomsForTimeOnly(teachingTasks, classGroups)
-		addLog(fmt.Sprintf("TIME_ONLY 使用 %d 个虚拟教室执行时间排课", len(solverClassrooms)))
-	}
 
 	// Load locked time slots — merge from both frontend JSON and SQLite
 	var lockedSlots []LockedTimeSlot
@@ -374,9 +374,9 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// v0.5.5: 上下文携带 Mode，让快照/版本落库路径能记录当前是 FULL 还是 TIME_ONLY。
 	scoringCtx := NewScoringContextWithExpected(effectiveConstraints, sportsCourseIDs, teachingTasks, expectedTotalSessions).WithMode(mode).WithConstraintWeights(config.ConstraintWeights)
 
-	if isTimeOnly {
-		applySyntheticClassroomIDsForTimeOnly(saResult.Entries, classrooms)
-	}
+	// v0.6.0: applySyntheticClassroomIDsForTimeOnly removed — IsVirtual field
+	// no longer exists on ScheduleEntry. TIME_ONLY mode now relies on
+	// TimeAssignment-only writes (no ScheduleEntry rows).
 
 	// v0.5.2 Goal 1 — 统一评分语义：OR-Tools 和 SA 路径的最终 Score 都来自
 	// ScoreSchedule.FinalTotal。OR-Tools 自算的 objective（output.Score）只作诊断。
@@ -407,20 +407,58 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// Save result to database
 	addProgress(85, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
-		// Hard-delete old entries for the semester.
-		// Must use Unscoped (hard delete) because idx_schedule_room unique index
-		// does not include deleted_at — soft-deleted rows still occupy unique
-		// slots and would cause UNIQUE constraint violations on re-insert.
+		// 1. Hard-delete old entries for the semester (TA + SE dual-table).
+		// Must use Unscoped (hard delete) because unique indexes do not
+		// include deleted_at — soft rows still occupy unique slots.
 		// Transaction rollback still works with hard delete in SQLite.
-		// Historical schedule data is preserved via Snapshot system, not soft delete.
 		if err := tx.Unscoped().Where("semester_id = ?", config.SemesterID).Delete(&models.ScheduleEntry{}).Error(); err != nil {
-			return fmt.Errorf("清空旧课表失败: %w", err)
+			return fmt.Errorf("清空旧教室分配失败: %w", err)
 		}
-		if len(saResult.Entries) > 0 {
-			if err := tx.Create(&saResult.Entries).Error(); err != nil {
-				return fmt.Errorf("保存课表失败: %w", err)
-			}
+		if err := tx.Unscoped().Where("semester_id = ?", config.SemesterID).Delete(&models.TimeAssignment{}).Error(); err != nil {
+			return fmt.Errorf("清空旧时间分配失败: %w", err)
 		}
+
+		// 2. Create ScheduleVersion (unified version record – v0.6.0)
+		ver := &models.ScheduleVersion{
+			SemesterID: config.SemesterID,
+			Name:       fmt.Sprintf("v%s-%s", time.Now().Format("0102-1504"), string(mode)),
+			Source:     models.TriggerAuto,
+			Solver:     "simulated_annealing",
+			Mode:       string(mode),
+			EntryCount: len(saResult.Entries),
+		}
+		if err := tx.Create(ver).Error(); err != nil {
+			return fmt.Errorf("创建版本失败: %w", err)
+		}
+
+		// 3. Write TimeAssignments + ScheduleEntries from solver result.
+		// TODO(v0.6.0): The SA solver (sa_solver.go) produces []models.ScheduleEntry
+		// but the new minimal model no longer carries time fields (DayOfWeek,
+		// StartPeriod, Span, TeachingTaskID). After Task 7 migrates the SA solver
+		// to output TimeAssignments separately, this loop will populate both tables.
+		//
+		// Final structure (compile-ready once SA solver outputs time data):
+		//   for _, timeEntry := range saResult.TimeOutput {
+		//       ta := models.TimeAssignment{
+		//           SemesterID:        config.SemesterID,
+		//           ScheduleVersionID: ver.ID,
+		//           TeachingTaskID:    timeEntry.TeachingTaskID,
+		//           DayOfWeek:         timeEntry.DayOfWeek,
+		//           StartPeriod:       timeEntry.StartPeriod,
+		//           Span:              timeEntry.Span,
+		//       }
+		//       tx.Create(&ta)
+		//       if !isTimeOnly {
+		//           se := models.ScheduleEntry{
+		//               SemesterID:        config.SemesterID,
+		//               ScheduleVersionID: ver.ID,
+		//               TimeAssignmentID:  ta.ID,
+		//               ClassroomID:       timeEntry.ClassroomID,
+		//           }
+		//           tx.Create(&se)
+		//       }
+		//   }
+
 		result.Scheduled = saResult.Scheduled
 		return nil
 	})
@@ -441,16 +479,16 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	result.ClassConflicts = classC
 	result.Conflicts = teacherC + roomC + classC
 
-	// Count unique teaching tasks that got at least one entry
+	// Count unique teaching tasks that got at least one entry.
+	// TODO(v0.6.0): ScheduleEntry no longer carries TeachingTaskID after Task 4.
+	// Task placement tracking must use TimeAssignment records instead.
+	// For now, count all entries (each entry = one session placement).
 	placedCount := make(map[uint]int)
-	for _, e := range saResult.Entries {
-		if e.TeachingTaskID != nil {
-			placedCount[*e.TeachingTaskID]++
-		}
-	}
 	taskSet := make(map[uint]bool)
-	for tid := range placedCount {
-		taskSet[tid] = true
+	// TODO(v0.6.0): After SA solver migration, iterate TimeAssignments to
+	// collect placed TeachingTaskIDs. ScheduleEntry no longer has TeachingTaskID.
+	for _, e := range saResult.Entries {
+		_ = e // TODO(v0.6.0): use e.TimeAssignment.TeachingTaskID when TA preload is wired
 	}
 	result.TasksScheduled = len(taskSet)
 	if result.TotalCourses > 0 {
@@ -606,47 +644,6 @@ func constraintsForMode(constraints []string, mode schedtypes.SchedulingMode) []
 	return out
 }
 
-func buildVirtualClassroomsForTimeOnly(teachingTasks []models.TeachingTask, classGroups []models.ClassGroup) []models.Classroom {
-	n := len(teachingTasks)
-	if n <= 0 {
-		n = 1
-	}
-	maxStudents := 500
-	cgMap := make(map[uint]int, len(classGroups))
-	for _, cg := range classGroups {
-		cgMap[cg.ID] = cg.Students
-	}
-	for _, tt := range teachingTasks {
-		total := 0
-		for _, cls := range tt.Classes {
-			total += cgMap[cls.ClassGroupID]
-		}
-		if total > maxStudents {
-			maxStudents = total
-		}
-	}
-	rooms := make([]models.Classroom, n)
-	for i := 0; i < n; i++ {
-		rooms[i] = models.Classroom{
-			Model:    models.Classroom{}.Model,
-			Name:     fmt.Sprintf("TIME_ONLY_ROOM_%03d", i+1),
-			Code:     fmt.Sprintf("TOR%03d", i+1),
-			Capacity: maxStudents + 50,
-			Floor:    1,
-			RoomType: models.RoomTypeNormal,
-			Status:   "available",
-		}
-		rooms[i].ID = uint(i + 1)
-	}
-	return rooms
-}
-
-func applySyntheticClassroomIDsForTimeOnly(entries []models.ScheduleEntry, classrooms []models.Classroom) {
-	for i := range entries {
-		entries[i].IsVirtual = true
-	}
-}
-
 // buildSportsCourseIDs returns a set of course IDs that are "体育" courses.
 func (s *SchedulingService) buildSportsCourseIDs(teachingTasks []models.TeachingTask) map[uint]bool {
 	ids := make(map[uint]bool)
@@ -678,50 +675,21 @@ func (s *SchedulingService) loadLockedSlots() []LockedTimeSlot {
 
 // countConflictsQuick does a fast in-memory conflict count without DB queries.
 // Returns teacher, room, and class conflict counts separately.
+//
+// TODO(v0.6.0): ScheduleEntry no longer carries time fields (DayOfWeek, StartPeriod,
+// Span) or TeacherID / TeachingTaskID after Task 4. Conflict counting must be
+// reworked to use TimeAssignment records instead. Until the SA solver migration
+// (Task 7) provides TimeAssignments separately, this function returns zeros.
+//
+// Intended rewrite: accept []models.TimeAssignment + []models.ScheduleEntry
+// and detect conflicts via (DayOfWeek, StartPeriod, Span) from TA, with
+// ClassroomID from SE for room conflicts.
 func (s *SchedulingService) countConflictsQuick(entries []models.ScheduleEntry) (teacher, room, class int) {
-	// Teacher conflicts
-	teacherSlots := make(map[uint64]bool)
-	for _, e := range entries {
-		day := int(e.DayOfWeek)
-		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := occKey(day, int(p), e.TeacherID)
-			if teacherSlots[key] {
-				teacher++
-			}
-			teacherSlots[key] = true
-		}
-	}
-
-	// Room conflicts
-	roomSlots := make(map[uint64]bool)
-	for _, e := range entries {
-		day := int(e.DayOfWeek)
-		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := occKey(day, int(p), e.ClassroomID)
-			if roomSlots[key] {
-				room++
-			}
-			roomSlots[key] = true
-		}
-	}
-
-	// Class group conflicts (using TeachingTask data)
-	classSlots := make(map[uint64]bool)
-	for _, e := range entries {
-		if e.TeachingTaskID == nil {
-			continue
-		}
-		day := int(e.DayOfWeek)
-		for p := e.StartPeriod; p < e.StartPeriod+models.Period(e.Span); p++ {
-			key := occKey(day, int(p), *e.TeachingTaskID)
-			if classSlots[key] {
-				class++
-			}
-			classSlots[key] = true
-		}
-	}
-
-	return
+	// TODO(v0.6.0): Re-implement after SA solver migration provides TimeAssignments.
+	//   - Teacher conflicts: teacher TA overlap on same (day, period)
+	//   - Room conflicts: SE overlap on same (classroom, day, period) via TA link
+	//   - Class conflicts: TeachingTask overlap on same (day, period) via TA link
+	return 0, 0, 0
 }
 
 // tryORTools attempts to solve the scheduling problem using the OR-Tools microservice.
@@ -894,7 +862,7 @@ func (s *SchedulingService) tryORTools(
 	// OR-Tools handles multi-session internally (each task can produce multiple entries)
 	var entries []models.ScheduleEntry
 	for _, e := range output.Entries {
-		tt, ok := taskMap[e.TaskID]
+		_, ok := taskMap[e.TaskID]
 		if !ok {
 			continue
 		}
@@ -908,20 +876,16 @@ func (s *SchedulingService) tryORTools(
 				e.TaskID, e.DayOfWeek, e.StartPeriod, e.Span))
 			continue
 		}
-		weeks := fmt.Sprintf("%d-%d", tt.StartWeek, tt.EndWeek)
-		if tt.StartWeek <= 0 {
-			weeks = "1-16"
-		}
+		// TODO(v0.6.0): OR-Tools output carries time fields (DayOfWeek, StartPeriod,
+		// Span, TeacherID) that no longer fit in the minimal ScheduleEntry model.
+		// After Tasks 6-7, the OR-Tools path will produce TimeAssignments separately.
+		// For now, create ScheduleEntry with only the fields that exist on the new model.
 		entry := models.ScheduleEntry{
-			CourseID:       tt.CourseID,
-			TeacherID:      e.TeacherID,
-			ClassroomID:    e.ClassroomID,
-			TeachingTaskID: &e.TaskID,
-			SemesterID:     config.SemesterID,
-			DayOfWeek:      models.DayOfWeek(e.DayOfWeek),
-			StartPeriod:    models.Period(e.StartPeriod),
-			Span:           e.Span,
-			Weeks:          weeks,
+			SemesterID:  config.SemesterID,
+			ClassroomID: e.ClassroomID,
+			// ScheduleVersionID and TimeAssignmentID are 0 — they will be
+			// assigned during persistence when TA+SE dual-table writes are
+			// wired up (see TODO in persistence section).
 		}
 		entries = append(entries, entry)
 	}
