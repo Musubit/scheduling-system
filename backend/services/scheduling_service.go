@@ -341,10 +341,10 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	// Post-solve analysis
-	addProgress(70, "分析冲突")
+	addProgress(90, "分析冲突")
 
 	// Save result to database
-	addProgress(85, "保存结果")
+	addProgress(93, "保存结果")
 	err := s.db.Transaction(func(tx database.DB) error {
 		// 1. Hard-delete old entries for the semester (TA + SE dual-table).
 		// Must use Unscoped (hard delete) because unique indexes do not
@@ -883,8 +883,12 @@ func (s *SchedulingService) tryORTools(
 
 // schedulingReporter adapts the RunScheduling closure-based progress/logging
 // callbacks to the schedtypes.ProgressReporter interface.
-// Uses a baseProgress to prevent the Orchestrator's internal 0% from
-// overwriting the caller's progress (e.g. 35% → Orchestrator 0% → flash back).
+//
+// Orchestrator 使用 0-100 的相对百分比（0=时间开始, 50=教室开始, 90=评分开始）。
+// 子组件（TimeScheduler/RoomScheduler）的 Stage 调用已被
+// orchestrator.stageSuppressReporter 静默。
+// baseProgress 将 Orchestrator 的相对百分比映射到调用方（RunScheduling）的
+// 绝对进度空间 [baseProgress, 90]。
 type schedulingReporter struct {
 	addProgress  func(int, string)
 	addLog       func(string)
@@ -892,9 +896,14 @@ type schedulingReporter struct {
 }
 
 func (r *schedulingReporter) Stage(name string, percent int) {
-	// Map orchestrator-internal 0-100% onto the range [baseProgress, 95]
-	mapped := r.baseProgress + percent*(95-r.baseProgress)/100
-	if mapped < r.baseProgress { mapped = r.baseProgress }
+	// 映射: Orchestrator 的 0→baseProgress, 100→90
+	mapped := r.baseProgress + percent*(90-r.baseProgress)/100
+	if mapped < r.baseProgress {
+		mapped = r.baseProgress
+	}
+	if mapped > 90 {
+		mapped = 90
+	}
 	r.addProgress(mapped, name)
 }
 
