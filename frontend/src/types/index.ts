@@ -301,3 +301,29 @@ export interface ScoreBreakdown {
   // v0.5.6: per-category actual maxes (weight × perCategoryMax)
   categoryMaxes?: Record<string, number>
 }
+
+/** v0.6.0: 排课条目 enriched 平铺视图 */
+export interface EnrichedScheduleEntry {
+  id: number
+  dayOfWeek: number
+  startPeriod: number
+  span: number
+  weeks: string
+  teacherId: number
+  teacherName: string
+  courseId: number
+  courseName: string
+  courseCode?: string
+  courseCredit?: number
+  classGroupIds: number[]
+  classGroupNames: string[]
+  classroomId?: number
+  classroomName?: string
+  classroomFloor?: number
+  classroomType?: string
+  classroomCode?: string
+  buildingName?: string
+  teachingTaskId?: number
+  semesterId: number
+  scheduleVersionId: number
+}
