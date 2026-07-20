@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// SAResult 是排课求解后的中间结果，用于兼容旧持久化路径。
+type SAResult struct {
+	Entries    []models.ScheduleEntry
+	Score      float64
+	Scheduled  int
+	Iterations int
+	ElapsedMs  int64
+}
+
 type SchedulingService struct {
 	db                database.DB
 	versions          *VersionService
