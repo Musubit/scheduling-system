@@ -11,6 +11,7 @@ import (
 	"scheduling-system/backend/appenv"
 	"scheduling-system/backend/config"
 	"scheduling-system/backend/database"
+	"scheduling-system/backend/scheduling/orchestrator"
 	"scheduling-system/backend/services"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -43,17 +44,26 @@ func Run(assets embed.FS) {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Create OR-Tools orchestrator
-	orchestrator := services.NewSolverOrchestrator()
+	// Create OR-Tools process orchestrator (start/stop/health)
+	solverOrch := services.NewSolverOrchestrator()
 
 	// Try to start scheduler service (looks in baseDir for scheduler.exe/solver.py)
-	startSchedulerIfAvailable(orchestrator, baseDir, cfg)
+	startSchedulerIfAvailable(solverOrch, baseDir, cfg)
 
 	// Create services
 	resources := services.NewResourceService(db)
 	teachingTasks := services.NewTeachingTaskService(db)
 	versions := services.NewVersionService(db)
-	scheduler := services.NewSchedulingService(db, versions, orchestrator)
+
+	// v0.6.0: Create scheduling orchestrator with adapter chain.
+	// Legacy adapters bridge the old SA solver / room allocator / scorer
+	// into the new two-stage pipeline until the pure implementations land.
+	timeScheduler := services.NewLegacySASolverAdapter()
+	roomScheduler := services.NewLegacyRoomAllocatorAdapter()
+	scorer := services.NewLegacyScorerAdapter()
+	orch := orchestrator.New(timeScheduler, roomScheduler, scorer)
+
+	scheduler := services.NewSchedulingService(db, versions, solverOrch, orch)
 	moves := services.NewMoveService(db)
 
 	// Create Wails application
@@ -83,7 +93,7 @@ func Run(assets embed.FS) {
 	})
 
 	// Cleanup on exit
-	defer orchestrator.StopORTools()
+	defer solverOrch.StopORTools()
 
 	// Create main window
 	app.Window.NewWithOptions(application.WebviewWindowOptions{

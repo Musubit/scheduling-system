@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,7 +17,8 @@ import (
 type SchedulingService struct {
 	db                database.DB
 	versions          *VersionService
-	orchestrator      *SolverOrchestrator
+	orch              schedtypes.ISchedulingOrchestrator // v0.6.0: new scheduling orchestrator
+	solverOrch        *SolverOrchestrator                 // existing: OR-Tools process mgmt
 	runMu             sync.Mutex
 	schedulingRunning atomic.Bool
 
@@ -26,8 +28,8 @@ type SchedulingService struct {
 	bestCachedResult  *SchedulingResult
 }
 
-func NewSchedulingService(db database.DB, versions *VersionService, orchestrator *SolverOrchestrator) *SchedulingService {
-	return &SchedulingService{db: db, versions: versions, orchestrator: orchestrator}
+func NewSchedulingService(db database.DB, versions *VersionService, solverOrch *SolverOrchestrator, orch schedtypes.ISchedulingOrchestrator) *SchedulingService {
+	return &SchedulingService{db: db, versions: versions, solverOrch: solverOrch, orch: orch}
 }
 
 type SchedulingConfig struct {
@@ -252,111 +254,44 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	log.Printf("[SCHED] lockedSlots: frontendJsonLen=%d dbSlots=%d merged=%d slots=%+v",
 		len(config.LockedSlotsJSON), len(dbSlots), len(lockedSlots), lockedSlots)
 
-	// Configure SA solver
-	saConfig := defaultSAConfig()
-	if config.Iterations > 0 {
-		saConfig.IterationsPerTemp = config.Iterations
+	// v0.6.0: SchedulingOrchestrator takeover — builds Views and delegates to
+	// the new two-stage pipeline (Time → Room → Score) via ISchedulingOrchestrator.
+	// Old SA/OR-Tools parallel block removed; see git history for the original code.
+
+	req := schedtypes.OrchestratorRequest{
+		Mode:              mode,
+		Tasks:             convertTasksToViews(teachingTasks, solverClassrooms),
+		Teachers:          convertTeachersToViews(teachers),
+		ClassGroups:       convertClassGroupsToViews(classGroups),
+		Classrooms:        convertClassroomsToViews(solverClassrooms),
+		LockedSlots:       convertLockedSlotsToTypes(lockedSlots),
+		Constraints:       effectiveConstraints,
+		ConstraintWeights: config.ConstraintWeights,
+		Deadline:          time.Now().Add(time.Duration(config.TimeLimit) * time.Second),
+		Seed:              time.Now().UnixNano(),
+		MaxRetries:        3,
+		SemesterID:        config.SemesterID,
 	}
-	if config.TimeLimit > 0 {
-		saConfig.MaxTimeSeconds = float64(config.TimeLimit)
-	} else {
-		saConfig.MaxTimeSeconds = 60
+
+	addProgress(35, "Orchestrator 求解")
+	reporter := &schedulingReporter{addProgress: addProgress, addLog: addLog}
+	orResult, orchestratorErr := s.orch.Run(context.Background(), req, reporter)
+	if orchestratorErr != nil {
+		result.Error = fmt.Sprintf("排课引擎异常: %v", orchestratorErr)
+		return result
 	}
-	saConfig.TimeOnly = isTimeOnly
-	saConfig.ConstraintWeights = config.ConstraintWeights
 
-	addLog(fmt.Sprintf("模拟退火参数: 初始温度=%.1f, 冷却率=%.2f, 最长求解时间=%.0fs",
-		saConfig.InitialTemp, saConfig.CoolingRate, saConfig.MaxTimeSeconds))
-
-	// Run OR-Tools and SA in parallel if both available, pick the better result.
-	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
-	var saResult *SAResult
-
-	if s.orchestrator != nil && s.orchestrator.IsORToolsAvailable() {
-		// Both engines available — run in parallel
-		addProgress(35, "OR-Tools + SA 并行求解")
-
-		var ortoolsResult *SAResult
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			ortoolsResult = s.tryORTools(teachingTasks, teachers, solverClassrooms, classGroups, lockedSlots, config, sportsCourseIDs, addLog)
-		}()
-
-		go func() {
-			defer wg.Done()
-			solver := NewSASolver()
-			result := solver.SolveMultiRun(
-				teachingTasks, teachers, solverClassrooms, classGroups,
-				lockedSlots, effectiveConstraints, config.SemesterID,
-				saConfig, 3, nil, nil,
-			)
-			result.Entries = solver.PostOptimize(
-				result.Entries, teachingTasks, teachers, solverClassrooms,
-				lockedSlots, effectiveConstraints,
-				max(5, len(result.Entries)/10),
-				isTimeOnly,
-			)
-			saResult = result
-		}()
-
-		wg.Wait()
-
-		// Pick the better result using ScoreSchedule as the single judge.
-		// Do NOT compare internal scores (OR-Tools objective vs SA score)
-		// because they use different scales.
-		if ortoolsResult != nil && saResult != nil {
-			scorer := NewScoringService()
-			scoreClassrooms := classrooms
-			if isTimeOnly {
-				scoreClassrooms = nil
-			}
-			// Build a temporary scoring context for the comparison
-			tmpExpectedSessions := 0
-			for _, tt := range teachingTasks {
-				th := tt.TotalHours
-				if th <= 0 {
-					th = tt.Course.Hours
-				}
-				plan := resolveSessionPlan(th, tt.StartWeek, tt.EndWeek, tt.MaxHoursPerWeek, tt.PreferredSpan)
-				tmpExpectedSessions += plan.SessionsPerWeek()
-			}
-			tmpCtx := NewScoringContextWithExpected(effectiveConstraints, sportsCourseIDs, teachingTasks, tmpExpectedSessions).WithMode(mode).WithConstraintWeights(config.ConstraintWeights)
-			ortoolsBreakdown := scorer.ScoreSchedule(ortoolsResult.Entries, teachers, scoreClassrooms, tmpCtx)
-			saBreakdown := scorer.ScoreSchedule(saResult.Entries, teachers, scoreClassrooms, tmpCtx)
-			addLog(fmt.Sprintf("并行求解完成: OR-Tools %.1f分 vs SA %.1f分 (ScoreSchedule)",
-				ortoolsBreakdown.FinalTotal, saBreakdown.FinalTotal))
-			if ortoolsBreakdown.FinalTotal > saBreakdown.FinalTotal {
-				saResult = ortoolsResult
-				saResult.Score = ortoolsBreakdown.FinalTotal
-				addLog("选择 OR-Tools 结果")
-			} else {
-				saResult.Score = saBreakdown.FinalTotal
-				addLog("选择 SA 结果")
-			}
-		} else if ortoolsResult != nil {
-			saResult = ortoolsResult
-		}
-	} else {
-		// Only SA available
-		addProgress(45, "模拟退火优化")
-		solver := NewSASolver()
-		saResult = solver.SolveMultiRun(
-			teachingTasks, teachers, solverClassrooms, classGroups,
-			lockedSlots, effectiveConstraints, config.SemesterID,
-			saConfig, 3, nil, nil,
-		)
-		saResult.Entries = solver.PostOptimize(
-			saResult.Entries, teachingTasks, teachers, solverClassrooms,
-			lockedSlots, effectiveConstraints,
-			max(5, len(saResult.Entries)/10),
-			isTimeOnly,
-		)
-		addLog(fmt.Sprintf("SA求解完成: %d次迭代, %.1fms",
-			saResult.Iterations, float64(saResult.ElapsedMs)))
+	// Build SAResult for downstream compatibility (versioning, caching).
+	saResult := &SAResult{
+		Entries:   nil,
+		Score:     orResult.Score.FinalTotal,
+		Scheduled: len(orResult.Assignments),
+		Iterations: orResult.Attempts,
+		ElapsedMs: orResult.ElapsedMs,
 	}
+
+	addLog(fmt.Sprintf("Orchestrator完成: %d个时间分配, %d个教室分配, %d次尝试, %.1fms",
+		len(orResult.Assignments), len(orResult.Allocations), orResult.Attempts, float64(orResult.ElapsedMs)))
 
 	// v0.5.2: compute expected total sessions from teaching tasks
 	// (single source of truth: resolveSessionPlan, same as SA solver uses).
@@ -372,6 +307,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 
 	// 构建评分上下文（复用至统一评分 + CreateSnapshot）
 	// v0.5.5: 上下文携带 Mode，让快照/版本落库路径能记录当前是 FULL 还是 TIME_ONLY。
+	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
 	scoringCtx := NewScoringContextWithExpected(effectiveConstraints, sportsCourseIDs, teachingTasks, expectedTotalSessions).WithMode(mode).WithConstraintWeights(config.ConstraintWeights)
 
 	// v0.6.0: applySyntheticClassroomIDsForTimeOnly removed — IsVirtual field
@@ -381,17 +317,11 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// v0.5.2 Goal 1 — 统一评分语义：OR-Tools 和 SA 路径的最终 Score 都来自
 	// ScoreSchedule.FinalTotal。OR-Tools 自算的 objective（output.Score）只作诊断。
 	// 这保证三个体系（OR-Tools / SA / ScoreSchedule）对同一 entries 输出完全一致。
-	{
-		scorer := NewScoringService()
-		scoreClassrooms := classrooms
-		if isTimeOnly {
-			scoreClassrooms = nil
-		}
-		breakdown := scorer.ScoreSchedule(saResult.Entries, teachers, scoreClassrooms, scoringCtx)
-		saResult.Score = breakdown.FinalTotal
-		result.Score = breakdown.FinalTotal
-		result.ScoreDetail = &breakdown
-	}
+	// v0.6.0: Score comes from IScorer inside the scheduling orchestrator.
+	// Old ScoreSchedule call removed; the orchestrator already computed the
+	// ScoreBreakdown via its injected IScorer adapter.
+	result.Score = orResult.Score.FinalTotal
+	result.ScoreDetail = convertScoreBreakdown(&orResult.Score)
 
 	// === Cross-run best result cache ===
 	// If the new run does not beat the cached score, return the cached result.
@@ -423,42 +353,46 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 			SemesterID: config.SemesterID,
 			Name:       fmt.Sprintf("v%s-%s", time.Now().Format("0102-1504"), string(mode)),
 			Source:     models.TriggerAuto,
-			Solver:     "simulated_annealing",
+			Solver:     "orchestrator",
 			Mode:       string(mode),
-			EntryCount: len(saResult.Entries),
+			EntryCount: len(orResult.Assignments),
 		}
 		if err := tx.Create(ver).Error(); err != nil {
 			return fmt.Errorf("创建版本失败: %w", err)
 		}
 
-		// 3. Write TimeAssignments + ScheduleEntries from solver result.
-		// TODO(v0.6.0): The SA solver (sa_solver.go) produces []models.ScheduleEntry
-		// but the new minimal model no longer carries time fields (DayOfWeek,
-		// StartPeriod, Span, TeachingTaskID). After Task 7 migrates the SA solver
-		// to output TimeAssignments separately, this loop will populate both tables.
-		//
-		// Final structure (compile-ready once SA solver outputs time data):
-		//   for _, timeEntry := range saResult.TimeOutput {
-		//       ta := models.TimeAssignment{
-		//           SemesterID:        config.SemesterID,
-		//           ScheduleVersionID: ver.ID,
-		//           TeachingTaskID:    timeEntry.TeachingTaskID,
-		//           DayOfWeek:         timeEntry.DayOfWeek,
-		//           StartPeriod:       timeEntry.StartPeriod,
-		//           Span:              timeEntry.Span,
-		//       }
-		//       tx.Create(&ta)
-		//       if !isTimeOnly {
-		//           se := models.ScheduleEntry{
-		//               SemesterID:        config.SemesterID,
-		//               ScheduleVersionID: ver.ID,
-		//               TimeAssignmentID:  ta.ID,
-		//               ClassroomID:       timeEntry.ClassroomID,
-		//           }
-		//           tx.Create(&se)
-		//       }
-		//   }
+		// 3. Write TimeAssignments + ScheduleEntries from orchestrator result.
+			// Each TimeAssignmentDraft becomes a TimeAssignment row; if FULL mode,
+			// a corresponding RoomAllocationDraft populates ScheduleEntry.
+			for i, draft := range orResult.Assignments {
+				ta := models.TimeAssignment{
+					SemesterID:        config.SemesterID,
+					ScheduleVersionID: ver.ID,
+					TeachingTaskID:    draft.TeachingTaskID,
+					DayOfWeek:         models.DayOfWeek(draft.DayOfWeek),
+					StartPeriod:       models.Period(draft.StartPeriod),
+					Span:              draft.Span,
+				}
+				if err := tx.Create(&ta).Error(); err != nil {
+					return fmt.Errorf("写入时间分配失败: %w", err)
+				}
 
+				// FULL: write ScheduleEntry
+				if !isTimeOnly {
+					alloc := findByLocalRef(orResult.Allocations, i)
+					if alloc != nil {
+						se := models.ScheduleEntry{
+							SemesterID:        config.SemesterID,
+							ScheduleVersionID: ver.ID,
+							TimeAssignmentID:  ta.ID,
+							ClassroomID:       alloc.ClassroomID,
+						}
+						if err := tx.Create(&se).Error(); err != nil {
+							return fmt.Errorf("写入教室分配失败: %w", err)
+						}
+					}
+				}
+			}
 		result.Scheduled = saResult.Scheduled
 		return nil
 	})
@@ -483,12 +417,12 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	// TODO(v0.6.0): ScheduleEntry no longer carries TeachingTaskID after Task 4.
 	// Task placement tracking must use TimeAssignment records instead.
 	// For now, count all entries (each entry = one session placement).
+	// v0.6.0: Use orchestrator TimeAssignmentDrafts, which carry TeachingTaskID.
 	placedCount := make(map[uint]int)
 	taskSet := make(map[uint]bool)
-	// TODO(v0.6.0): After SA solver migration, iterate TimeAssignments to
-	// collect placed TeachingTaskIDs. ScheduleEntry no longer has TeachingTaskID.
-	for _, e := range saResult.Entries {
-		_ = e // TODO(v0.6.0): use e.TimeAssignment.TeachingTaskID when TA preload is wired
+	for _, draft := range orResult.Assignments {
+		taskSet[draft.TeachingTaskID] = true
+		placedCount[draft.TeachingTaskID]++
 	}
 	result.TasksScheduled = len(taskSet)
 	if result.TotalCourses > 0 {
@@ -583,7 +517,7 @@ func (s *SchedulingService) RunScheduling(config SchedulingConfig) *SchedulingRe
 	}
 
 	addLog(fmt.Sprintf("排课完成！任务 %d/%d（%d条），评分 %.1f/100，冲突 教师%d 教室%d 班级%d",
-		result.TasksScheduled, result.TotalCourses, len(saResult.Entries), saResult.Score,
+		result.TasksScheduled, result.TotalCourses, len(orResult.Assignments), result.Score,
 		result.TeacherConflicts, result.RoomConflicts, result.ClassConflicts))
 	if result.TasksScheduled < result.TotalCourses {
 		addLog(fmt.Sprintf("WARN 剩余 %d 个教学任务未能排入", result.TotalCourses-result.TasksScheduled))
@@ -704,12 +638,12 @@ func (s *SchedulingService) tryORTools(
 	sportsCourseIDs map[uint]bool,
 	log func(string),
 ) *SAResult {
-	if s.orchestrator == nil || !s.orchestrator.IsORToolsAvailable() {
+	if s.solverOrch == nil || !s.solverOrch.IsORToolsAvailable() {
 		log("OR-Tools不可用，使用SA求解")
 		return nil
 	}
 
-	client := s.orchestrator.GetORToolsClient()
+	client := s.solverOrch.GetORToolsClient()
 	if client == nil {
 		return nil
 	}
@@ -933,4 +867,201 @@ func (s *SchedulingService) tryORTools(
 		Scheduled: len(entries),
 		ElapsedMs: int64(output.ElapsedMs),
 	}
+
+}
+
+// === v0.6.0: SchedulingOrchestrator helpers ===
+
+// schedulingReporter adapts the RunScheduling closure-based progress/logging
+// callbacks to the schedtypes.ProgressReporter interface.
+type schedulingReporter struct {
+	addProgress func(int, string)
+	addLog      func(string)
+}
+
+func (r *schedulingReporter) Stage(name string, percent int) {
+	r.addProgress(percent, name)
+}
+
+func (r *schedulingReporter) Iteration(cur, total int, cs, bs, temp float64) {}
+
+func (r *schedulingReporter) Log(msg string) {
+	r.addLog(msg)
+}
+
+// convertLockedSlotsToTypes converts services.LockedTimeSlot to schedtypes.LockedTimeSlot.
+func convertLockedSlotsToTypes(slots []LockedTimeSlot) []schedtypes.LockedTimeSlot {
+	result := make([]schedtypes.LockedTimeSlot, len(slots))
+	for i, s := range slots {
+		result[i] = schedtypes.LockedTimeSlot{
+			DayOfWeek:   schedtypes.DayOfWeek(s.DayOfWeek),
+			StartPeriod: schedtypes.Period(s.StartPeriod),
+			Span:        s.Span,
+		}
+	}
+	return result
+}
+
+// convertTasksToViews converts models.TeachingTask to TeachingTaskView slices.
+func convertTasksToViews(tasks []models.TeachingTask, classrooms []models.Classroom) []schedtypes.TeachingTaskView {
+	views := make([]schedtypes.TeachingTaskView, len(tasks))
+	for i, tt := range tasks {
+		classGroupIDs := make([]uint, len(tt.Classes))
+		totalStudents := 0
+		for j, cls := range tt.Classes {
+			classGroupIDs[j] = cls.ClassGroupID
+			totalStudents += cls.ClassGroup.Students
+		}
+		totalHours := tt.TotalHours
+		if totalHours <= 0 {
+			totalHours = tt.Course.Hours
+		}
+		requiredRoomType := InferRoomType(tt, tt.Course)
+		allowedRooms := AllowedRooms(tt, tt.Course, classrooms)
+		allowedRoomIDs := make([]uint, len(allowedRooms))
+		for j, r := range allowedRooms {
+			allowedRoomIDs[j] = r.ID
+		}
+		views[i] = schedtypes.TeachingTaskView{
+			ID:               tt.ID,
+			CourseID:         tt.CourseID,
+			CourseName:       tt.Course.Name,
+			CourseHours:      totalHours,
+			TeacherID:        tt.TeacherID,
+			ClassGroupIDs:    classGroupIDs,
+			TotalStudents:    totalStudents,
+			StartWeek:        tt.StartWeek,
+			EndWeek:          tt.EndWeek,
+			MaxHoursPerWeek:  tt.MaxHoursPerWeek,
+			PreferredSpan:    tt.PreferredSpan,
+			RequiredRoomType: requiredRoomType,
+			AllowedRoomIDs:   allowedRoomIDs,
+			IsSports:         models.IsSportsCourse(tt.Course.Name),
+		}
+	}
+	return views
+}
+
+// convertTeachersToViews converts models.Teacher to TeacherView slices.
+func convertTeachersToViews(teachers []models.Teacher) []schedtypes.TeacherView {
+	views := make([]schedtypes.TeacherView, len(teachers))
+	for i, t := range teachers {
+		var unavailableSlots []schedtypes.LockedTimeSlot
+		if t.UnavailableSlots != "" {
+			var slots []LockedTimeSlot
+			if err := json.Unmarshal([]byte(t.UnavailableSlots), &slots); err == nil {
+				unavailableSlots = make([]schedtypes.LockedTimeSlot, len(slots))
+				for j, s := range slots {
+					unavailableSlots[j] = schedtypes.LockedTimeSlot{
+						DayOfWeek:   schedtypes.DayOfWeek(s.DayOfWeek),
+						StartPeriod: schedtypes.Period(s.StartPeriod),
+						Span:        s.Span,
+					}
+				}
+			}
+		}
+		views[i] = schedtypes.TeacherView{
+			ID:               t.ID,
+			Name:             t.Name,
+			PreferNoEarly:    t.PreferNoEarly,
+			PreferNoLate:     t.PreferNoLate,
+			PreferLowFloor:   t.PreferLowFloor,
+			MaxDaysPerWeek:   t.MaxDaysPerWeek,
+			UnavailableSlots: unavailableSlots,
+		}
+	}
+	return views
+}
+
+// convertClassGroupsToViews converts models.ClassGroup to ClassGroupView slices.
+func convertClassGroupsToViews(cgs []models.ClassGroup) []schedtypes.ClassGroupView {
+	views := make([]schedtypes.ClassGroupView, len(cgs))
+	for i, cg := range cgs {
+		views[i] = schedtypes.ClassGroupView{
+			ID:       cg.ID,
+			Name:     cg.Name,
+			Students: cg.Students,
+		}
+	}
+	return views
+}
+
+// convertClassroomsToViews converts models.Classroom to ClassroomView slices.
+func convertClassroomsToViews(rooms []models.Classroom) []schedtypes.ClassroomView {
+	views := make([]schedtypes.ClassroomView, len(rooms))
+	for i, r := range rooms {
+		views[i] = schedtypes.ClassroomView{
+			ID:        r.ID,
+			Capacity:  r.Capacity,
+			Type:      r.RoomType,
+			Floor:     r.Floor,
+			Equipment: r.Equipment,
+			IsShared:  IsSharedVenue(r),
+		}
+	}
+	return views
+}
+
+// convertScoreBreakdown converts schedtypes.ScoreBreakdown to services.ScoreBreakdown.
+func convertScoreBreakdown(sb *schedtypes.ScoreBreakdown) *ScoreBreakdown {
+	if sb == nil {
+		return nil
+	}
+	bd := &ScoreBreakdown{
+		Total:                sb.Total,
+		FinalTotal:           sb.FinalTotal,
+		EnabledDimensions:    sb.EnabledDimensions,
+		PlacedSessions:       sb.PlacedSessions,
+		ExpectedSessions:     sb.ExpectedSessions,
+		Completeness:         sb.Completeness,
+		EnabledCategoryCount: len(sb.EnabledDimensions),
+		CategoryMaxes:        make(map[string]float64),
+	}
+	if sb.Time != nil {
+		bd.CourseSpacing = sb.Time.Value
+		bd.CategoryMaxes["time"] = sb.Time.Max
+	}
+	if sb.Teacher != nil {
+		bd.TeacherPref = sb.Teacher.Value
+		bd.CategoryMaxes["teacher"] = sb.Teacher.Max
+	}
+	if sb.Student != nil {
+		bd.StudentFatigue = sb.Student.Value
+		bd.CategoryMaxes["student"] = sb.Student.Max
+	}
+	if sb.Resource != nil {
+		bd.LowFloorPref = sb.Resource.Value
+		bd.CategoryMaxes["resource"] = sb.Resource.Max
+	}
+	if sb.Time != nil || sb.Teacher != nil || sb.Student != nil || sb.Resource != nil {
+		bd.Buckets = &ScoreBuckets{
+			Time:     convertScoreBucketPtr(sb.Time),
+			Teacher:  convertScoreBucketPtr(sb.Teacher),
+			Student:  convertScoreBucketPtr(sb.Student),
+			Resource: convertScoreBucketPtr(sb.Resource),
+		}
+	}
+	return bd
+}
+
+// convertScoreBucketPtr converts a schedtypes.ScoreBucket pointer to services.ScoreBucket.
+func convertScoreBucketPtr(b *schedtypes.ScoreBucket) *ScoreBucket {
+	if b == nil {
+		return nil
+	}
+	return &ScoreBucket{
+		Value:   b.Value,
+		Max:     b.Max,
+		Details: b.Details,
+	}
+}
+
+// findByLocalRef looks up a RoomAllocationDraft by its LocalRef index.
+func findByLocalRef(allocations []schedtypes.RoomAllocationDraft, localRef int) *schedtypes.RoomAllocationDraft {
+	for i := range allocations {
+		if allocations[i].LocalRef == localRef {
+			return &allocations[i]
+		}
+	}
+	return nil
 }
