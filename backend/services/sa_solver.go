@@ -11,6 +11,29 @@ import (
 
 const defaultPatienceRuns = 2 // stop after this many consecutive runs with no score improvement
 
+// TODO(v0.6.1): SA solver being replaced by pure scheduling/time/ implementation.
+// The SA solver internally uses saInternalEntry (old ScheduleEntry fields) because
+// it was built before the TA+SE model split. This temporary struct lets the solver
+// compile during the v0.6.0 migration without rewriting all SA internals.
+
+// saInternalEntry is a temporary internal type used by the SA solver to track
+// schedule placements during the anneal. It mirrors the old ScheduleEntry fields
+// that were removed in the TA+SE model split (v0.6.0). The Solve/SolveMultiRun
+// methods convert between saInternalEntry and models.ScheduleEntry at the boundary.
+type saInternalEntry struct {
+	ID             uint
+	SemesterID     uint
+	CourseID       uint
+	TeacherID      uint
+	ClassroomID    uint
+	TeachingTaskID *uint
+	ClassGroupID   *uint
+	DayOfWeek      models.DayOfWeek
+	StartPeriod    models.Period
+	Span           int
+	Weeks          string
+}
+
 // SASolver implements Simulated Annealing for course scheduling.
 // Pure Go, zero external dependencies beyond the standard library.
 type SASolver struct{}
@@ -94,7 +117,7 @@ type schedulingContext struct {
 	classGroupStudents map[uint]int
 
 	// Mutable state
-	entries    []models.ScheduleEntry
+	entries    []saInternalEntry
 	// v0.5.2 Goal 3: int-keyed occupancy replaces fmt.Sprintf("%d-%d-%d") keys
 	// to eliminate per-iteration string allocation on the SA hot path.
 	// Key = uint64(day)<<48 | uint64(period)<<40 | uint64(resourceID)
@@ -236,7 +259,7 @@ func (s *SASolver) Solve(
 
 	// Score initial solution
 	currentScore := ctx.computeScore()
-	bestEntries := make([]models.ScheduleEntry, len(ctx.entries))
+	bestEntries := make([]saInternalEntry, len(ctx.entries))
 	copy(bestEntries, ctx.entries)
 	bestScore := currentScore
 
@@ -278,7 +301,7 @@ func (s *SASolver) Solve(
 				currentScore = neighborScore
 				if ScoreGreater(currentScore, bestScore) {
 					bestScore = currentScore
-					bestEntries = make([]models.ScheduleEntry, len(ctx.entries))
+					bestEntries = make([]saInternalEntry, len(ctx.entries))
 					copy(bestEntries, ctx.entries)
 				}
 			} else {
@@ -308,7 +331,7 @@ done:
 	elapsed := time.Since(startTime).Milliseconds()
 
 	return &SAResult{
-		Entries:    bestEntries,
+		Entries:    convertToModelEntries(bestEntries),
 		Score:      bestScore,
 		Scheduled:  len(bestEntries),
 		Iterations: totalIterations,
@@ -317,7 +340,7 @@ done:
 }
 
 // buildInitial constructs a greedy initial solution from teaching tasks.
-func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
+func (ctx *schedulingContext) removeOccupancy(e saInternalEntry) {
 	day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
 	for p := start; p < start+span; p++ {
 		delete(ctx.roomOcc, occKey(day, p, e.ClassroomID))
@@ -338,7 +361,7 @@ func (ctx *schedulingContext) removeOccupancy(e models.ScheduleEntry) {
 	}
 }
 
-func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
+func (ctx *schedulingContext) addOccupancy(e saInternalEntry) {
 	day, start, span := int(e.DayOfWeek), int(e.StartPeriod), e.Span
 	// Find the classroom to check if it's a shared venue (体育馆)
 	isShared := false
@@ -371,7 +394,7 @@ func (ctx *schedulingContext) addOccupancy(e models.ScheduleEntry) {
 	}
 }
 
-func (ctx *schedulingContext) restoreOccupancy(e models.ScheduleEntry) {
+func (ctx *schedulingContext) restoreOccupancy(e saInternalEntry) {
 	ctx.addOccupancy(e)
 }
 
@@ -456,6 +479,21 @@ func (s *SASolver) SolveMultiRun(
 	return bestResult
 }
 
+// convertToModelEntries converts saInternalEntry slice to models.ScheduleEntry slice
+// for the SAResult public API. Only the fields that exist on the new ScheduleEntry model
+// are populated; time data is handled by the caller via TimeAssignment.
+func convertToModelEntries(internal []saInternalEntry) []models.ScheduleEntry {
+	out := make([]models.ScheduleEntry, len(internal))
+	for i, e := range internal {
+		out[i] = models.ScheduleEntry{
+			SemesterID:       e.SemesterID,
+			TimeAssignmentID: 0,
+			ClassroomID:      e.ClassroomID,
+		}
+	}
+	return out
+}
+
 // PostOptimize performs greedy post-optimization on the best solution (algorithm D).
 // It identifies the N lowest-scoring entries and tries to improve them via exhaustive
 // local search of all feasible (day × period × room) combinations.
@@ -498,7 +536,7 @@ func occKey(day, period int, id uint) uint64 {
 }
 
 // findTaskDataByEntry finds the teachingTaskData for a given schedule entry.
-func (ctx *schedulingContext) findTaskDataByEntry(e models.ScheduleEntry) *teachingTaskData {
+func (ctx *schedulingContext) findTaskDataByEntry(e saInternalEntry) *teachingTaskData {
 	if e.TeachingTaskID == nil {
 		return nil
 	}

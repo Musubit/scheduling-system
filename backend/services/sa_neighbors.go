@@ -233,7 +233,7 @@ func (ctx *schedulingContext) trySwap(currentScore float64) float64 {
 }
 
 // checkPositionConflict checks if an entry would conflict at a new (day, start) position.
-func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day, start int) bool {
+func (ctx *schedulingContext) checkPositionConflict(e saInternalEntry, day, start int) bool {
 	span := e.Span
 
 	// Check locked slots
@@ -278,7 +278,7 @@ func (ctx *schedulingContext) checkPositionConflict(e models.ScheduleEntry, day,
 }
 
 // classGroupsBusy checks if any class group in the entry's teaching task is occupied.
-func (ctx *schedulingContext) classGroupsBusy(e models.ScheduleEntry, day, start, span int) bool {
+func (ctx *schedulingContext) classGroupsBusy(e saInternalEntry, day, start, span int) bool {
 	if e.TeachingTaskID == nil {
 		return false
 	}
@@ -356,16 +356,16 @@ func (ctx *schedulingContext) computeScore() float64 {
 			ttList[i] = td.Task
 		}
 		scoringCtx := NewScoringContextWithExpected(ctx.constraints, ctx.sportsCourseIDs, ttList, ctx.expectedTotalSessions)
-		return NewScoringService().ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, scoringCtx).FinalTotal
+		return NewScoringService().ScoreSchedule(convertToModelEntries(ctx.entries), ctx.teachers, ctx.classrooms, scoringCtx).FinalTotal
 	}
-	breakdown := ctx.cachedScorer.ScoreSchedule(ctx.entries, ctx.teachers, ctx.classrooms, ctx.cachedScoreCtx)
+	breakdown := ctx.cachedScorer.ScoreSchedule(convertToModelEntries(ctx.entries), ctx.teachers, ctx.classrooms, ctx.cachedScoreCtx)
 	return breakdown.FinalTotal
 }
 
 // applyDelta updates the score cache for an entry being added or removed.
 // sign=+1 add, sign=-1 remove. Callers must pair these symmetrically around
 // any temporary mutation so undoNeighbor can restore invariants exactly.
-func (ctx *schedulingContext) applyDelta(sign int, e models.ScheduleEntry) {
+func (ctx *schedulingContext) applyDelta(sign int, e saInternalEntry) {
 	if ctx.sCache == nil {
 		return
 	}

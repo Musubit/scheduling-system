@@ -51,11 +51,12 @@ func MigrateV060(db DB) error {
 		}
 
 		// 3. AutoMigrate creates new TimeAssignment + ScheduleEntry tables
-		if err := adapter.db.AutoMigrate(
+		migrateErr := adapter.db.AutoMigrate(
 			&models.TimeAssignment{},
 			&models.ScheduleEntry{},
-		).Error; err != nil {
-			return fmt.Errorf("v0.6.0 automigrate failed: %w", err)
+		)
+		if migrateErr != nil {
+			return fmt.Errorf("v0.6.0 automigrate failed: %w", migrateErr)
 		}
 
 		// 4. Mark migration complete

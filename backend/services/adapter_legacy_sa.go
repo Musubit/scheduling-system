@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"gorm.io/gorm"
 	"scheduling-system/backend/models"
@@ -23,86 +22,20 @@ func NewLegacySASolverAdapter() *LegacySASolverAdapter {
 // Compile-time interface check.
 var _ schedtypes.ITimeScheduler = (*LegacySASolverAdapter)(nil)
 
-// Solve implements schedtypes.ITimeScheduler by converting the pure-type inputs
-// back into models, building virtual classrooms, and delegating to the old
-// SA solver via SolveMultiRun.
+// Solve implements schedtypes.ITimeScheduler.
+// TODO(v0.6.1): The legacy SA solver (sa_solver.go) is coupled to the old ScheduleEntry model
+// and won't compile after the TA+SE split. This adapter will be deleted in v0.6.1 when
+// the pure scheduling/time/ implementation replaces the SA solver entirely.
+// For v0.6.0, stub to return empty output so the services package compiles.
 func (a *LegacySASolverAdapter) Solve(
 	ctx context.Context,
 	input schedtypes.TimeSchedulingInput,
 	progress schedtypes.ProgressReporter,
 ) (schedtypes.TimeSchedulingOutput, error) {
-	// Fast path: zero tasks.
-	if len(input.Tasks) == 0 {
-		return schedtypes.TimeSchedulingOutput{}, nil
-	}
-
-	// ProgressReporter defensively replaced with no-op if nil.
-	if progress == nil {
-		progress = schedtypes.NoopReporter{}
-	}
-
-	// 1. Convert pure-type views → GORM models.
-	tasks := convertTaskViewsToModels(input.Tasks, input.Teachers, input.SemesterID)
-	teachers := convertTeacherViewsToModels(input.Teachers)
-	classGroups := convertClassGroupViewsToModels(input.ClassGroups)
-	lockedSlots := convertLockedSlots(input.LockedSlots)
-
-	// 2. Build virtual classrooms (TIME_ONLY mode).
-	classrooms := buildVirtualClassroomsForTimeOnly(tasks, classGroups)
-
-	// 3. Configure SA solver.
-	saConfig := defaultSAConfig()
-	saConfig.TimeOnly = true
-	if !input.Deadline.IsZero() {
-		if remaining := time.Until(input.Deadline).Seconds(); remaining > 0 {
-			saConfig.MaxTimeSeconds = remaining
-		}
-	}
-	if input.Seed != 0 {
-		saConfig.Seed = input.Seed
-	}
-	if input.ConstraintWeights != nil {
-		saConfig.ConstraintWeights = input.ConstraintWeights
-	}
-
-	// 4. Bridge ProgressReporter → legacy progressFn callback.
-	progressFn := func(iter, total int, currentScore, bestScore, temp float64) {
-		progress.Iteration(iter, total, currentScore, bestScore, temp)
-	}
-	progress.Stage("SA Solve (legacy adapter)", 0)
-
-	// 5. Derive cancel channel from context.
-	var cancelCh <-chan struct{}
-	if ctx != nil {
-		cancelCh = ctx.Done()
-	}
-
-	// 6. Run the old SA solver (multi-restart, 3 runs).
-	saResult := NewSASolver().SolveMultiRun(
-		tasks, teachers, classrooms, classGroups,
-		lockedSlots, input.Constraints, input.SemesterID,
-		saConfig, 3, cancelCh, progressFn,
-	)
-
-	// 7. Extract time-only assignments from ScheduleEntry results.
-	assignments := make([]schedtypes.TimeAssignmentDraft, 0, len(saResult.Entries))
-	for _, entry := range saResult.Entries {
-		if entry.TeachingTaskID == nil {
-			continue
-		}
-		assignments = append(assignments, schedtypes.TimeAssignmentDraft{
-			TeachingTaskID: *entry.TeachingTaskID,
-			DayOfWeek:      schedtypes.DayOfWeek(entry.DayOfWeek),
-			StartPeriod:    schedtypes.Period(entry.StartPeriod),
-			Span:           entry.Span,
-		})
-	}
-
-	return schedtypes.TimeSchedulingOutput{
-		Assignments: assignments,
-		Iterations:  saResult.Iterations,
-		ElapsedMs:   saResult.ElapsedMs,
-	}, nil
+	_ = ctx
+	_ = input
+	_ = progress
+	return schedtypes.TimeSchedulingOutput{}, nil
 }
 
 // convertTaskViewsToModels converts TeachingTaskView slices into models.TeachingTask

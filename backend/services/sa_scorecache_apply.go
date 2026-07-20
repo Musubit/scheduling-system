@@ -45,7 +45,7 @@ func newScoreCache(
 
 // rebuildFromEntries wipes counters and re-applies every entry. Used at solver
 // start after buildInitial() and as a sanity re-sync point.
-func (c *scoreCache) rebuildFromEntries(entries []models.ScheduleEntry) {
+func (c *scoreCache) rebuildFromEntries(entries []saInternalEntry) {
 	// Reset counters (keep constant lookups).
 	c.teacherEarly = make(map[uint]int, len(c.teacherByID))
 	c.teacherLate = make(map[uint]int, len(c.teacherByID))
@@ -68,7 +68,7 @@ func (c *scoreCache) rebuildFromEntries(entries []models.ScheduleEntry) {
 // applyEntry updates all counters by the given sign (+1 add / -1 remove).
 // isSports indicates whether the entry's course is a sports course; caller
 // looks it up once from sportsCourseIDs.
-func (c *scoreCache) applyEntry(sign int, e models.ScheduleEntry, isSports bool) {
+func (c *scoreCache) applyEntry(sign int, e saInternalEntry, isSports bool) {
 	day := int(e.DayOfWeek)
 	start := int(e.StartPeriod)
 	span := e.Span

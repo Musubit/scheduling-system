@@ -436,38 +436,15 @@ func seedDemoEntries(db DB) {
 		{"PE101", "T014", "MIDDLE_FIELD", 3, 2, 2}, // 3-4 节 · 体育(篮球) · 中区操场（合班）
 	}
 
-	rows := make([]models.ScheduleEntry, 0, len(entries))
-	for _, spec := range entries {
-		course, ok := courseByCode[spec.CourseCode]
-		if !ok {
-			continue
-		}
-		teacher, ok := teacherByCode[spec.TeacherCode]
-		if !ok {
-			continue
-		}
-		room, ok := roomByCode[spec.RoomCode]
-		if !ok {
-			continue
-		}
-		rows = append(rows, models.ScheduleEntry{
-			CourseID:    course.ID,
-			TeacherID:   teacher.ID,
-			ClassroomID: room.ID,
-			SemesterID:  semesterID,
-			DayOfWeek:   spec.DayOfWeek,
-			StartPeriod: spec.StartPeriod,
-			Span:        spec.Span,
-			Weeks:       "1-16",
-		})
-	}
-
-	if len(rows) == 0 {
-		return
-	}
-	if err := db.Create(&rows).Error(); err != nil {
-		log.Printf("Seed: demo schedule entries already exist or creation failed: %v", err)
-	}
+	// TODO(v0.6.0): Rebuild seed demo entries using TimeAssignment + ScheduleEntry split model.
+	// ScheduleEntry now requires TimeAssignmentID (not standalone CourseID/TeacherID/DayOfWeek/etc).
+	// Seed data must first create TimeAssignment rows, then ScheduleEntry rows linking to them.
+	_ = entries
+	_ = semesterID
+	_ = courseByCode
+	_ = teacherByCode
+	_ = roomByCode
+	log.Println("Seed: v0.6.0 — demo schedule entries temporarily disabled (TA+SE split requires TimeAssignments first)")
 }
 
 // ===== Helper: Code → Entity 查询工具 =====
