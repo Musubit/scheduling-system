@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ScheduleEntry, ScheduleView } from '@/types'
+import type { EnrichedScheduleEntry, ScheduleEntry, ScheduleView } from '@/types'
 import { GetScheduleEntries } from '../../bindings/scheduling-system/backend/services/resourceservice'
 
 export const useScheduleStore = defineStore('schedule', () => {
@@ -22,10 +22,10 @@ export const useScheduleStore = defineStore('schedule', () => {
     else { currentMonth.value++ }
   }
 
-  const entries = ref<ScheduleEntry[]>([])
+  // v0.6.2: Use EnrichedScheduleEntry — flattened read-model from TA+SE JOIN.
+  const entries = ref<EnrichedScheduleEntry[]>([])
 
-  // Parse weeks string like "1-16" and check if the given week falls within
-  function isInWeek(entry: ScheduleEntry, week: number): boolean {
+  function isInWeek(entry: EnrichedScheduleEntry, week: number): boolean {
     if (!entry.weeks) return true
     const parts = entry.weeks.split('-')
     if (parts.length !== 2) return true
@@ -47,14 +47,8 @@ export const useScheduleStore = defineStore('schedule', () => {
     if (perspective.value === 'class' && selectedClassId.value) {
       return entries.value.filter(e => {
         if (!isInWeek(e, currentWeek.value)) return false
-        // Check if entry's class group matches
-        if (e.classGroupId === selectedClassId.value) return true
-        // Also check via TeachingTask association
-        const tt = (e as any).teachingTask
-        if (tt?.classes) {
-          return tt.classes.some((c: any) => c.classGroupId === selectedClassId.value || c.ClassGroupID === selectedClassId.value)
-        }
-        return false
+        // EnrichedScheduleEntry has flat classGroupIds[] from TA+SE JOIN
+        return e.classGroupIds.includes(selectedClassId.value)
       })
     }
     return []
@@ -68,7 +62,7 @@ export const useScheduleStore = defineStore('schedule', () => {
 
   const filteredCount = computed(() => displayEntries.value.length)
 
-  function getEntryAt(day: number, period: number): ScheduleEntry | undefined {
+  function getEntryAt(day: number, period: number): EnrichedScheduleEntry | undefined {
     return displayEntries.value.find(e => e.dayOfWeek === day && period >= e.startPeriod && period < e.startPeriod + e.span)
   }
 
@@ -76,7 +70,18 @@ export const useScheduleStore = defineStore('schedule', () => {
     isLoading.value = true
     try {
       const data = await GetScheduleEntries(semesterId)
-      entries.value = (data || []) as ScheduleEntry[]
+      // Backend returns EnrichedScheduleEntry with flat fields.
+      // Components expect nested course/teacher/classroom objects — add compatibility wrappers.
+      entries.value = (data || []).map(e => ({
+        ...e,
+        course: { ID: e.courseId, name: e.courseName, code: e.courseCode, credit: e.courseCredit, dept: '' } as any,
+        teacher: { ID: e.teacherId, name: e.teacherName } as any,
+        classroom: e.classroomId != null ? {
+          ID: e.classroomId, name: e.classroomName,
+          floor: e.classroomFloor, type: e.classroomType, code: e.classroomCode,
+          building: e.buildingName ? { name: e.buildingName } : undefined,
+        } as any : undefined,
+      })) as any as EnrichedScheduleEntry[]
     } catch (e) {
       console.warn('Failed to load schedule from Go backend:', e)
       entries.value = []
@@ -118,7 +123,7 @@ export const useScheduleStore = defineStore('schedule', () => {
 
       versionName.value = version.name || ''
 
-      // Load teaching tasks for the version's semester (needed for class perspective filtering)
+      // Load teaching tasks for the version's semester
       const teachingTasks = await ListTeachingTasks(version.semesterId).catch(() => [])
 
       // Build lookup maps for resource resolution
@@ -127,35 +132,23 @@ export const useScheduleStore = defineStore('schedule', () => {
       const classroomById = new Map<number, any>((classrooms || []).map((c: any) => [c.ID, c]))
       const teachingTaskById = new Map<number, any>((teachingTasks || []).map((t: any) => [t.ID, t]))
 
-      // Convert version entries to ScheduleEntry format — every field of the
-      // ScheduleEntry interface must be explicitly assigned so the runtime
-      // shape matches what components expect (course cards, color, details drawer).
-      // Fields unavailable in the version entry are set to null/undefined.
+      // Convert version entries to ScheduleEntry format
       entries.value = (version.entries || []).map((e: any) => ({
-        // Identity
-        ID: (e.originalEntryId || e.ID) as number,
-
-        // Foreign keys
-        courseId: e.courseId,
-        teacherId: e.teacherId,
-        classroomId: e.classroomId,
-        classGroupId: null,
-        teachingTaskId: e.teachingTaskId,
-
-        // Time
-        semester: '',
+        id: (e.originalEntryId || e.ID) as number,
         dayOfWeek: e.dayOfWeek,
         startPeriod: e.startPeriod,
         span: e.span,
         weeks: e.weeks || '1-16',
-
-        // Populated associations
-        course: courseById.get(e.courseId) || null,
-        teacher: teacherById.get(e.teacherId) || null,
-        classroom: classroomById.get(e.classroomId) || null,
-        classGroup: null,
-        teachingTask: e.teachingTaskId ? teachingTaskById.get(e.teachingTaskId) || null : null,
-      })) as unknown as ScheduleEntry[]
+        teacherId: e.teacherId,
+        teacherName: teacherById.get(e.teacherId)?.name || '',
+        courseId: e.courseId,
+        courseName: courseById.get(e.courseId)?.name || '',
+        classGroupIds: e.classGroupIds || [],
+        classGroupNames: [],
+        classroomId: e.classroomId,
+        semesterId: version.semesterId,
+        scheduleVersionId: versionId,
+      })) as EnrichedScheduleEntry[]
     } catch (e) {
       console.warn('Failed to load version:', e)
       viewMode.value = 'current'
@@ -173,11 +166,8 @@ export const useScheduleStore = defineStore('schedule', () => {
     loadSchedule(useAppStore().currentSemesterId)
   }
 
-  // ---- Manual adjustment tracking (H3 — post-adjustment snapshot save) ----
-  //
-  // dirtyMoveCount 记录自上次快照以来的手动调整次数。WeekView 拖拽后调用
-  // markDirty()，SchedulingPage 的"保存快照"按钮完成后调用 clearDirty()。
-  // 用户能一眼看到"还有 N 处未保存的调整"，避免生成快照垃圾。
+  // ---- Manual adjustment tracking ----
+
   const dirtyMoveCount = ref(0)
   function markDirty() {
     dirtyMoveCount.value++
@@ -195,7 +185,6 @@ export const useScheduleStore = defineStore('schedule', () => {
     getEntryAt, loadSchedule,
     viewMode, versionName,
     loadVersionEntries, clearVersionView,
-    // H3: manual adjustment dirty tracking
     dirtyMoveCount, markDirty, clearDirty,
   }
 })
