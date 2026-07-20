@@ -88,7 +88,7 @@ export const useAppStore = defineStore('app', () => {
   ])
 
   // 当前展开的导航组
-  const expandedGroups = ref<string[]>(['课表中心', '资源管理'])
+  const expandedGroups = ref<string[]>(['课表中心', '资源管理', '排课引擎', '系统设置'])
 
   function toggleNavGroup(label: string) {
     const idx = expandedGroups.value.indexOf(label)

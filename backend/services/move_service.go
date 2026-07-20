@@ -3,8 +3,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"runtime/debug"
 	"scheduling-system/backend/database"
 	"scheduling-system/backend/models"
 	"strconv"
@@ -53,400 +51,52 @@ type MoveAndScoreResult struct {
 	ScoreDetail *ScoreBreakdown `json:"scoreDetail,omitempty"`
 }
 
-// CheckMove validates whether a schedule entry can be moved to a new time/room.
+// TODO(v0.6.0): Adapt CheckMove for TimeAssignment+ScheduleEntry split model.
+// CheckMove currently accesses old ScheduleEntry fields (DayOfWeek, StartPeriod, Span,
+// Teacher, TeachingTask, etc.) that no longer exist after the TA+SE model migration.
+// Will be properly adapted when move operations are re-implemented against the new model.
 func (s *MoveService) CheckMove(req CheckMoveRequest) *CheckMoveResult {
-	result := &CheckMoveResult{Valid: true}
-
-	// Load the entry being moved
-	var entry models.ScheduleEntry
-	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").Preload("TeachingTask").
-		First(&entry, req.EntryID).Error(); err != nil {
-		result.Valid = false
-		result.Conflicts = append(result.Conflicts, MoveConflict{
-			Type: "error", Description: fmt.Sprintf("课表条目不存在: ID=%d", req.EntryID),
-		})
-		return result
+	_ = req
+	return &CheckMoveResult{
+		Valid: false,
+		Conflicts: []MoveConflict{{
+			Type:        "error",
+			Description: "v0.6.0 migration in progress — move validation temporarily disabled",
+		}},
 	}
-
-	// Determine new classroom
-	newRoomID := entry.ClassroomID
-	if req.NewClassroom > 0 {
-		newRoomID = req.NewClassroom
-	}
-
-	span := entry.Span
-	if req.NewSpan > 0 {
-		span = req.NewSpan
-	}
-
-	// Load all other entries for the same semester (excluding this one)
-	var others []models.ScheduleEntry
-	if err := s.db.Where("semester_id = ? AND id != ?", entry.SemesterID, entry.ID).Find(&others).Error(); err != nil {
-		result.Valid = false
-		result.Conflicts = append(result.Conflicts, MoveConflict{
-			Type: "error", Description: fmt.Sprintf("加载课表数据失败: %v", err),
-		})
-		return result
-	}
-
-	// Load locked slots via shared package-level function
-	lockedSlots := loadLockedSlotsDB(s.db)
-
-		// 1. Check locked time slots
-		for _, ls := range lockedSlots {
-			if int(ls.DayOfWeek) == req.NewDay {
-				if periodsOverlapInt(req.NewPeriod, span, int(ls.StartPeriod), ls.Span) {
-					result.Valid = false
-					result.Conflicts = append(result.Conflicts, MoveConflict{
-						Type:        "locked",
-						Description: fmt.Sprintf("该时段为全校锁定时间（%s %d-%d节）",
-							models.DayOfWeek(req.NewDay).String(),
-							ls.StartPeriod.DisplayNum(),
-							int(ls.StartPeriod)+ls.Span),
-						Entity: "系统设置",
-					})
-				}
-			}
-		}
-
-		// 1b. Check teacher unavailable slots
-		if entry.Teacher.ID > 0 && entry.Teacher.UnavailableSlots != "" {
-			var unavailSlots []LockedTimeSlot
-			if err := json.Unmarshal([]byte(entry.Teacher.UnavailableSlots), &unavailSlots); err == nil {
-				for _, u := range unavailSlots {
-					if int(u.DayOfWeek) == req.NewDay && periodsOverlapInt(req.NewPeriod, span, int(u.StartPeriod), u.Span) {
-						result.Valid = false
-						result.Conflicts = append(result.Conflicts, MoveConflict{
-							Type:        "teacher",
-							Description: fmt.Sprintf("%s在%s的%d-%d节有不可用时间设置",
-								entry.Teacher.Name,
-								models.DayOfWeek(req.NewDay).String(),
-								u.StartPeriod.DisplayNum(),
-								int(u.StartPeriod)+u.Span),
-							Entity: entry.Teacher.Name,
-						})
-					}
-				}
-			}
-		}
-
-		// 1c. Check room capacity + resource matching (v0.5.3: unified ResourceMatcher)
-		if req.NewClassroom > 0 {
-			var newRoom models.Classroom
-			if err := s.db.First(&newRoom, req.NewClassroom).Error(); err != nil {
-				result.Valid = false
-				result.Conflicts = append(result.Conflicts, MoveConflict{
-					Type: "error", Description: fmt.Sprintf("教室 ID=%d 不存在: %v", req.NewClassroom, err),
-				})
-				return result
-			}
-			totalStudents := s.getClassGroupTotalStudents(entry)
-			if totalStudents > 0 && newRoom.Capacity < totalStudents {
-				result.Valid = false
-				result.Conflicts = append(result.Conflicts, MoveConflict{
-					Type:        "room",
-					Description: fmt.Sprintf("%s容量不足（需%d人，仅%d座）", newRoom.Name, totalStudents, newRoom.Capacity),
-					Entity:      newRoom.Name,
-				})
-			}
-			// v0.5.3: check room type + equipment match
-			if entry.TeachingTask != nil {
-				matchResult := Match(*entry.TeachingTask, entry.Course, newRoom)
-				if !matchResult.OK {
-					result.Valid = false
-					result.Conflicts = append(result.Conflicts, MoveConflict{
-						Type:        "room",
-						Description: ExplainMismatch(matchResult),
-						Entity:      newRoom.Name,
-					})
-				}
-			}
-		}
-
-		// 2. Check teacher conflict
-	for _, other := range others {
-		if other.TeacherID != entry.TeacherID {
-			continue
-		}
-		if int(other.DayOfWeek) != req.NewDay {
-			continue
-		}
-		// Skip entries whose Weeks range never overlaps with the moved entry —
-		// they never coexist in the same teaching week and cannot conflict.
-		if !weeksOverlap(entry.Weeks, other.Weeks) {
-			continue
-		}
-		if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
-			result.Valid = false
-			result.Conflicts = append(result.Conflicts, MoveConflict{
-				Type:        "teacher",
-				Description: fmt.Sprintf("%s在%s %d-%d节已有课程",
-					entry.Teacher.Name,
-					models.DayOfWeek(req.NewDay).String(),
-					other.StartPeriod.DisplayNum(),
-					int(other.StartPeriod)+other.Span),
-				Entity: entry.Teacher.Name,
-			})
-		}
-	}
-
-	// 3. Check room conflict
-	for _, other := range others {
-		if other.ClassroomID != newRoomID {
-			continue
-		}
-		if int(other.DayOfWeek) != req.NewDay {
-			continue
-		}
-		if !weeksOverlap(entry.Weeks, other.Weeks) {
-			continue
-		}
-		if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
-			var room models.Classroom
-			if err := s.db.First(&room, newRoomID).Error(); err != nil {
-				room.Name = fmt.Sprintf("教室#%d", newRoomID)
-			}
-			result.Valid = false
-			result.Conflicts = append(result.Conflicts, MoveConflict{
-				Type:        "room",
-				Description: fmt.Sprintf("%s在%s %d-%d节已被占用",
-					room.Name,
-					models.DayOfWeek(req.NewDay).String(),
-					other.StartPeriod.DisplayNum(),
-					int(other.StartPeriod)+other.Span),
-				Entity: room.Name,
-			})
-		}
-	}
-
-	// 4. Check class group conflict
-	// Check using TeachingTask if available, otherwise fall back to ClassGroupID
-	var entryClassIDs []uint
-	if entry.TeachingTaskID != nil && entry.TeachingTask != nil {
-		var ttClasses []models.TeachingTaskClass
-		if err := s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses).Error(); err != nil {
-			result.Valid = false
-			result.Conflicts = append(result.Conflicts, MoveConflict{
-				Type: "error", Description: fmt.Sprintf("加载教学任务班级失败: %v", err),
-			})
-			return result
-		}
-		for _, tc := range ttClasses {
-			entryClassIDs = append(entryClassIDs, tc.ClassGroupID)
-		}
-	} else if entry.ClassGroupID != nil {
-		entryClassIDs = append(entryClassIDs, *entry.ClassGroupID)
-	}
-
-	for _, cid := range entryClassIDs {
-		for _, other := range others {
-			// Check if other entry shares any class group
-			otherClassIDs := s.getClassIDs(other)
-			for _, otherCID := range otherClassIDs {
-				if otherCID != cid {
-					continue
-				}
-				if int(other.DayOfWeek) != req.NewDay {
-					continue
-				}
-				if !weeksOverlap(entry.Weeks, other.Weeks) {
-					continue
-				}
-				if periodsOverlapInt(req.NewPeriod, span, int(other.StartPeriod), other.Span) {
-					var cg models.ClassGroup
-					if err := s.db.First(&cg, cid).Error(); err != nil {
-						cg.Name = fmt.Sprintf("班级#%d", cid)
-					}
-					result.Valid = false
-					result.Conflicts = append(result.Conflicts, MoveConflict{
-						Type:        "class",
-						Description: fmt.Sprintf("%s在%s %d-%d节已有课程",
-							cg.Name,
-							models.DayOfWeek(req.NewDay).String(),
-							other.StartPeriod.DisplayNum(),
-							int(other.StartPeriod)+other.Span),
-						Entity: cg.Name,
-					})
-					goto nextClass
-				}
-			}
-		}
-	nextClass:
-	}
-
-	return result
 }
 
-// MoveEntry executes a validated move by updating the schedule entry.
-func (s *MoveService) MoveEntry(req CheckMoveRequest) (retErr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[MOVE] PANIC recovered in MoveEntry: %v\n%s", r, debug.Stack())
-			retErr = fmt.Errorf("移动异常: %v", r)
-		}
-	}()
-
-	// Parameter validation — reject obviously invalid values
-	if req.NewDay < 0 || req.NewDay > 6 {
-		return fmt.Errorf("无效星期: %d", req.NewDay)
-	}
-	if req.NewPeriod < 0 || req.NewPeriod > 10 {
-		return fmt.Errorf("无效节次: %d", req.NewPeriod)
-	}
-	if req.NewSpan < 1 || req.NewSpan > 3 {
-		return fmt.Errorf("无效跨度: %d", req.NewSpan)
-	}
-	if req.NewPeriod+req.NewSpan > 11 {
-		return fmt.Errorf("节次+跨度超出范围: %d+%d", req.NewPeriod, req.NewSpan)
-	}
-
-	var entry models.ScheduleEntry
-	if err := s.db.First(&entry, req.EntryID).Error(); err != nil {
-		return fmt.Errorf("课表条目不存在: %w", err)
-	}
-
-	entry.DayOfWeek = models.DayOfWeek(req.NewDay)
-	entry.StartPeriod = models.Period(req.NewPeriod)
-	if req.NewSpan > 0 {
-		entry.Span = req.NewSpan
-	}
-	if req.NewClassroom > 0 {
-		entry.ClassroomID = req.NewClassroom
-	}
-
-	return s.db.Save(&entry).Error()
+// TODO(v0.6.0): Adapt MoveEntry for TimeAssignment+ScheduleEntry split model.
+// MoveEntry updates old ScheduleEntry fields (DayOfWeek, StartPeriod, Span) that no
+// longer exist after the TA+SE split. Will be properly adapted when move operations
+// are re-implemented against the new model (TimeAssignment for time moves, ScheduleEntry
+// for room changes).
+func (s *MoveService) MoveEntry(req CheckMoveRequest) error {
+	_ = req
+	return fmt.Errorf("v0.6.0 migration in progress — move operations temporarily disabled")
 }
 
-// MoveEntryAndScore validates and applies a move, then recalculates the full
-// schedule score to provide immediate quality-change feedback. On success the
-// DB entry is updated and the response includes before/after scores with a
-// human-readable delta.
-//
-// This is the recommended single-call replacement for CheckMove + MoveEntry
-// when the caller also wants score feedback. Existing CheckMove + MoveEntry
-// callers are unaffected (backward compatible).
-func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (retRes *MoveAndScoreResult, retErr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[MOVE] PANIC recovered in MoveEntryAndScore: %v\n%s", r, debug.Stack())
-			retRes = &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("移动异常: %v", r)}
-			retErr = nil
-		}
-	}()
-
-	// Parameter validation — reject obviously invalid values
-	if req.NewDay < 0 || req.NewDay > 6 {
-		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效星期: %d", req.NewDay)}, nil
-	}
-	if req.NewPeriod < 0 || req.NewPeriod > 10 {
-		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效节次: %d", req.NewPeriod)}, nil
-	}
-	if req.NewSpan < 1 || req.NewSpan > 3 {
-		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("无效跨度: %d", req.NewSpan)}, nil
-	}
-	if req.NewPeriod+req.NewSpan > 11 {
-		return &MoveAndScoreResult{Success: false, Error: fmt.Sprintf("节次+跨度超出范围: %d+%d", req.NewPeriod, req.NewSpan)}, nil
-	}
-
-	// Load the entry being moved
-	var entry models.ScheduleEntry
-	if err := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
-		Preload("TeachingTask").First(&entry, req.EntryID).Error(); err != nil {
-		return &MoveAndScoreResult{
-			Success: false,
-			Error:   fmt.Sprintf("课表条目不存在: ID=%d", req.EntryID),
-		}, nil
-	}
-
-	// Compute score BEFORE the move (entry still at old position)
-	beforeBD, err := s.computeScore(entry.SemesterID)
-	if err != nil {
-		return nil, fmt.Errorf("评分计算失败: %w", err)
-	}
-	beforeScore := beforeBD.Total
-
-	// Validate the move using the existing conflict checker
-	checkResult := s.CheckMove(req)
-	if !checkResult.Valid {
-		return &MoveAndScoreResult{
-			Success:     false,
-			Error:       checkResult.Conflicts[0].Description,
-			BeforeScore: beforeScore,
-		}, nil
-	}
-
-	// Apply the move
-	entry.DayOfWeek = models.DayOfWeek(req.NewDay)
-	entry.StartPeriod = models.Period(req.NewPeriod)
-	if req.NewSpan > 0 {
-		entry.Span = req.NewSpan
-	}
-	if req.NewClassroom > 0 {
-		entry.ClassroomID = req.NewClassroom
-	}
-
-	// Wrap Save + computeScore in a transaction so the score is computed
-	// against the updated state and rolls back atomically on failure.
-	var afterBD *ScoreBreakdown
-	if err := s.db.Transaction(func(tx database.DB) error {
-		if err := tx.Save(&entry).Error(); err != nil {
-			return fmt.Errorf("移动课程失败: %w", err)
-		}
-		var scoreErr error
-		afterBD, scoreErr = s.computeScoreDB(tx, entry.SemesterID)
-		if scoreErr != nil {
-			return fmt.Errorf("重评分失败: %w", scoreErr)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	afterScore := afterBD.Total
-
+// TODO(v0.6.0): Adapt MoveEntryAndScore for TimeAssignment+ScheduleEntry split model.
+// Depends on CheckMove, MoveEntry, and computeScoreDB — all of which access old
+// ScheduleEntry fields removed by the TA+SE split. Will be properly adapted in v0.6.1.
+func (s *MoveService) MoveEntryAndScore(req CheckMoveRequest) (*MoveAndScoreResult, error) {
+	_ = req
 	return &MoveAndScoreResult{
-		Success:     true,
-		BeforeScore: beforeScore,
-		NewScore:    afterScore,
-		Delta:       afterScore - beforeScore,
-		ScoreDetail: afterBD,
+		Success: false,
+		Error:   "v0.6.0 migration in progress — move-and-score temporarily disabled",
 	}, nil
 }
 
-// getClassIDs returns all class group IDs associated with a schedule entry.
+// TODO(v0.6.1): getClassIDs/getClassGroupTotalStudents need access to TeachingTask data
+// via TimeAssignment (not ScheduleEntry) after the TA+SE split. Stubbed for now.
 func (s *MoveService) getClassIDs(entry models.ScheduleEntry) []uint {
-	if entry.TeachingTaskID != nil {
-		var ttClasses []models.TeachingTaskClass
-		if err := s.db.Where("teaching_task_id = ?", *entry.TeachingTaskID).Find(&ttClasses).Error(); err != nil {
-			log.Printf("[WARN] getClassIDs: 查询教学任务班级失败: %v", err)
-			return nil
-		}
-		ids := make([]uint, len(ttClasses))
-		for i, tc := range ttClasses {
-			ids[i] = tc.ClassGroupID
-		}
-		return ids
-	}
-	if entry.ClassGroupID != nil {
-		return []uint{*entry.ClassGroupID}
-	}
+	_ = entry
 	return nil
 }
 
-// getClassGroupTotalStudents returns the total number of students across all class groups
-// associated with a schedule entry.
 func (s *MoveService) getClassGroupTotalStudents(entry models.ScheduleEntry) int {
-	cgIDs := s.getClassIDs(entry)
-	if len(cgIDs) == 0 {
-		return 0
-	}
-	var total int
-	for _, cgID := range cgIDs {
-		var cg models.ClassGroup
-		if err := s.db.First(&cg, cgID).Error(); err == nil {
-			total += cg.Students
-		}
-	}
-	return total
+	_ = entry
+	return 0
 }
 
 // parseWeeksRange parses a Weeks string like "1-16" / "9-16" / "3" into a
@@ -495,59 +145,19 @@ func weeksOverlap(a, b string) bool {
 	return as <= be && bs <= ae
 }
 
-// computeScore loads all schedule data for the given semester and evaluates
-// it against ScoreSchedule. It uses the constraint list from the most recent
-// snapshot so the score is directly comparable to what the user saw after
-// the last full scheduling run.
+// TODO(v0.6.0): Adapt computeScore/computeScoreDB for TimeAssignment+ScheduleEntry split.
+// The scoring pipeline (ScoreSchedule) is being replaced by the 4-bucket scorer in v0.6.1.
 func (s *MoveService) computeScore(semesterID uint) (*ScoreBreakdown, error) {
-	return s.computeScoreDB(s.db, semesterID)
+	_ = semesterID
+	return &ScoreBreakdown{}, nil
 }
 
 // computeScoreDB is the transaction-aware variant of computeScore.
-// Callers inside a db.Transaction pass the tx handle so reads see uncommitted writes.
+// TODO(v0.6.0): will be properly adapted in v0.6.1.
 func (s *MoveService) computeScoreDB(db database.DB, semesterID uint) (*ScoreBreakdown, error) {
-	// Load all entries for the semester
-	var entries []models.ScheduleEntry
-	if err := db.Where("semester_id = ?", semesterID).
-		Preload("Course").Preload("Teacher").Preload("Classroom").
-		Preload("TeachingTask.Classes.ClassGroup").
-		Find(&entries).Error(); err != nil {
-		return nil, fmt.Errorf("加载课表数据失败: %w", err)
-	}
-
-	// Load all teachers
-	var teachers []models.Teacher
-	if err := db.Find(&teachers).Error(); err != nil {
-		return nil, err
-	}
-
-	// Load all classrooms
-	var classrooms []models.Classroom
-	if err := db.Find(&classrooms).Error(); err != nil {
-		return nil, err
-	}
-
-	// Load teaching tasks for this semester (needed for PE course detection
-	// and student_fatigue calculation)
-	var teachingTasks []models.TeachingTask
-	if semesterID > 0 {
-		if err := db.Where("semester_id = ?", semesterID).
-			Preload("Course").Preload("Teacher").
-			Preload("Classes.ClassGroup").
-			Find(&teachingTasks).Error(); err != nil {
-			return nil, fmt.Errorf("加载教学任务失败: %w", err)
-		}
-	}
-
-	// Build sports course IDs
-	sportsCourseIDs := s.buildSportsCourseIDs(teachingTasks)
-
-	// Use the same constraints that were active during the original scheduling run
-	constraints := s.loadLatestConstraintsDB(db, semesterID)
-
-	scoringCtx := NewScoringContext(constraints, sportsCourseIDs, teachingTasks)
-	breakdown := NewScoringService().ScoreSchedule(entries, teachers, classrooms, scoringCtx)
-	return &breakdown, nil
+	_ = db
+	_ = semesterID
+	return &ScoreBreakdown{}, nil
 }
 
 // loadLatestConstraints reads the constraint list from the most recent

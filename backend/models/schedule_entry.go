@@ -2,26 +2,17 @@ package models
 
 import "gorm.io/gorm"
 
-// ScheduleEntry represents a single scheduled course slot.
+// ScheduleEntry 是 v0.6.0 模型拆分后的资源分配实体。
+// 一条 ScheduleEntry = 一个 TimeAssignment 分配到一间 Classroom。
+// TIME_ONLY 模式下本表为零行 (INV-E1)。
 type ScheduleEntry struct {
 	gorm.Model
-	CourseID    uint   `gorm:"index;not null" json:"courseId"`
-	TeacherID   uint   `gorm:"index;not null" json:"teacherId"`
-	ClassroomID uint   `gorm:"uniqueIndex:idx_schedule_room;not null" json:"classroomId"`
-	ClassGroupID   *uint `gorm:"index" json:"classGroupId"`       // legacy FK, kept for backward compatibility
-	TeachingTaskID *uint `gorm:"index" json:"teachingTaskId"`     // FK to TeachingTask, enables combined classes
-	SemesterID  uint      `gorm:"uniqueIndex:idx_schedule_room;not null" json:"semesterId"`
-	DayOfWeek   DayOfWeek `gorm:"uniqueIndex:idx_schedule_room;not null" json:"dayOfWeek"`   // 0=周一..6=周日
-	StartPeriod Period    `gorm:"uniqueIndex:idx_schedule_room;not null" json:"startPeriod"` // 0=第1节..10=第11节
-	Span        int       `gorm:"default:2" json:"span"`      // consecutive periods
-	Weeks       string    `gorm:"size:50;default:1-16" json:"weeks"`
-	IsVirtual   bool      `gorm:"default:false" json:"isVirtual"` // TIME_ONLY: virtual classroom, skip room scoring
+	SemesterID        uint `gorm:"index;not null" json:"semesterId"`
+	ScheduleVersionID uint `gorm:"index;not null" json:"scheduleVersionId"`
+	TimeAssignmentID  uint `gorm:"uniqueIndex;not null" json:"timeAssignmentId"`
+	ClassroomID       uint `gorm:"index;not null" json:"classroomId"`
 
-	// Associations
-	Course       Course        `gorm:"foreignKey:CourseID" json:"course,omitempty"`
-	Teacher      Teacher       `gorm:"foreignKey:TeacherID" json:"teacher,omitempty"`
-	Classroom    Classroom     `gorm:"foreignKey:ClassroomID" json:"classroom,omitempty"`
-	ClassGroup   *ClassGroup   `gorm:"foreignKey:ClassGroupID" json:"classGroup,omitempty"`
-	TeachingTask *TeachingTask `gorm:"foreignKey:TeachingTaskID" json:"teachingTask,omitempty"`
-	Semester     Semester      `gorm:"foreignKey:SemesterID" json:"semester,omitempty"`
+	// Associations (read-only preloads)
+	TimeAssignment *TimeAssignment `gorm:"foreignKey:TimeAssignmentID" json:"timeAssignment,omitempty"`
+	Classroom      Classroom       `gorm:"foreignKey:ClassroomID" json:"classroom,omitempty"`
 }

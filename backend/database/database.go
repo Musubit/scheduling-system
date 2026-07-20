@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"scheduling-system/backend/appenv"
 	"scheduling-system/backend/models"
@@ -125,7 +126,15 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 	dbPath := filepath.Join(resourcesDir, "schedule.db")
 
 	gormDB, err := gorm.Open(sqlite.Open(dbPath+"?_foreign_keys=on"), &gorm.Config{
-		Logger:                                   logger.Default.LogMode(logger.Warn),
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             200 * time.Millisecond,
+				LogLevel:                  logger.Warn,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  false,
+			},
+		),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
@@ -144,6 +153,20 @@ func InitDB(resourcesDir string) (*GormAdapter, error) {
 	// 幂等：通过 settings 表标记完成状态，重复调用无副作用。
 	if err := MigrateRoomDomainV055(adapter); err != nil {
 		log.Printf("[migrate] room domain migration failed: %v", err)
+		return nil, err
+	}
+
+	// 确保 schema_migrations 表存在，供 MigrateV060 的 EnsureMigrationApplied 使用。
+	if err := adapter.AutoMigrate(&models.SchemaMigration{}); err != nil {
+		return nil, err
+	}
+
+	// v0.6.0 — ScheduleEntry 拆分 + TimeAssignment 激活。
+	// 在 AutoMigrate 之前执行：先备份并 DROP 旧 schedule_entries 表，
+	// 再由后续 AutoMigrate 用新 schema 重建。
+	// 幂等：通过 settings 表标记完成状态，重复调用无副作用。
+	if err := MigrateV060(adapter); err != nil {
+		log.Printf("[migrate] v0.6.0 migration failed: %v", err)
 		return nil, err
 	}
 

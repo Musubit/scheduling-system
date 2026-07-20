@@ -257,18 +257,104 @@ func (s *ResourceService) DeleteClassGroup(id uint) error {
 
 // ===== Schedule =====
 
-func (s *ResourceService) GetScheduleEntries(semesterID uint) ([]models.ScheduleEntry, error) {
-	var entries []models.ScheduleEntry
-	// Preload TeachingTask + its Classes so the schedule-center class filter can
-	// resolve entries by class group (auto-scheduled entries carry TeachingTaskID,
-	// not the legacy single ClassGroupID; 合班 tasks have multiple classes).
-	query := s.db.Preload("Course").Preload("Teacher").Preload("Classroom").
-		Preload("TeachingTask.Classes.ClassGroup")
-	if semesterID > 0 {
-		query = query.Where("semester_id = ?", semesterID)
+func (s *ResourceService) GetScheduleEntries(semesterID uint) ([]EnrichedScheduleEntry, error) {
+	// v0.6.2: Read from time_assignments (time data) + LEFT JOIN schedule_entries
+	// (room data) + teaching_tasks (course/teacher/class info).
+	// The old ScheduleEntry model no longer carries time fields after TA+SE split.
+
+	// 1. Load all TimeAssignments for the semester.
+	var tas []models.TimeAssignment
+	q := s.db.Where("semester_id = ?", semesterID)
+	if err := q.Order("id ASC").Find(&tas).Error(); err != nil {
+		return nil, err
 	}
-	result := query.Find(&entries)
-	return entries, result.Error()
+	if len(tas) == 0 {
+		return nil, nil
+	}
+
+	// 2. Collect TeachingTaskIDs for batch load.
+	ttIDs := make([]uint, 0, len(tas))
+	seenTT := make(map[uint]bool)
+	for _, ta := range tas {
+		if !seenTT[ta.TeachingTaskID] {
+			seenTT[ta.TeachingTaskID] = true
+			ttIDs = append(ttIDs, ta.TeachingTaskID)
+		}
+	}
+
+	// 3. Batch load TeachingTasks with Course + Teacher + Classes.
+	var tts []models.TeachingTask
+	if err := s.db.Where("id IN ?", ttIDs).
+		Preload("Course").Preload("Teacher").
+		Preload("Classes.ClassGroup").Find(&tts).Error(); err != nil {
+		return nil, err
+	}
+	ttByID := make(map[uint]models.TeachingTask, len(tts))
+	for _, tt := range tts {
+		ttByID[tt.ID] = tt
+	}
+
+	// 4. Batch load ScheduleEntries (room data) for this semester.
+	var ses []models.ScheduleEntry
+	taIDs := make([]uint, len(tas))
+	for i, ta := range tas {
+		taIDs[i] = ta.ID
+	}
+	s.db.Where("time_assignment_id IN ?", taIDs).
+		Preload("Classroom.Building").Find(&ses)
+	seByTA := make(map[uint]models.ScheduleEntry, len(ses))
+	for _, se := range ses {
+		seByTA[se.TimeAssignmentID] = se
+	}
+
+	// 5. Build EnrichedScheduleEntry for each TimeAssignment.
+	result := make([]EnrichedScheduleEntry, 0, len(tas))
+	for _, ta := range tas {
+		tt, ok := ttByID[ta.TeachingTaskID]
+		if !ok {
+			continue
+		}
+		enriched := EnrichedScheduleEntry{
+			ID:                ta.ID,
+			DayOfWeek:         int(ta.DayOfWeek),
+			StartPeriod:       int(ta.StartPeriod),
+			Span:              ta.Span,
+			Weeks:             fmt.Sprintf("%d-%d", tt.StartWeek, tt.EndWeek),
+			TeacherID:         tt.TeacherID,
+			TeacherName:       tt.Teacher.Name,
+			CourseID:          tt.CourseID,
+			CourseName:        tt.Course.Name,
+			CourseCode:        tt.Course.Code,
+			CourseCredit:      tt.Course.Credit,
+			TeachingTaskID:    &ta.TeachingTaskID,
+			SemesterID:        ta.SemesterID,
+			ScheduleVersionID: ta.ScheduleVersionID,
+		}
+		// Class info from TeachingTask
+		for _, cls := range tt.Classes {
+			enriched.ClassGroupIDs = append(enriched.ClassGroupIDs, cls.ClassGroupID)
+			enriched.ClassGroupNames = append(enriched.ClassGroupNames, cls.ClassGroup.Name)
+		}
+		// Room info from ScheduleEntry (FULL mode only)
+		if se, hasRoom := seByTA[ta.ID]; hasRoom {
+			cid := se.ClassroomID
+			enriched.ClassroomID = &cid
+			cname := se.Classroom.Name
+			enriched.ClassroomName = &cname
+			floor := se.Classroom.Floor
+			enriched.ClassroomFloor = &floor
+			rtype := se.Classroom.RoomType
+			enriched.ClassroomType = &rtype
+			ccode := se.Classroom.Code
+			enriched.ClassroomCode = &ccode
+			if se.Classroom.Building.ID != 0 {
+				bname := se.Classroom.Building.Name
+				enriched.BuildingName = &bname
+			}
+		}
+		result = append(result, enriched)
+	}
+	return result, nil
 }
 
 // ===== Settings =====
